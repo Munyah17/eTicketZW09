@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 130" width="600" height="130">
+  <rect width="600" height="130" rx="8" fill="white" stroke="#00AEEF" stroke-width="2"/>
+
+  <!-- Paynow logo text -->
+  <text x="24" y="38" font-family="Arial, sans-serif" font-weight="900" font-size="26" fill="#00AEEF">paynow</text>
+  <text x="24" y="55" font-family="Arial, sans-serif" font-size="11" fill="#555">secure online payments</text>
+
+  <!-- Divider line -->
+  <line x1="16" y1="64" x2="584" y2="64" stroke="#00AEEF" stroke-width="1.5"/>
+
+  <!-- VISA -->
+  <g transform="translate(16, 72)">
+    <rect width="88" height="44" rx="4" fill="#1A1F71"/>
+    <text x="44" y="30" font-family="Arial, sans-serif" font-weight="900" font-size="22" fill="white" text-anchor="middle" letter-spacing="-1">VISA</text>
+  </g>
+
+  <!-- Mastercard -->
+  <g transform="translate(114, 72)">
+    <rect width="88" height="44" rx="4" fill="#252525"/>
+    <circle cx="32" cy="22" r="18" fill="#EB001B"/>
+    <circle cx="56" cy="22" r="18" fill="#F79E1B"/>
+    <path d="M44 8.5 A18 18 0 0 1 44 35.5 A18 18 0 0 1 44 8.5Z" fill="#FF5F00"/>
+  </g>
+
+  <!-- ZimSwitch -->
+  <g transform="translate(212, 72)">
+    <rect width="88" height="44" rx="4" fill="#FFD700"/>
+    <text x="44" y="18" font-family="Arial, sans-serif" font-weight="900" font-size="9" fill="#000" text-anchor="middle">ZIM</text>
+    <text x="44" y="30" font-family="Arial, sans-serif" font-weight="900" font-size="9" fill="#000" text-anchor="middle">SWITCH</text>
+    <text x="44" y="40" font-family="Arial, sans-serif" font-size="7" fill="#333" text-anchor="middle">Interbank</text>
+  </g>
+
+  <!-- EcoCash -->
+  <g transform="translate(310, 72)">
+    <rect width="88" height="44" rx="4" fill="#00A651"/>
+    <text x="44" y="20" font-family="Arial, sans-serif" font-weight="900" font-size="10" fill="white" text-anchor="middle">Eco</text>
+    <text x="44" y="34" font-family="Arial, sans-serif" font-weight="900" font-size="10" fill="white" text-anchor="middle">Cash</text>
+  </g>
+
+  <!-- OneMoney -->
+  <g transform="translate(408, 72)">
+    <rect width="88" height="44" rx="4" fill="#E30613"/>
+    <text x="44" y="20" font-family="Arial, sans-serif" font-weight="900" font-size="9" fill="white" text-anchor="middle">ONE</text>
+    <text x="44" y="33" font-family="Arial, sans-serif" font-weight="900" font-size="9" fill="white" text-anchor="middle">MONEY</text>
+  </g>
+
+  <!-- Telecash -->
+  <g transform="translate(506, 72)">
+    <rect width="78" height="44" rx="4" fill="#F0F0F0"/>
+    <text x="39" y="20" font-family="Arial, sans-serif" font-weight="700" font-size="9" fill="#E30613" text-anchor="middle">tele</text>
+    <text x="39" y="33" font-family="Arial, sans-serif" font-weight="700" font-size="9" fill="#E30613" text-anchor="middle">cash</text>
+  </g>
+</svg>
