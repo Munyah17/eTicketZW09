@@ -188,7 +188,7 @@ class StripeService {
         line_items: [
           {
             price_data: {
-              currency: "usd",
+              currency: request.currency.toLowerCase(),
               product_data: { name: request.product_name },
               unit_amount: Math.round(request.amount * 100),
             },
