@@ -29,17 +29,23 @@ const AuthContext = createContext<AuthContextType>({
   canAccessAdmin: false,
 });
 
-// Demo users for testing different roles
+// Super admin identity — this account can never be deleted; password changes require email confirmation
+export const SUPER_ADMIN_ID = "usr-super-001";
+export const SUPER_ADMIN_EMAIL = "munyamuzvidziwa19@gmail.com";
+export function isSuperAdminAccount(user: User): boolean {
+  return user.id === SUPER_ADMIN_ID || user.email === SUPER_ADMIN_EMAIL;
+}
+
 export const demoUsers: Record<UserRole, User> = {
   super_admin: {
-    id: "usr-super-001",
+    id: SUPER_ADMIN_ID,
     name: "Munyah Griezmann",
-    email: "munyamuzvidziwa19@gmail.com",
+    email: SUPER_ADMIN_EMAIL,
     phone: "+263773909307",
     role: "super_admin",
     verified: true,
     createdAt: "2023-01-01T00:00:00Z",
-    password: "griezmann17",
+    password: "@@Griezmann177#$",
   },
   admin: {
     id: "usr-admin-001",
@@ -102,6 +108,8 @@ export function getRegisteredUsers(): User[] {
 
 export function saveRegisteredUser(user: User): void {
   if (typeof window === "undefined") return;
+  // Super admin account is managed in code only — it cannot be modified via localStorage
+  if (isSuperAdminAccount(user)) return;
   const users = getRegisteredUsers();
   const idx = users.findIndex((u) => u.email === user.email);
   if (idx >= 0) {

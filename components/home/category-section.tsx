@@ -75,6 +75,34 @@ export function FeaturedSection({ events, title = "Featured Events" }: { events:
   );
 }
 
+export function NewestEventsSection({ events }: { events: Event[] }) {
+  if (events.length === 0) return null;
+
+  return (
+    <section className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold md:text-3xl">Newest Events</h2>
+          <p className="mt-1 text-muted-foreground">The latest events added to the platform</p>
+        </div>
+        <Link href="/events?sort=newest">
+          <Button variant="ghost" className="gap-1 text-primary hover:text-primary/80">
+            View Latest
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </Link>
+      </div>
+
+      {/* 4 columns × 2 rows = 8 events */}
+      <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+        {events.slice(0, 8).map((event) => (
+          <EventCard key={event.id} event={event} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function UpcomingSection({ events }: { events: Event[] }) {
   if (events.length === 0) {
     return null;

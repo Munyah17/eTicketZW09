@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 
 const cities = ["All Cities", "Harare", "Bulawayo", "Victoria Falls", "Mutare", "Gweru"];
 const sortOptions = [
+  { value: "newest", label: "Recently Posted" },
   { value: "date-asc", label: "Date: Soonest First" },
   { value: "date-desc", label: "Date: Latest First" },
   { value: "price-asc", label: "Price: Low to High" },
@@ -32,11 +33,12 @@ const sortOptions = [
 function EventsPageContent() {
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get("category") as EventCategory | null;
+  const initialSort = searchParams.get("sort");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || "all");
   const [selectedCity, setSelectedCity] = useState("All Cities");
-  const [sortBy, setSortBy] = useState("date-asc");
+  const [sortBy, setSortBy] = useState(initialSort === "newest" ? "newest" : "date-asc");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showFilters, setShowFilters] = useState(false);
 
@@ -67,6 +69,9 @@ function EventsPageContent() {
 
     // Sort
     switch (sortBy) {
+      case "newest":
+        events.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        break;
       case "date-asc":
         events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         break;
@@ -249,9 +254,17 @@ function EventsPageContent() {
         {/* Events Grid */}
         <section className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
           <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Showing <span className="font-medium text-foreground">{filteredEvents.length}</span> events
-            </p>
+            <div className="flex items-center gap-3">
+              <p className="text-sm text-muted-foreground">
+                Showing <span className="font-medium text-foreground">{filteredEvents.length}</span> events
+              </p>
+              {sortBy === "newest" && (
+                <Badge variant="secondary" className="gap-1">
+                  Recently Posted
+                  <button onClick={() => setSortBy("date-asc")} className="ml-1 hover:text-foreground">×</button>
+                </Badge>
+              )}
+            </div>
           </div>
 
           {filteredEvents.length === 0 ? (

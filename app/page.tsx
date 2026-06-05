@@ -2,14 +2,14 @@ import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { HeroSlider } from "@/components/home/hero-slider";
 import { SearchSection } from "@/components/home/search-section";
-import { FeaturedSection, CategorySection, UpcomingSection } from "@/components/home/category-section";
+import { FeaturedSection, CategorySection, UpcomingSection, NewestEventsSection } from "@/components/home/category-section";
 import { SectionBanner, AdvertiseCTA } from "@/components/home/section-banner";
 import { TrustSection, StatsSection } from "@/components/home/trust-section";
-import { getEventsByCategory, getFeaturedEvents, getUpcomingEvents } from "@/lib/mock-data";
+import { getEventsByCategory, getFeaturedEvents, getUpcomingEvents, getNewestEvents } from "@/lib/mock-data";
 
 export default function HomePage() {
   const featuredEvents = getFeaturedEvents();
-  const comedyEvents = getEventsByCategory("comedy");
+  const newestEvents = getNewestEvents(8);
   const sportsEvents = getEventsByCategory("sports");
   const marathonEvents = getEventsByCategory("marathon");
   const festivalEvents = getEventsByCategory("festival");
@@ -35,8 +35,8 @@ export default function HomePage() {
         {/* Banner Ad Slot 1 */}
         <SectionBanner position={1} />
         
-        {/* Comedy Section */}
-        <CategorySection category="comedy" events={comedyEvents} />
+        {/* Newest Events */}
+        <NewestEventsSection events={newestEvents} />
         
         {/* Banner Ad Slot 2 */}
         <SectionBanner position={2} />

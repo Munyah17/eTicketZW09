@@ -487,6 +487,13 @@ export function getEventById(id: string): Event | undefined {
   return mockEvents.find((e) => e.id === id);
 }
 
+export function getNewestEvents(count = 8): Event[] {
+  return mockEvents
+    .filter((e) => e.status === "published")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, count);
+}
+
 export function getFeaturedEvents(): Event[] {
   return mockEvents
     .filter((e) => e.status === "published")
