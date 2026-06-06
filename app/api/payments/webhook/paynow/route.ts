@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get payment from database
-    const payment = PaymentService.getPayment(reference);
+    const payment = await PaymentService.getPayment(reference);
     if (!payment) {
       console.error("Payment not found:", reference);
       return NextResponse.json({ error: "Payment not found" }, { status: 404 });
@@ -35,21 +35,21 @@ export async function POST(req: NextRequest) {
       // Payment successful - generate ticket
       await PaymentService.updatePaymentStatus(reference, "paid");
       
-      // Generate ticket
+      const m = (payment.metadata ?? {}) as Record<string, unknown>;
       await createTicket({
         paymentId: reference,
-        eventId: payment.metadata?.eventId || "",
-        ticketTypeId: payment.metadata?.ticketTypeId || "",
-        ticketTypeName: payment.metadata?.ticketTypeName,
-        eventTitle: payment.metadata?.eventTitle,
-        eventDate: payment.metadata?.eventDate,
-        eventTime: payment.metadata?.eventTime,
-        venue: payment.metadata?.venue,
-        buyerName: payment.metadata?.buyerName || "",
-        buyerEmail: payment.metadata?.buyerEmail || "",
-        buyerPhone: payment.metadata?.buyerPhone || "",
-        displayName: payment.metadata?.displayName,
-        quantity: payment.metadata?.quantity,
+        eventId: (m.eventId as string) || "",
+        ticketTypeId: (m.ticketTypeId as string) || "",
+        ticketTypeName: m.ticketTypeName as string | undefined,
+        eventTitle: m.eventTitle as string | undefined,
+        eventDate: m.eventDate as string | undefined,
+        eventTime: m.eventTime as string | undefined,
+        venue: m.venue as string | undefined,
+        buyerName: (m.buyerName as string) || "",
+        buyerEmail: (m.buyerEmail as string) || "",
+        buyerPhone: (m.buyerPhone as string) || "",
+        displayName: m.displayName as string | undefined,
+        quantity: m.quantity as number | undefined,
         amount: amount || payment.amount,
         currency: payment.currency,
         paymentMethod: "paynow",

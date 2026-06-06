@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,9 +14,9 @@ import {
   Search, User, Ticket, Mail, Phone, Calendar, CheckCircle2,
   XCircle, Clock, HeadphonesIcon, Send, AlertTriangle, RefreshCw,
 } from "lucide-react";
-import { demoUsers, getRegisteredUsers, isSuperAdminAccount } from "@/lib/auth-context";
-import { mockTickets, mockEvents } from "@/lib/mock-data";
-import { User as UserType } from "@/lib/types";
+import { isSuperAdminAccount } from "@/lib/auth-context";
+import { mockTickets } from "@/lib/mock-data";
+import { User as UserType, UserRole } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
 import { logAuditAction } from "@/lib/audit-logger";
 
@@ -52,11 +52,25 @@ export default function SupportPage() {
   const [notifyMsg, setNotifyMsg] = useState("");
   const [tickets, setTickets] = useState(MOCK_SUPPORT);
   const [filterType, setFilterType] = useState("all");
+  const [allUsers, setAllUsers] = useState<UserType[]>([]);
 
-  const allUsers = [
-    ...Object.values(demoUsers),
-    ...getRegisteredUsers().filter(r => !Object.values(demoUsers).find(d => d.email === r.email)),
-  ];
+  useEffect(() => {
+    fetch("/api/admin/users")
+      .then(r => r.json())
+      .then(json => {
+        const rows = (json.users ?? []) as Record<string, unknown>[];
+        setAllUsers(rows.map(r => ({
+          id: r.id as string,
+          name: (r.name as string) ?? "",
+          email: (r.email as string) ?? "",
+          phone: (r.phone as string) ?? "",
+          role: (r.role as UserRole) ?? "customer",
+          verified: (r.verified as boolean) ?? false,
+          createdAt: (r.created_at as string) ?? "",
+        })));
+      })
+      .catch(() => {});
+  }, []);
 
   const handleUserLookup = () => {
     const q = userSearch.trim().toLowerCase();

@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const ticket = PaymentService.getTicketByPaymentReference(reference);
+  const ticket = await PaymentService.getTicketByPaymentReference(reference);
   if (!ticket) {
     return NextResponse.json(
       { error: "Ticket not found for this payment reference", reference },
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const payment = PaymentService.getPayment(reference);
+  const payment = await PaymentService.getPayment(reference);
 
   // Normalize to the shape the confirmation page expects
   return NextResponse.json({

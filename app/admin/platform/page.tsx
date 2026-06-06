@@ -151,7 +151,7 @@ export default function PlatformPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium">{f.label}</p>
-                    {f.danger && config.features[f.key] && (
+                    {'danger' in f && f.danger && config.features[f.key] && (
                       <Badge className="bg-red-100 text-red-700 border-0 text-[10px] px-1.5">ACTIVE</Badge>
                     )}
                   </div>
@@ -160,7 +160,7 @@ export default function PlatformPage() {
                 <Switch
                   checked={config.features[f.key]}
                   onCheckedChange={val => setFeature(f.key, val)}
-                  className={f.danger && config.features[f.key] ? "data-[state=checked]:bg-red-500" : ""}
+                  className={'danger' in f && f.danger && config.features[f.key] ? "data-[state=checked]:bg-red-500" : ""}
                 />
               </div>
             ))}

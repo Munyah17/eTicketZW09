@@ -134,39 +134,47 @@ export default function CreateEventPage() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    try {
+      const now = new Date().toISOString();
+      const newEvent: Event = {
+        id: "", // will be assigned by DB
+        title,
+        description,
+        category: category as EventCategory,
+        date,
+        time,
+        venue,
+        city,
+        image: "",
+        gallery: [],
+        organizerId: user?.id || "",
+        organizerName: user?.name || "Unknown Organizer",
+        organizerCategory: user?.organizerCategory,
+        organizerSubtype: user?.organizerSubtype,
+        ticketTypes: ticketTypes.map((t) => ({
+          id: "", // will be assigned by DB
+          name: t.name,
+          description: t.description,
+          price: parseFloat(t.price),
+          currency: "USD" as const,
+          quantity: parseInt(t.quantity),
+          sold: 0,
+        })),
+        totalTickets: ticketTypes.reduce((sum, t) => sum + parseInt(t.quantity || "0"), 0),
+        soldTickets: 0,
+        status: "published",
+        createdAt: now,
+        updatedAt: now,
+      };
 
-    const now = new Date().toISOString();
-    const newEvent: Event = {
-      id: `evt-${Date.now()}`,
-      title,
-      description,
-      category: category as EventCategory,
-      date,
-      time,
-      venue,
-      city,
-      image: "",
-      gallery: [],
-      organizerId: user?.organizerId || user?.id || "organizer",
-      organizerName: user?.name || "Unknown Organizer",
-      ticketTypes: ticketTypes.map((t, i) => ({
-        id: `tt-${Date.now()}-${i}`,
-        name: t.name,
-        description: t.description,
-        price: parseFloat(t.price),
-        currency: "USD" as const,
-        quantity: parseInt(t.quantity),
-        sold: 0,
-      })),
-      totalTickets: ticketTypes.reduce((sum, t) => sum + parseInt(t.quantity || "0"), 0),
-      soldTickets: 0,
-      status: "published",
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    saveEvent(newEvent);
-    router.push("/organizer?created=true");
+      await saveEvent(newEvent);
+      router.push("/organizer?created=true");
+    } catch (err) {
+      console.error("Create event failed:", err);
+      alert("Failed to create event. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const isStep1Valid = title && description && category && date && time && venue && city;

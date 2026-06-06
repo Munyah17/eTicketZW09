@@ -1,5 +1,4 @@
 import { Event, Banner, Ticket, StaffMember, PayoutRequest, Organizer, User } from "./types";
-import { demoUsers } from "./auth-context";
 
 // Events are stored in localStorage via lib/events-store.ts
 // This array intentionally empty — no dummy/test events
@@ -149,4 +148,4 @@ export function getPayoutsByOrganizer(organizerId: string): PayoutRequest[] {
   return mockPayoutRequests.filter((p) => p.organizerId === organizerId);
 }
 
-export const mockUsers: User[] = Object.values(demoUsers).filter((u): u is User => !!u);
+export const mockUsers: User[] = [];

@@ -49,24 +49,23 @@ export function EventSections() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  const loadEvents = useCallback(() => {
-    setEvents(getStoredEvents());
-    setLoaded(true);
+  const loadEvents = useCallback(async () => {
+    try {
+      const data = await getStoredEvents();
+      setEvents(data);
+    } catch (e) {
+      console.error("EventSections load:", e);
+    } finally {
+      setLoaded(true);
+    }
   }, []);
 
   useEffect(() => {
-    // Initial load
     loadEvents();
 
-    // Refresh when saveEvent() is called in this tab (custom event)
-    window.addEventListener("eticket:events-updated", loadEvents);
-    // Refresh when the user switches back to this tab / window
-    window.addEventListener("focus", loadEvents);
-
-    return () => {
-      window.removeEventListener("eticket:events-updated", loadEvents);
-      window.removeEventListener("focus", loadEvents);
-    };
+    // Re-fetch when another component (e.g. create event) dispatches this
+    window.addEventListener("eticket:events-updated", loadEvents as EventListener);
+    return () => window.removeEventListener("eticket:events-updated", loadEvents as EventListener);
   }, [loadEvents]);
 
   const sections = useMemo(() => derivesections(events), [events]);

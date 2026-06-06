@@ -7,285 +7,140 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Ticket, UserPlus } from "lucide-react";
-import { ORGANIZER_CATEGORIES, OrganizerCategory } from "@/lib/types";
-import { useAuth, demoUsers, getRegisteredUsers, saveRegisteredUser } from "@/lib/auth-context";
-import { User } from "@/lib/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Ticket, UserPlus, Eye, EyeOff } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { UserRole } from "@/lib/types";
 
 export default function RegisterPage() {
-  const { login } = useAuth();
   const router = useRouter();
+  const { signUp } = useAuth();
 
-  const [accountType, setAccountType] = useState<"customer" | "organizer">("customer");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
-  const [organizerCategory, setOrganizerCategory] = useState("");
-  const [organizerSubtype, setOrganizerSubtype] = useState("");
-  const [company, setCompany] = useState("");
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState<"customer" | "organizer">("customer");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
-  const selectedCategory = ORGANIZER_CATEGORIES.find((c) => c.value === organizerCategory);
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setError("");
+    if (!name.trim()) { setError("Full name is required."); return; }
+    if (!email) { setError("Email is required."); return; }
+    if (password.length < 8) { setError("Password must be at least 8 characters."); return; }
+    if (password !== confirmPassword) { setError("Passwords do not match."); return; }
 
-    if (!agreedToTerms) {
-      setError("Please agree to the Terms of Service and Privacy Policy.");
-      return;
+    setIsSubmitting(true);
+    try {
+      const { needsConfirmation: confirm } = await signUp(email, password, name.trim(), role as UserRole, phone.trim());
+      if (confirm) {
+        setNeedsConfirmation(true);
+      } else {
+        router.push(role === "organizer" ? "/organizer" : "/");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Registration failed";
+      setError(msg.includes("already registered") ? "This email is already registered. Try signing in." : msg);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Check email is not already taken by a demo account or a registered user
-    const emailTaken =
-      Object.values(demoUsers).some((u) => u.email === email) ||
-      getRegisteredUsers().some((u) => u.email === email);
-
-    if (emailTaken) {
-      setError("An account with this email already exists. Please sign in.");
-      return;
-    }
-
-    setIsLoading(true);
-
-    const newUser: User = {
-      id: crypto.randomUUID(),
-      name: `${firstName.trim()} ${lastName.trim()}`.trim(),
-      email: email.trim().toLowerCase(),
-      phone: phone.trim(),
-      role: accountType === "organizer" ? "organizer" : "customer",
-      verified: false,
-      createdAt: new Date().toISOString(),
-      password,
-      ...(accountType === "organizer" && {
-        organizerCategory: (organizerCategory as OrganizerCategory) || undefined,
-        organizerSubtype: organizerSubtype || undefined,
-      }),
-    };
-
-    saveRegisteredUser(newUser);
-    login(newUser);
-
-    router.push("/");
   };
 
+  if (needsConfirmation) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+        <div className="w-full max-w-md text-center space-y-4">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary mx-auto">
+            <Ticket className="h-6 w-6 text-primary-foreground" />
+          </div>
+          <h1 className="text-2xl font-bold">Check your email</h1>
+          <p className="text-muted-foreground">
+            We sent a confirmation link to <strong>{email}</strong>.
+            Click it to activate your account, then{" "}
+            <Link href="/login" className="text-primary underline">sign in</Link>.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-secondary/30 px-4 py-8">
-      <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-              <Ticket className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-2xl font-bold">
-              E-Tickets<span className="text-primary">ZW</span>
-            </span>
-          </Link>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4">
+      <div className="w-full max-w-md space-y-6">
+        <div className="flex flex-col items-center gap-2 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary">
+            <Ticket className="h-6 w-6 text-primary-foreground" />
+          </div>
+          <h1 className="text-2xl font-bold">Create an account</h1>
+          <p className="text-sm text-muted-foreground">Join E-TicketsZW — Zimbabwe&apos;s event platform</p>
         </div>
 
         <Card>
-          <CardHeader className="text-center">
-            <CardTitle>Create Account</CardTitle>
-            <CardDescription>
-              Join Zimbabwe&apos;s premier ticketing platform
-            </CardDescription>
+          <CardHeader>
+            <CardTitle className="text-lg">Register</CardTitle>
+            <CardDescription>Fill in your details to get started</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
-                <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
-                  {error}
-                </div>
-              )}
-
-              {/* Account Type */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAccountType("customer")}
-                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
-                    accountType === "customer"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:bg-accent"
-                  }`}
-                >
-                  I&apos;m a Fan
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setAccountType("organizer")}
-                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition-all ${
-                    accountType === "organizer"
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:bg-accent"
-                  }`}
-                >
-                  I&apos;m an Organizer
-                </button>
+              <div className="space-y-1.5">
+                <Label htmlFor="name">Full Name</Label>
+                <Input id="name" placeholder="Your full name" value={name} onChange={(e) => setName(e.target.value)} disabled={isSubmitting} />
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First Name</Label>
-                  <Input
-                    id="firstName"
-                    placeholder="John"
-                    required
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last Name</Label>
-                  <Input
-                    id="lastName"
-                    placeholder="Doe"
-                    required
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
+                <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" disabled={isSubmitting} />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  placeholder="+263 7X XXX XXXX"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
+              <div className="space-y-1.5">
+                <Label htmlFor="phone">Phone (optional)</Label>
+                <Input id="phone" type="tel" placeholder="+263771234567" value={phone} onChange={(e) => setPhone(e.target.value)} disabled={isSubmitting} />
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label>I want to</Label>
+                <Select value={role} onValueChange={(v) => setRole(v as "customer" | "organizer")} disabled={isSubmitting}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="customer">Buy tickets (Customer)</SelectItem>
+                    <SelectItem value="organizer">Sell tickets (Organizer)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
                 <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+                <div className="relative">
+                  <Input id="password" type={showPassword ? "text" : "password"} placeholder="Min. 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" disabled={isSubmitting} className="pr-10" />
+                  <button type="button" onClick={() => setShowPassword((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" tabIndex={-1}>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
-              {accountType === "organizer" && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="category">Organizer Category</Label>
-                    <Select value={organizerCategory} onValueChange={setOrganizerCategory}>
-                      <SelectTrigger id="category">
-                        <SelectValue placeholder="Select your category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ORGANIZER_CATEGORIES.map((cat) => (
-                          <SelectItem key={cat.value} value={cat.value}>
-                            {cat.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {selectedCategory && (
-                    <div className="space-y-2">
-                      <Label htmlFor="subtype">Type</Label>
-                      <Select value={organizerSubtype} onValueChange={setOrganizerSubtype}>
-                        <SelectTrigger id="subtype">
-                          <SelectValue placeholder="Select your type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {selectedCategory.subtypes.map((subtype) => (
-                            <SelectItem key={subtype} value={subtype}>
-                              {subtype}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label htmlFor="company">Company / Organization</Label>
-                    <Input
-                      id="company"
-                      placeholder="Your company name"
-                      value={company}
-                      onChange={(e) => setCompany(e.target.value)}
-                    />
-                  </div>
-                </>
-              )}
-
-              <div className="flex items-start gap-2">
-                <Checkbox
-                  id="terms"
-                  className="mt-1"
-                  checked={agreedToTerms}
-                  onCheckedChange={(checked) => setAgreedToTerms(checked as boolean)}
-                />
-                <Label htmlFor="terms" className="text-sm font-normal leading-tight">
-                  I agree to the{" "}
-                  <Link href="/terms" className="text-primary hover:underline">
-                    Terms of Service
-                  </Link>{" "}
-                  and{" "}
-                  <Link href="/privacy" className="text-primary hover:underline">
-                    Privacy Policy
-                  </Link>
-                </Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="confirm">Confirm Password</Label>
+                <Input id="confirm" type="password" placeholder="Repeat password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" disabled={isSubmitting} />
               </div>
 
-              <Button
-                type="submit"
-                className="w-full gap-2 bg-primary hover:bg-primary/90"
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <>Creating account...</>
-                ) : (
-                  <>
-                    <UserPlus className="h-4 w-4" />
-                    Create Account
-                  </>
-                )}
+              {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? "Creating account…" : <><UserPlus className="mr-2 h-4 w-4" />Create Account</>}
               </Button>
             </form>
-
-            <p className="mt-6 text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link href="/login" className="font-medium text-primary hover:underline">
-                Sign in
-              </Link>
-            </p>
           </CardContent>
         </Card>
+
+        <p className="text-center text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">Sign in</Link>
+        </p>
       </div>
     </div>
   );

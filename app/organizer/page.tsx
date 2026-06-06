@@ -23,17 +23,18 @@ export default function OrganizerDashboard() {
   const { user } = useAuth();
   const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
 
-  const loadEvents = useCallback(() => {
+  const loadEvents = useCallback(async () => {
     if (user) {
-      const orgId = user.organizerId || user.id;
-      setOrganizerEvents(getOrganizerEvents(orgId));
+      const events = await getOrganizerEvents(user.id);
+      setOrganizerEvents(events);
     }
   }, [user]);
 
   useEffect(() => {
     loadEvents();
-    window.addEventListener("eticket:events-updated", loadEvents);
-    return () => window.removeEventListener("eticket:events-updated", loadEvents);
+    const refresh = () => { loadEvents(); };
+    window.addEventListener("eticket:events-updated", refresh);
+    return () => window.removeEventListener("eticket:events-updated", refresh);
   }, [loadEvents]);
 
   const totalTicketsSold = organizerEvents.reduce((sum, e) => sum + e.soldTickets, 0);

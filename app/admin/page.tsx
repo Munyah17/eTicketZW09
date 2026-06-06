@@ -20,22 +20,28 @@ import {
   CreditCard,
 } from "lucide-react";
 import { getStoredEvents } from "@/lib/events-store";
-import { getRegisteredUsers } from "@/lib/auth-context";
-import { mockPayoutRequests } from "@/lib/mock-data";
 import { PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
-import { Event } from "@/lib/types";
+import { Event, User } from "@/lib/types";
 
 export default function AdminDashboard() {
   const [events, setEvents] = useState<Event[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
-  const loadData = useCallback(() => {
-    setEvents(getStoredEvents());
+  const loadData = useCallback(async () => {
+    const [evts, { getRegisteredUsers }] = await Promise.all([
+      getStoredEvents(),
+      import("@/lib/auth-context"),
+    ]);
+    setEvents(evts);
+    const u = await getRegisteredUsers();
+    setUsers(u);
   }, []);
 
   useEffect(() => {
     loadData();
-    window.addEventListener("eticket:events-updated", loadData);
-    return () => window.removeEventListener("eticket:events-updated", loadData);
+    const refresh = () => { loadData(); };
+    window.addEventListener("eticket:events-updated", refresh);
+    return () => window.removeEventListener("eticket:events-updated", refresh);
   }, [loadData]);
 
   const publishedEvents = events.filter((e) => e.status === "published");
@@ -45,13 +51,9 @@ export default function AdminDashboard() {
   }, 0);
   const platformFees = totalRevenue * (PLATFORM_FEE_PERCENTAGE / 100);
 
-  const registeredUsers = getRegisteredUsers();
-  const organizerCount = registeredUsers.filter((u) => u.role === "organizer").length;
-
-  const pendingPayouts = mockPayoutRequests.filter((p) => p.status === "pending").length;
-  const pendingAmount = mockPayoutRequests
-    .filter((p) => p.status === "pending")
-    .reduce((s, p) => s + p.amount, 0);
+  const organizerCount = users.filter((u) => u.role === "organizer").length;
+  const pendingPayouts = 0;
+  const pendingAmount = 0;
 
   const kpis = [
     {
@@ -110,9 +112,7 @@ export default function AdminDashboard() {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 6);
 
-  const actionPayouts = mockPayoutRequests
-    .filter((p) => p.status === "pending" || p.status === "processing")
-    .slice(0, 5);
+  const actionPayouts: Array<{ id: string; organizerName: string; amount: number; status: string; paymentMethod: string }> = [];
 
   return (
     <div className="space-y-8">
@@ -321,7 +321,7 @@ export default function AdminDashboard() {
             </div>
           ) : (
             <div className="divide-y">
-              {registeredUsers
+              {users
                 .filter((u) => u.role === "organizer")
                 .slice(0, 4)
                 .map((org) => {

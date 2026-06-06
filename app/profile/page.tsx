@@ -11,11 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Save, User, Mail, Phone, MapPin, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { saveRegisteredUser, isSuperAdminAccount } from "@/lib/auth-context";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, login, isLoggedIn } = useAuth();
+  const { user, updateProfile, isLoggedIn, loading, isSuperAdmin } = useAuth();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -24,48 +23,32 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Populate form from logged-in user
   useEffect(() => {
     if (user) {
       setName(user.name ?? "");
       setEmail(user.email ?? "");
       setPhone(user.phone ?? "");
-      setCity(((user as unknown) as Record<string, unknown>).city as string ?? "");
     }
   }, [user]);
 
-  // Redirect to login if not authenticated
   useEffect(() => {
-    if (!isLoggedIn) router.push("/login");
-  }, [isLoggedIn, router]);
+    if (!loading && !isLoggedIn) router.push("/login");
+  }, [isLoggedIn, loading, router]);
 
-  if (!user) return null;
+  if (loading || !user) return null;
 
-  const isSuperAdmin = isSuperAdminAccount(user);
-
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-
-    const updated = {
-      ...user,
-      name: name.trim(),
-      phone: phone.trim(),
-      // Email change is blocked (auth identity); keep existing email
-    };
-
-    // Persist to localStorage for non-super-admin users
-    if (!isSuperAdmin) {
-      saveRegisteredUser(updated);
-    }
-
-    // Update active session so header / other components reflect changes immediately
-    login(updated);
-
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      await updateProfile({ name: name.trim(), phone: phone.trim() });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    }, 400);
+    } catch (err) {
+      console.error("Profile save failed:", err);
+      alert("Failed to save profile. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const initials = name

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect, useCallback } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,7 @@ import {
   Crown, Shield, User, Search, Plus, Trash2, UserX, UserCheck,
   KeyRound, RefreshCw, Users, AlertTriangle,
 } from "lucide-react";
-import {
-  demoUsers, getRegisteredUsers, saveRegisteredUser, isSuperAdminAccount, SUPER_ADMIN_EMAIL,
-} from "@/lib/auth-context";
+import { isSuperAdminAccount, SUPER_ADMIN_EMAIL } from "@/lib/auth-context";
 import { useAuth } from "@/lib/auth-context";
 import { logAuditAction } from "@/lib/audit-logger";
 import { User as UserType, UserRole } from "@/lib/types";
@@ -61,30 +59,43 @@ export default function UsersPage() {
   const [filterRole, setFilterRole] = useState("all");
   const [users, setUsers] = useState<UserType[]>([]);
   const [suspendedIds, setSuspendedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<UserType | null>(null);
   const [confirmRole, setConfirmRole] = useState<{ user: UserType; newRole: UserRole } | null>(null);
 
-  // Create admin form
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<"admin" | "organizer">("admin");
   const [createError, setCreateError] = useState("");
+  const [creating, setCreating] = useState(false);
 
-  const reload = () => {
-    const demo = Object.values(demoUsers);
-    const registered = getRegisteredUsers();
-    const merged = [
-      ...demo,
-      ...registered.filter(r => !demo.find(d => d.email === r.email)),
-    ];
-    setUsers(merged);
-    setSuspendedIds(getSuspendedIds());
-  };
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/users");
+      const json = await res.json();
+      const rows = (json.users ?? []) as Record<string, unknown>[];
+      const mapped: UserType[] = rows.map((r) => ({
+        id: r.id as string,
+        name: (r.name as string) ?? "",
+        email: (r.email as string) ?? "",
+        phone: (r.phone as string) ?? "",
+        role: (r.role as UserRole) ?? "customer",
+        verified: (r.verified as boolean) ?? false,
+        createdAt: (r.created_at as string) ?? "",
+        organizerId: (r.organizer_id as string | undefined),
+      }));
+      setUsers(mapped);
+      setSuspendedIds(getSuspendedIds());
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => { reload(); }, []);
+  useEffect(() => { reload(); }, [reload]);
 
   const filtered = users.filter(u => {
     const matchSearch =
@@ -98,26 +109,32 @@ export default function UsersPage() {
 
   const handleSuspend = (u: UserType) => {
     if (!adminUser) return;
-    toggleSuspend(u.id);
     const wasSuspended = suspendedIds.has(u.id);
+    toggleSuspend(u.id);
     logAuditAction(adminUser, wasSuspended ? "user.activate" : "user.suspend",
       `${wasSuspended ? "Activated" : "Suspended"} user ${u.email}`, u.id);
-    reload();
+    setSuspendedIds(getSuspendedIds());
   };
 
-  const handleDelete = (u: UserType) => {
+  const handleDelete = async (u: UserType) => {
     if (!adminUser) return;
-    const registered = getRegisteredUsers().filter(r => r.id !== u.id);
-    localStorage.setItem("eticket_registered_users", JSON.stringify(registered));
+    await fetch("/api/admin/users", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: u.id }),
+    });
     logAuditAction(adminUser, "user.delete", `Deleted user ${u.email}`, u.id);
     setConfirmDelete(null);
     reload();
   };
 
-  const handleRoleChange = (u: UserType, role: UserRole) => {
+  const handleRoleChange = async (u: UserType, role: UserRole) => {
     if (!adminUser) return;
-    const updated = { ...u, role };
-    saveRegisteredUser(updated);
+    await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: u.id, role }),
+    });
     logAuditAction(adminUser, "user.role_change",
       `Changed ${u.email} role from ${u.role} to ${role}`, u.id);
     setConfirmRole(null);
@@ -131,29 +148,28 @@ export default function UsersPage() {
     alert(`Password reset notification would be sent to ${u.email}`);
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     setCreateError("");
     if (!newName || !newEmail || !newPassword) {
       setCreateError("Name, email and password are required."); return;
     }
-    const exists = users.find(u => u.email === newEmail.toLowerCase().trim());
-    if (exists) { setCreateError("An account with this email already exists."); return; }
-    const newUser: UserType = {
-      id: crypto.randomUUID(),
-      name: newName.trim(),
-      email: newEmail.trim().toLowerCase(),
-      phone: newPhone.trim(),
-      role: newRole,
-      verified: true,
-      createdAt: new Date().toISOString(),
-      password: newPassword,
-    };
-    saveRegisteredUser(newUser);
-    if (adminUser) logAuditAction(adminUser, "user.create",
-      `Created ${newRole} account for ${newEmail}`, newUser.id);
-    setShowCreate(false);
-    setNewName(""); setNewEmail(""); setNewPhone(""); setNewPassword("");
-    reload();
+    setCreating(true);
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newEmail.trim(), password: newPassword, name: newName.trim(), role: newRole, phone: newPhone.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setCreateError(json.error ?? "Failed to create user"); return; }
+      if (adminUser) logAuditAction(adminUser, "user.create",
+        `Created ${newRole} account for ${newEmail}`, json.userId);
+      setShowCreate(false);
+      setNewName(""); setNewEmail(""); setNewPhone(""); setNewPassword("");
+      reload();
+    } finally {
+      setCreating(false);
+    }
   };
 
   const counts = {
@@ -225,17 +241,21 @@ export default function UsersPage() {
       <Card className="border-0 shadow-sm overflow-hidden">
         <CardContent className="p-0">
           <div className="divide-y">
-            {filtered.length === 0 && (
+            {loading && (
+              <div className="flex items-center justify-center py-16">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!loading && filtered.length === 0 && (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Users className="h-10 w-10 text-muted-foreground/40 mb-3" />
                 <p className="font-medium">No users found</p>
                 <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filter</p>
               </div>
             )}
-            {filtered.map(u => {
+            {!loading && filtered.map(u => {
               const isSA = isSuperAdminAccount(u);
               const isSuspended = suspendedIds.has(u.id);
-              const isDemo = !!Object.values(demoUsers).find(d => d.id === u.id);
               return (
                 <div key={u.id} className={`flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors ${isSuspended ? "opacity-60" : ""}`}>
                   {/* Avatar + Info */}
@@ -249,7 +269,6 @@ export default function UsersPage() {
                         <p className="font-medium text-sm truncate">{u.name}</p>
                         {isSA && <Crown className="h-3.5 w-3.5 text-yellow-500 shrink-0" />}
                         {isSuspended && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Suspended</Badge>}
-                        {isDemo && <Badge variant="outline" className="text-[10px] px-1.5 py-0">System</Badge>}
                       </div>
                       <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                       <p className="text-xs text-muted-foreground">{u.phone || "—"} · Joined {new Date(u.createdAt).toLocaleDateString()}</p>
@@ -265,7 +284,6 @@ export default function UsersPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-1 shrink-0 flex-wrap">
-                    {/* Suspend / Activate */}
                     {!isSA && (
                       <Button
                         size="sm" variant="ghost"
@@ -278,7 +296,6 @@ export default function UsersPage() {
                       </Button>
                     )}
 
-                    {/* Change Role (super admin only, cannot demote SA) */}
                     {isSuperAdmin && !isSA && (
                       <Select
                         value={u.role}
@@ -296,13 +313,11 @@ export default function UsersPage() {
                       </Select>
                     )}
 
-                    {/* Password Reset */}
                     <Button size="sm" variant="ghost" className="text-primary" onClick={() => handlePasswordReset(u)} title="Reset password">
                       <KeyRound className="h-4 w-4" />
                     </Button>
 
-                    {/* Delete (not SA, not system demo users except admin) */}
-                    {isSuperAdmin && !isSA && !isDemo && (
+                    {isSuperAdmin && !isSA && (
                       <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setConfirmDelete(u)} title="Delete user">
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -355,7 +370,9 @@ export default function UsersPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreate(false)}>Cancel</Button>
-            <Button onClick={handleCreate} className="bg-primary">Create Account</Button>
+            <Button onClick={handleCreate} disabled={creating} className="bg-primary">
+              {creating ? "Creating…" : "Create Account"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "No reference" }, { status: 400 });
       }
 
-      const payment = PaymentService.getPayment(reference);
+      const payment = await PaymentService.getPayment(reference);
       if (!payment) {
         console.error("Payment not found:", reference);
         return NextResponse.json({ error: "Payment not found" }, { status: 404 });
@@ -86,22 +86,23 @@ export async function POST(req: NextRequest) {
 
       await PaymentService.updatePaymentStatus(reference, "paid");
 
-      const existingTicket = PaymentService.getTicketByPaymentReference(reference);
+      const existingTicket = await PaymentService.getTicketByPaymentReference(reference);
       if (!existingTicket) {
+        const m = (payment.metadata ?? {}) as Record<string, unknown>;
         await createTicket({
           paymentId: session.payment_intent || session.id,
-          eventId: payment.metadata?.eventId || "",
-          ticketTypeId: payment.metadata?.ticketTypeId || "",
-          ticketTypeName: payment.metadata?.ticketTypeName,
-          eventTitle: payment.metadata?.eventTitle,
-          eventDate: payment.metadata?.eventDate,
-          eventTime: payment.metadata?.eventTime,
-          venue: payment.metadata?.venue,
-          buyerName: payment.metadata?.buyerName || "",
-          buyerEmail: payment.metadata?.buyerEmail || "",
-          buyerPhone: payment.metadata?.buyerPhone || "",
-          displayName: payment.metadata?.displayName,
-          quantity: payment.metadata?.quantity,
+          eventId: (m.eventId as string) || "",
+          ticketTypeId: (m.ticketTypeId as string) || "",
+          ticketTypeName: m.ticketTypeName as string | undefined,
+          eventTitle: m.eventTitle as string | undefined,
+          eventDate: m.eventDate as string | undefined,
+          eventTime: m.eventTime as string | undefined,
+          venue: m.venue as string | undefined,
+          buyerName: (m.buyerName as string) || "",
+          buyerEmail: (m.buyerEmail as string) || "",
+          buyerPhone: (m.buyerPhone as string) || "",
+          displayName: m.displayName as string | undefined,
+          quantity: m.quantity as number | undefined,
           amount: session.amount_total / 100,
           currency: session.currency.toUpperCase(),
           paymentMethod: "stripe",
@@ -116,7 +117,7 @@ export async function POST(req: NextRequest) {
       console.log("Checkout session expired:", session.id, reference);
 
       if (reference) {
-        const payment = PaymentService.getPayment(reference);
+        const payment = await PaymentService.getPayment(reference);
         if (payment && payment.status === "pending") {
           await PaymentService.updatePaymentStatus(reference, "failed");
           console.log("Payment expired:", reference);

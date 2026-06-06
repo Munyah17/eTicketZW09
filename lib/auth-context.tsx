@@ -1,13 +1,18 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { User, UserRole } from "./types";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { createClient } from "@/lib/supabase/client";
+import { User, UserRole, OrganizerCategory } from "./types";
 
 interface AuthContextType {
   user: User | null;
   isLoggedIn: boolean;
+  loading: boolean;
+  signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string, role: UserRole, phone?: string) => Promise<{ needsConfirmation: boolean }>;
+  logout: () => Promise<void>;
+  updateProfile: (updates: Partial<User>) => Promise<void>;
   login: (user: User) => void;
-  logout: () => void;
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isOrganizer: boolean;
@@ -19,8 +24,12 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoggedIn: false,
+  loading: true,
+  signIn: async () => {},
+  signUp: async () => ({ needsConfirmation: false }),
+  logout: async () => {},
+  updateProfile: async () => {},
   login: () => {},
-  logout: () => {},
   isSuperAdmin: false,
   isAdmin: false,
   isOrganizer: false,
@@ -29,80 +38,112 @@ const AuthContext = createContext<AuthContextType>({
   canAccessAdmin: false,
 });
 
-// Super admin identity — this account can never be deleted; password changes require email confirmation
-export const SUPER_ADMIN_ID = "usr-super-001";
 export const SUPER_ADMIN_EMAIL = "munyamuzvidziwa19@gmail.com";
+
 export function isSuperAdminAccount(user: User): boolean {
-  return user.id === SUPER_ADMIN_ID || user.email === SUPER_ADMIN_EMAIL;
+  return user.email === SUPER_ADMIN_EMAIL;
 }
 
-// Super admin is the only built-in account; all other users register through the app
-export const demoUsers: Partial<Record<UserRole, User>> = {
-  super_admin: {
-    id: SUPER_ADMIN_ID,
-    name: "Munyah Griezmann",
-    email: SUPER_ADMIN_EMAIL,
-    phone: "+263773909307",
-    role: "super_admin",
-    verified: true,
-    createdAt: "2023-01-01T00:00:00Z",
-    password: "@@Griezmann177#$",
-  },
-};
-
-const SESSION_KEY = "eticket_user";
-const REGISTERED_USERS_KEY = "eticket_registered_users";
-
-export function getRegisteredUsers(): User[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem(REGISTERED_USERS_KEY);
-    return stored ? (JSON.parse(stored) as User[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveRegisteredUser(user: User): void {
-  if (typeof window === "undefined") return;
-  // Super admin account is managed in code only — it cannot be modified via localStorage
-  if (isSuperAdminAccount(user)) return;
-  const users = getRegisteredUsers();
-  const idx = users.findIndex((u) => u.email === user.email);
-  if (idx >= 0) {
-    users[idx] = user;
-  } else {
-    users.push(user);
-  }
-  localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(users));
-}
-
-function loadUser(): User | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const stored = sessionStorage.getItem(SESSION_KEY);
-    return stored ? JSON.parse(stored) : null;
-  } catch {
-    return null;
-  }
+function dbProfileToUser(profile: Record<string, unknown>): User {
+  return {
+    id: profile.id as string,
+    name: (profile.name as string) || "",
+    email: (profile.email as string) || "",
+    phone: (profile.phone as string) || "",
+    role: profile.role as UserRole,
+    organizerId: profile.organizer_id as string | undefined,
+    organizerCategory: profile.organizer_category as OrganizerCategory | undefined,
+    organizerSubtype: profile.organizer_subtype as string | undefined,
+    avatar: profile.avatar as string | undefined,
+    verified: Boolean(profile.verified),
+    createdAt: profile.created_at as string,
+  };
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    setUser(loadUser());
+  const fetchProfile = useCallback(async (userId: string) => {
+    const supabase = createClient();
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+    if (profile) setUser(dbProfileToUser(profile));
+    setLoading(false);
   }, []);
 
-  const login = (newUser: User) => {
-    setUser(newUser);
-    sessionStorage.setItem(SESSION_KEY, JSON.stringify(newUser));
+  useEffect(() => {
+    const supabase = createClient();
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) fetchProfile(session.user.id);
+      else setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) fetchProfile(session.user.id);
+      else { setUser(null); setLoading(false); }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [fetchProfile]);
+
+  const signIn = async (email: string, password: string) => {
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
   };
 
-  const logout = () => {
-    setUser(null);
-    sessionStorage.removeItem(SESSION_KEY);
+  const signUp = async (
+    email: string,
+    password: string,
+    name: string,
+    role: UserRole,
+    phone = ""
+  ): Promise<{ needsConfirmation: boolean }> => {
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name, role, phone, verified: false },
+      },
+    });
+    if (error) throw new Error(error.message);
+    return { needsConfirmation: !data.session };
   };
+
+  const logout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setUser(null);
+  };
+
+  const updateProfile = async (updates: Partial<User>) => {
+    if (!user) return;
+    const supabase = createClient();
+    const dbUpdates: Record<string, unknown> = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+    if (updates.avatar !== undefined) dbUpdates.avatar = updates.avatar;
+    if (updates.organizerCategory !== undefined) dbUpdates.organizer_category = updates.organizerCategory;
+    if (updates.organizerSubtype !== undefined) dbUpdates.organizer_subtype = updates.organizerSubtype;
+
+    const { data: updated } = await supabase
+      .from("profiles")
+      .update(dbUpdates)
+      .eq("id", user.id)
+      .select()
+      .single();
+
+    if (updated) setUser(dbProfileToUser(updated));
+  };
+
+  // Kept for places that do session-only updates without a DB round-trip
+  const login = (updatedUser: User) => setUser(updatedUser);
 
   const role = user?.role;
   const isSuperAdmin = role === "super_admin";
@@ -117,8 +158,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isLoggedIn: !!user,
-        login,
+        loading,
+        signIn,
+        signUp,
         logout,
+        updateProfile,
+        login,
         isSuperAdmin,
         isAdmin,
         isOrganizer,
@@ -134,4 +179,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   return useContext(AuthContext);
+}
+
+// Admin helper — queries profiles table server-side via admin client
+// Use in server components or API routes only
+export async function getRegisteredUsers(): Promise<User[]> {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  const supabase = createAdminClient();
+  const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
+  return (data || []).map(dbProfileToUser);
 }

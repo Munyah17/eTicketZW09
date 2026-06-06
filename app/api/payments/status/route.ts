@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const payment = PaymentService.getPayment(reference);
+  const payment = await PaymentService.getPayment(reference);
   if (!payment) {
     return NextResponse.json(
       { error: "Payment not found", reference },
@@ -37,22 +37,23 @@ export async function GET(req: NextRequest) {
 
         if (res.ok && (session.payment_status === "paid" || session.status === "complete")) {
           // Only generate ticket if one doesn't exist yet (idempotency)
-          const existingTicket = PaymentService.getTicketByPaymentReference(reference);
+          const existingTicket = await PaymentService.getTicketByPaymentReference(reference);
           if (!existingTicket) {
+            const m = (payment.metadata ?? {}) as Record<string, unknown>;
             await generateTicket({
               paymentId: reference,
-              eventId: payment.metadata?.eventId || "",
-              ticketTypeId: payment.metadata?.ticketTypeId || "",
-              ticketTypeName: payment.metadata?.ticketTypeName,
-              eventTitle: payment.metadata?.eventTitle,
-              eventDate: payment.metadata?.eventDate,
-              eventTime: payment.metadata?.eventTime,
-              venue: payment.metadata?.venue,
-              buyerName: payment.metadata?.buyerName || "",
-              buyerEmail: payment.metadata?.buyerEmail || "",
-              buyerPhone: payment.metadata?.buyerPhone || "",
-              displayName: payment.metadata?.displayName,
-              quantity: payment.metadata?.quantity,
+              eventId: (m.eventId as string) || "",
+              ticketTypeId: (m.ticketTypeId as string) || "",
+              ticketTypeName: m.ticketTypeName as string | undefined,
+              eventTitle: m.eventTitle as string | undefined,
+              eventDate: m.eventDate as string | undefined,
+              eventTime: m.eventTime as string | undefined,
+              venue: m.venue as string | undefined,
+              buyerName: (m.buyerName as string) || "",
+              buyerEmail: (m.buyerEmail as string) || "",
+              buyerPhone: (m.buyerPhone as string) || "",
+              displayName: m.displayName as string | undefined,
+              quantity: m.quantity as number | undefined,
               amount: session.amount_total ? session.amount_total / 100 : payment.amount,
               currency: (session.currency || payment.currency).toUpperCase(),
               paymentMethod: "stripe",
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Re-read payment after possible update above
-  const updated = PaymentService.getPayment(reference)!;
+  const updated = (await PaymentService.getPayment(reference))!;
 
   const instruction =
     updated.status === "paid"
