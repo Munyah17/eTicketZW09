@@ -16,7 +16,9 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Plus, Trash2, Calendar, MapPin, Ticket, DollarSign, Info, Video, Image as ImageIcon, Upload, X, Film } from "lucide-react";
-import { EVENT_CATEGORIES, PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
+import { EVENT_CATEGORIES, PLATFORM_FEE_PERCENTAGE, Event, EventCategory } from "@/lib/types";
+import { saveEvent } from "@/lib/events-store";
+import { useAuth } from "@/lib/auth-context";
 
 interface TicketTypeForm {
   id: string;
@@ -28,6 +30,7 @@ interface TicketTypeForm {
 
 export default function CreateEventPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
 
@@ -131,8 +134,38 @@ export default function CreateEventPage() {
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const now = new Date().toISOString();
+    const newEvent: Event = {
+      id: `evt-${Date.now()}`,
+      title,
+      description,
+      category: category as EventCategory,
+      date,
+      time,
+      venue,
+      city,
+      image: "",
+      gallery: [],
+      organizerId: user?.organizerId || user?.id || "organizer",
+      organizerName: user?.name || "Unknown Organizer",
+      ticketTypes: ticketTypes.map((t, i) => ({
+        id: `tt-${Date.now()}-${i}`,
+        name: t.name,
+        description: t.description,
+        price: parseFloat(t.price),
+        currency: "USD" as const,
+        quantity: parseInt(t.quantity),
+        sold: 0,
+      })),
+      totalTickets: ticketTypes.reduce((sum, t) => sum + parseInt(t.quantity || "0"), 0),
+      soldTickets: 0,
+      status: "published",
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    saveEvent(newEvent);
     router.push("/organizer?created=true");
   };
 

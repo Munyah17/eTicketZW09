@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,23 +10,35 @@ import {
   DollarSign,
   Ticket,
   TrendingUp,
-  Users,
   Plus,
   ArrowRight,
   Eye,
 } from "lucide-react";
-import { mockEvents, mockTickets } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth-context";
+import { getOrganizerEvents } from "@/lib/events-store";
 import { PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
+import { Event } from "@/lib/types";
 
 export default function OrganizerDashboard() {
-  // Calculate stats from mock data
-  const organizerEvents = mockEvents.slice(0, 3); // Simulate organizer's events
+  const { user } = useAuth();
+  const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
+
+  const loadEvents = useCallback(() => {
+    if (user) {
+      const orgId = user.organizerId || user.id;
+      setOrganizerEvents(getOrganizerEvents(orgId));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadEvents();
+    window.addEventListener("eticket:events-updated", loadEvents);
+    return () => window.removeEventListener("eticket:events-updated", loadEvents);
+  }, [loadEvents]);
+
   const totalTicketsSold = organizerEvents.reduce((sum, e) => sum + e.soldTickets, 0);
   const totalRevenue = organizerEvents.reduce((sum, e) => {
-    const eventRevenue = e.ticketTypes.reduce((typeSum, t) => {
-      return typeSum + t.sold * t.price;
-    }, 0);
-    return sum + eventRevenue;
+    return sum + e.ticketTypes.reduce((typeSum, t) => typeSum + t.sold * t.price, 0);
   }, 0);
   const platformFees = totalRevenue * (PLATFORM_FEE_PERCENTAGE / 100);
   const netRevenue = totalRevenue - platformFees;
@@ -33,28 +48,28 @@ export default function OrganizerDashboard() {
       title: "Total Events",
       value: organizerEvents.length,
       icon: Calendar,
-      change: "+2 this month",
+      sub: organizerEvents.length === 0 ? "Create your first event" : `${organizerEvents.filter(e => e.status === "published").length} published`,
       color: "text-primary",
     },
     {
       title: "Tickets Sold",
       value: totalTicketsSold.toLocaleString(),
       icon: Ticket,
-      change: "+15% vs last month",
+      sub: totalTicketsSold === 0 ? "No tickets sold yet" : "Across all events",
       color: "text-success",
     },
     {
       title: "Gross Revenue",
-      value: `$${totalRevenue.toLocaleString()}`,
+      value: `$${totalRevenue.toFixed(2)}`,
       icon: DollarSign,
-      change: `Platform fee: $${platformFees.toFixed(2)}`,
+      sub: totalRevenue > 0 ? `Platform fee: $${platformFees.toFixed(2)}` : "No revenue yet",
       color: "text-warning",
     },
     {
       title: "Net Earnings",
-      value: `$${netRevenue.toLocaleString()}`,
+      value: `$${netRevenue.toFixed(2)}`,
       icon: TrendingUp,
-      change: "Available for payout",
+      sub: netRevenue > 0 ? "Available for payout" : "No earnings yet",
       color: "text-primary",
     },
   ];
@@ -64,9 +79,11 @@ export default function OrganizerDashboard() {
       {/* Welcome Section */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Welcome back, Organizer!</h1>
+          <h1 className="text-2xl font-bold">Welcome back, {user?.name || "Organizer"}!</h1>
           <p className="text-muted-foreground">
-            Here&apos;s what&apos;s happening with your events
+            {organizerEvents.length === 0
+              ? "Get started by creating your first event."
+              : "Here's what's happening with your events."}
           </p>
         </div>
         <Link href="/organizer/create">
@@ -86,7 +103,7 @@ export default function OrganizerDashboard() {
                 <div>
                   <p className="text-sm text-muted-foreground">{stat.title}</p>
                   <p className="mt-1 text-2xl font-bold">{stat.value}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{stat.change}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{stat.sub}</p>
                 </div>
                 <div className={`rounded-lg bg-secondary p-3 ${stat.color}`}>
                   <stat.icon className="h-5 w-5" />
@@ -97,7 +114,7 @@ export default function OrganizerDashboard() {
         ))}
       </div>
 
-      {/* Recent Events */}
+      {/* Events List */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Your Events</CardTitle>
@@ -109,55 +126,76 @@ export default function OrganizerDashboard() {
           </Link>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {organizerEvents.map((event) => {
-              const soldPercentage = Math.round(
-                (event.soldTickets / event.totalTickets) * 100
-              );
-              const eventRevenue = event.ticketTypes.reduce(
-                (sum, t) => sum + t.sold * t.price,
-                0
-              );
+          {organizerEvents.length === 0 ? (
+            <div className="py-12 text-center">
+              <Calendar className="mx-auto h-12 w-12 text-muted-foreground/40" />
+              <p className="mt-4 font-medium">No events yet</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Create your first event to start selling tickets.
+              </p>
+              <Link href="/organizer/create" className="mt-4 inline-block">
+                <Button className="gap-2 bg-primary hover:bg-primary/90">
+                  <Plus className="h-4 w-4" />
+                  Create Event
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {organizerEvents.map((event) => {
+                const soldPercentage =
+                  event.totalTickets > 0
+                    ? Math.round((event.soldTickets / event.totalTickets) * 100)
+                    : 0;
+                const eventRevenue = event.ticketTypes.reduce(
+                  (sum, t) => sum + t.sold * t.price,
+                  0
+                );
 
-              return (
-                <div
-                  key={event.id}
-                  className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                      <Calendar className="h-6 w-6 text-primary" />
+                return (
+                  <div
+                    key={event.id}
+                    className="flex flex-col gap-4 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                        <Calendar className="h-6 w-6 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold">{event.title}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(event.date).toLocaleDateString("en-ZW", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          })}{" "}
+                          at {event.time}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{event.title}</h3>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(event.date).toLocaleDateString("en-ZW", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}{" "}
-                        at {event.time}
-                      </p>
-                    </div>
-                  </div>
 
-                  <div className="flex flex-wrap items-center gap-4">
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground">Sold</p>
-                      <p className="font-semibold">
-                        {event.soldTickets}/{event.totalTickets}
-                      </p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-sm text-muted-foreground">Revenue</p>
-                      <p className="font-semibold">${eventRevenue.toLocaleString()}</p>
-                    </div>
-                    <Badge
-                      variant={soldPercentage >= 90 ? "destructive" : soldPercentage >= 50 ? "default" : "secondary"}
-                    >
-                      {soldPercentage}% sold
-                    </Badge>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-4">
+                      <div className="text-center">
+                        <p className="text-sm text-muted-foreground">Sold</p>
+                        <p className="font-semibold">
+                          {event.soldTickets}/{event.totalTickets}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-muted-foreground">Revenue</p>
+                        <p className="font-semibold">${eventRevenue.toFixed(2)}</p>
+                      </div>
+                      <Badge
+                        variant={
+                          soldPercentage >= 90
+                            ? "destructive"
+                            : soldPercentage >= 50
+                            ? "default"
+                            : "secondary"
+                        }
+                      >
+                        {soldPercentage}% sold
+                      </Badge>
                       <Link href={`/events/${event.id}`}>
                         <Button variant="outline" size="sm" className="gap-1">
                           <Eye className="h-3 w-3" />
@@ -166,51 +204,10 @@ export default function OrganizerDashboard() {
                       </Link>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recent Sales */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Recent Sales</CardTitle>
-          <Link href="/organizer/sales">
-            <Button variant="ghost" size="sm" className="gap-1">
-              View All
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {mockTickets.map((ticket) => (
-              <div
-                key={ticket.id}
-                className="flex items-center justify-between rounded-lg border p-4"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary">
-                    <Users className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{ticket.buyerDisplayName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {ticket.ticketTypeName} - {ticket.eventTitle}
-                    </p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold">${ticket.totalPaid.toFixed(2)}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(ticket.purchasedAt).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 

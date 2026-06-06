@@ -7,10 +7,24 @@ __v0_jsx-dev-runtime.ts
 .vercel/
 next.user-config.*
 
-# Environment variables
+# Environment variables — all real-key files are blocked
+# .env.example is the ONLY env file that should be committed
 .env
-.env*.local
 .env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+.env.staging
+.env*.local
+# Extra safety net — catch any ad-hoc copies
+*.env.bak
+*.env.backup
+
+# MCP config — contains real access tokens, never commit
+.mcp.json
 
 # Common ignores
 node_modules

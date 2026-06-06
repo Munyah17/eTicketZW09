@@ -66,8 +66,9 @@ export function FeaturedSection({ events, title = "Featured Events" }: { events:
         </Link>
       </div>
 
+      {/* 4 columns × 2 rows = 8 events on desktop */}
       <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {events.slice(0, 4).map((event) => (
+        {events.slice(0, 8).map((event) => (
           <EventCard key={event.id} event={event} />
         ))}
       </div>

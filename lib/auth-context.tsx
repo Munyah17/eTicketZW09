@@ -36,7 +36,8 @@ export function isSuperAdminAccount(user: User): boolean {
   return user.id === SUPER_ADMIN_ID || user.email === SUPER_ADMIN_EMAIL;
 }
 
-export const demoUsers: Record<UserRole, User> = {
+// Super admin is the only built-in account; all other users register through the app
+export const demoUsers: Partial<Record<UserRole, User>> = {
   super_admin: {
     id: SUPER_ADMIN_ID,
     name: "Munyah Griezmann",
@@ -46,50 +47,6 @@ export const demoUsers: Record<UserRole, User> = {
     verified: true,
     createdAt: "2023-01-01T00:00:00Z",
     password: "@@Griezmann177#$",
-  },
-  admin: {
-    id: "usr-admin-001",
-    name: "Tendai Moyo",
-    email: "admin@eticket.co.zw",
-    phone: "+263771234567",
-    role: "admin",
-    verified: true,
-    createdAt: "2023-03-15T00:00:00Z",
-    password: "admin123",
-  },
-  organizer: {
-    id: "usr-org-001",
-    name: "Ghettocracy Entertainment",
-    email: "info@ghettocracy.co.zw",
-    phone: "+263773909307",
-    role: "organizer",
-    organizerId: "org-001",
-    organizerCategory: "music_entertainment",
-    organizerSubtype: "Comedy Club / Stand-up Comedian",
-    verified: true,
-    createdAt: "2023-06-15T00:00:00Z",
-    password: "organizer123",
-  },
-  staff: {
-    id: "usr-staff-001",
-    name: "Tendai Nyamande",
-    email: "tendai@ghettocracy.co.zw",
-    phone: "+263771111111",
-    role: "staff",
-    organizerId: "org-001",
-    verified: true,
-    createdAt: "2024-01-10T00:00:00Z",
-    password: "staff123",
-  },
-  customer: {
-    id: "usr-cust-001",
-    name: "Tatenda Moyo",
-    email: "user@example.com",
-    phone: "+263772345678",
-    role: "customer",
-    verified: true,
-    createdAt: "2024-05-20T00:00:00Z",
-    password: "user123",
   },
 };
 

@@ -17,6 +17,11 @@ import {
   Crown,
   Briefcase,
   LogOut,
+  UserCog,
+  CreditCard,
+  Settings2,
+  HeadphonesIcon,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,22 +30,29 @@ import { useAuth } from "@/lib/auth-context";
 import { mockPayoutRequests } from "@/lib/mock-data";
 
 const superAdminLinks = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/banners", label: "Banner Management", icon: Image },
-  { href: "/admin/events", label: "Events & Markups", icon: Tag },
-  { href: "/admin/tickets", label: "All Tickets", icon: Ticket },
-  { href: "/admin/organizers", label: "Organizers", icon: Users },
-  { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign },
-  { href: "/admin/settings", label: "Settings", icon: Settings },
+  // ── Operations ──────────────────────────────
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, group: "Operations" },
+  { href: "/admin/events", label: "Events & Markups", icon: Tag, group: "Operations" },
+  { href: "/admin/tickets", label: "All Tickets", icon: Ticket, group: "Operations" },
+  { href: "/admin/organizers", label: "Organizers", icon: Users, group: "Operations" },
+  { href: "/admin/banners", label: "Banner Management", icon: Image, group: "Operations" },
+  { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign, group: "Operations" },
+  // ── Super Admin ──────────────────────────────
+  { href: "/admin/users", label: "User Management", icon: UserCog, group: "Super Admin" },
+  { href: "/admin/transactions", label: "Transactions", icon: CreditCard, group: "Super Admin" },
+  { href: "/admin/platform", label: "Platform Config", icon: Settings2, group: "Super Admin" },
+  { href: "/admin/support", label: "Support & Ops", icon: HeadphonesIcon, group: "Super Admin" },
+  { href: "/admin/audit", label: "Audit Log", icon: Shield, group: "Super Admin" },
+  { href: "/admin/settings", label: "Settings", icon: Settings, group: "Super Admin" },
 ];
 
 const adminLinks = [
-  { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/banners", label: "Banner Management", icon: Image },
-  { href: "/admin/events", label: "Events & Markups", icon: Tag },
-  { href: "/admin/tickets", label: "All Tickets", icon: Ticket },
-  { href: "/admin/organizers", label: "Organizers", icon: Users },
-  { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign },
+  { href: "/admin", label: "Dashboard", icon: LayoutDashboard, group: "Operations" },
+  { href: "/admin/events", label: "Events & Markups", icon: Tag, group: "Operations" },
+  { href: "/admin/tickets", label: "All Tickets", icon: Ticket, group: "Operations" },
+  { href: "/admin/organizers", label: "Organizers", icon: Users, group: "Operations" },
+  { href: "/admin/banners", label: "Banner Management", icon: Image, group: "Operations" },
+  { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign, group: "Operations" },
 ];
 
 export default function AdminLayout({
@@ -90,37 +102,51 @@ export default function AdminLayout({
   const PanelIcon = isSuperAdmin ? Crown : Briefcase;
   const pendingPayouts = mockPayoutRequests.filter(p => p.status === "pending").length;
 
-  const NavLinks = ({ onNav }: { onNav?: () => void }) => (
-    <>
-      {sidebarLinks.map((link) => {
-        const isActive = pathname === link.href ||
-          (link.href !== "/admin" && pathname.startsWith(link.href));
-        const hasBadge = link.href === "/admin/payouts" && pendingPayouts > 0;
-        return (
-          <Link
-            key={link.href}
-            href={link.href}
-            onClick={onNav}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
-              isActive
-                ? "bg-white/10 text-white shadow-sm"
-                : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-            )}
-          >
-            <link.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-slate-500")} />
-            <span className="flex-1">{link.label}</span>
-            {hasBadge && (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-                {pendingPayouts}
-              </span>
-            )}
-            {isActive && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
-          </Link>
-        );
-      })}
-    </>
-  );
+  const NavLinks = ({ onNav }: { onNav?: () => void }) => {
+    const groups = sidebarLinks.reduce<Record<string, typeof sidebarLinks>>((acc, link) => {
+      const g = link.group || "Operations";
+      if (!acc[g]) acc[g] = [];
+      acc[g].push(link);
+      return acc;
+    }, {});
+
+    return (
+      <>
+        {Object.entries(groups).map(([group, links]) => (
+          <div key={group} className="mb-3">
+            <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1">{group}</p>
+            {links.map((link) => {
+              const isActive = pathname === link.href ||
+                (link.href !== "/admin" && pathname.startsWith(link.href));
+              const hasBadge = link.href === "/admin/payouts" && pendingPayouts > 0;
+              return (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={onNav}
+                  className={cn(
+                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150",
+                    isActive
+                      ? "bg-white/10 text-white shadow-sm"
+                      : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+                  )}
+                >
+                  <link.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-white" : "text-slate-500")} />
+                  <span className="flex-1">{link.label}</span>
+                  {hasBadge && (
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+                      {pendingPayouts}
+                    </span>
+                  )}
+                  {isActive && <div className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
+      </>
+    );
+  };
 
   const UserFooter = () => (
     <div className="space-y-2">
@@ -173,10 +199,7 @@ export default function AdminLayout({
           </div>
 
           {/* Nav */}
-          <nav className="flex-1 px-3 py-5 space-y-0.5 overflow-y-auto">
-            <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2">
-              Management
-            </p>
+          <nav className="flex-1 px-3 py-5 overflow-y-auto">
             <NavLinks />
           </nav>
 
@@ -234,8 +257,7 @@ export default function AdminLayout({
               <X className="h-5 w-5" />
             </Button>
           </div>
-          <nav className="flex-1 px-3 py-5 space-y-0.5 overflow-y-auto">
-            <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2">Management</p>
+          <nav className="flex-1 px-3 py-5 overflow-y-auto">
             <NavLinks onNav={() => setMobileMenuOpen(false)} />
           </nav>
           <div className="px-3 pb-4 border-t border-white/10 pt-4 shrink-0">
