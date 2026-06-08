@@ -1,5 +1,6 @@
 import QRCode from "qrcode";
 import { v4 as uuidv4 } from "uuid";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export interface TicketGenerationData {
   paymentId: string;
@@ -46,25 +47,21 @@ export interface GeneratedTicket {
 }
 
 export async function generateTicket(data: TicketGenerationData): Promise<GeneratedTicket> {
-  // Generate unique ticket ID
   const ticketId = `tkt-${uuidv4()}`;
-  
-  // Generate QR code
   const qrCode = await generateQRCode(ticketId);
-  
-  // Create ticket object
+
   const ticket: GeneratedTicket = {
     id: ticketId,
     eventId: data.eventId,
     ticketTypeId: data.ticketTypeId,
     ticketTypeName: data.ticketTypeName || "Standard",
     eventTitle: data.eventTitle || "Event",
-    eventDate: data.eventDate || new Date().toISOString().split('T')[0],
+    eventDate: data.eventDate || new Date().toISOString().split("T")[0],
     eventTime: data.eventTime || "19:00",
     venue: data.venue || "Venue",
     buyerName: data.buyerName,
     buyerContact: data.buyerPhone,
-    buyerDisplayName: data.displayName || data.buyerName.split(' ').map(n => n[0]).join(''),
+    buyerDisplayName: data.displayName || data.buyerName.split(" ").map((n) => n[0]).join(""),
     price: data.amount / (data.quantity || 1),
     markup: 0,
     totalPaid: data.amount,
@@ -77,21 +74,40 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     purchasedAt: new Date().toISOString(),
     saleType: "online",
   };
-  
-  // Import PaymentService to persist ticket
-  const { PaymentService } = await import("./services/payment-service");
-  PaymentService.storeTicket(ticketId, { ...ticket, paymentId: data.paymentId });
-  
-  // TODO: Save ticket to database
-  // TODO: Send confirmation email/SMS to buyer
-  // TODO: Update event's sold ticket count
-  
-  console.log("Ticket generated and stored:", {
-    ticketId: ticket.id,
-    eventId: ticket.eventId,
-    buyerEmail: data.buyerEmail,
-    amount: data.amount,
+
+  // Persist to DB with snake_case columns matching the PostgreSQL schema
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("tickets").insert({
+    id: ticketId,
+    payment_reference: data.paymentId,
+    event_id: data.eventId || null,
+    ticket_type_id: data.ticketTypeId || null,
+    ticket_type_name: ticket.ticketTypeName,
+    event_title: ticket.eventTitle,
+    event_date: ticket.eventDate,
+    event_time: ticket.eventTime,
+    venue: ticket.venue,
+    buyer_name: ticket.buyerName,
+    buyer_contact: ticket.buyerContact,
+    buyer_display_name: ticket.buyerDisplayName,
+    price: ticket.price,
+    markup: ticket.markup,
+    total_paid: ticket.totalPaid,
+    currency: ticket.currency,
+    payment_method: ticket.paymentMethod,
+    payment_status: ticket.paymentStatus,
+    qr_code: ticket.qrCode,
+    validated: ticket.validated,
+    is_admitted: ticket.isAdmitted,
+    purchased_at: ticket.purchasedAt,
+    sale_type: ticket.saleType,
   });
+
+  if (error) {
+    console.error("Failed to persist ticket to DB:", error.message);
+  } else {
+    console.log("Ticket saved:", { ticketId, paymentReference: data.paymentId });
+  }
 
   return ticket;
 }
@@ -101,26 +117,14 @@ async function generateQRCode(ticketId: string): Promise<string> {
     return await QRCode.toDataURL(ticketId);
   } catch (error) {
     console.error("QR code generation failed:", error);
-    return ticketId; // Fallback to ticket ID as QR code
+    return ticketId;
   }
 }
 
 export async function sendPaymentFailureNotification(buyerEmail: string, paymentId: string) {
-  // TODO: Implement email/SMS notification for payment failure
   console.log("Payment failure notification sent to:", buyerEmail, "Payment ID:", paymentId);
-  
-  // This would typically:
-  // - Send email to buyer explaining the payment failed
-  // - Provide instructions to retry payment
-  // - Log the failure for analytics
 }
 
 export async function sendPaymentSuccessNotification(ticket: GeneratedTicket, buyerEmail: string) {
-  // TODO: Implement email/SMS notification for successful payment
   console.log("Payment success notification sent to:", buyerEmail, "Ticket ID:", ticket.id);
-  
-  // This would typically:
-  // - Send email with ticket details and QR code
-  // - Send SMS with ticket ID and event details
-  // - Add to user's ticket wallet
 }

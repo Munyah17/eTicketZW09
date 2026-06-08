@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
       if (!existingTicket) {
         const m = (payment.metadata ?? {}) as Record<string, unknown>;
         await createTicket({
-          paymentId: session.payment_intent || session.id,
+          paymentId: reference,
           eventId: (m.eventId as string) || "",
           ticketTypeId: (m.ticketTypeId as string) || "",
           ticketTypeName: m.ticketTypeName as string | undefined,

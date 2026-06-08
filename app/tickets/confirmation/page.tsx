@@ -51,39 +51,14 @@ interface PaymentStatusResponse {
   message: string;
 }
 
-interface StoredPurchaseSummary {
-  id: string;
-  eventId: string;
-  eventTitle: string;
-  eventDate: string;
-  eventTime: string;
-  venue: string;
-  ticketType: string;
-  quantity: number;
-  buyerName: string;
-  buyerContact: string;
-  displayName: string;
-  paymentMethod: string;
-  totalPaid: number;
-  currency: string;
-  purchasedAt: string;
-}
-
 function TicketConfirmationContent() {
   const searchParams = useSearchParams();
   const reference = searchParams.get("ref");
-  const [ticketData, setTicketData] = useState<StoredPurchaseSummary | null>(null);
+  const [ticketData, setTicketData] = useState<TicketData | null>(null);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatusResponse | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
-
-  useEffect(() => {
-    const stored = sessionStorage.getItem("lastPurchaseAttempt");
-    if (stored) {
-      setTicketData(JSON.parse(stored) as StoredPurchaseSummary);
-    }
-  }, []);
 
   useEffect(() => {
     if (!reference) {
@@ -111,7 +86,7 @@ function TicketConfirmationContent() {
             const ticketResponse = await fetch(`/api/tickets/retrieve?ref=${encodeURIComponent(reference)}`);
             const ticketData = await ticketResponse.json();
             if (ticketResponse.ok && ticketData.ticket) {
-              setTicketData(ticketData.ticket as StoredPurchaseSummary);
+              setTicketData(ticketData.ticket as TicketData);
             }
           } catch (error) {
             console.error("Failed to fetch ticket:", error);

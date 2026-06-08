@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,18 +23,81 @@ import {
   AlertCircle,
   ArrowRight,
   Download,
+  RefreshCw,
 } from "lucide-react";
-import { mockTickets, mockEvents } from "@/lib/mock-data";
+
+type TicketRow = {
+  id: string;
+  event_title: string;
+  event_date: string;
+  ticket_type_name: string;
+  buyer_name: string;
+  buyer_display_name: string;
+  buyer_contact: string;
+  total_paid: number;
+  currency: string;
+  payment_status: string;
+  validated: boolean;
+  sale_type: string;
+  purchased_at: string;
+};
+
+type Stats = {
+  total: number;
+  valid: number;
+  used: number;
+  revenue: number;
+};
+
+type ApiResponse = {
+  stats: Stats;
+  tickets: TicketRow[];
+  total: number;
+  page: number;
+  pages: number;
+};
+
+const EMPTY_STATS: Stats = { total: 0, valid: 0, used: 0, revenue: 0 };
 
 export default function AdminTicketsPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [data, setData] = useState<ApiResponse>({
+    stats: EMPTY_STATS,
+    tickets: [],
+    total: 0,
+    page: 1,
+    pages: 1,
+  });
+  const [loading, setLoading] = useState(true);
 
-  const filteredTickets = mockTickets.filter(
-    (ticket) =>
-      ticket.eventTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ticket.id.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Debounce search input to avoid firing on every keystroke
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page) });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      const res = await fetch(`/api/admin/tickets?${params}`);
+      if (res.ok) setData(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  }, [page, debouncedSearch]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const { stats, tickets, total, pages } = data;
 
   const getStatusBadge = (status: string, validated: boolean) => {
     if (validated) {
@@ -48,14 +111,14 @@ export default function AdminTicketsPage() {
     switch (status) {
       case "completed":
         return (
-          <Badge variant="default" className="gap-1 bg-success text-success-foreground">
+          <Badge className="gap-1 bg-emerald-100 text-emerald-700 border-0">
             <CheckCircle2 className="h-3 w-3" />
             Paid
           </Badge>
         );
       case "pending":
         return (
-          <Badge variant="outline" className="gap-1 text-warning">
+          <Badge variant="outline" className="gap-1 text-amber-600 border-amber-200">
             <AlertCircle className="h-3 w-3" />
             Pending
           </Badge>
@@ -72,39 +135,70 @@ export default function AdminTicketsPage() {
     }
   };
 
-  const totalRevenue = mockTickets
-    .filter((t) => t.paymentStatus === "completed")
-    .reduce((sum, t) => sum + t.totalPaid, 0);
+  const statCards = [
+    {
+      title: "Total Tickets",
+      value: stats.total,
+      icon: Ticket,
+      accent: "bg-blue-500",
+      light: "bg-blue-50 text-blue-600",
+    },
+    {
+      title: "Valid / Unused",
+      value: stats.valid,
+      icon: CheckCircle2,
+      accent: "bg-emerald-500",
+      light: "bg-emerald-50 text-emerald-600",
+    },
+    {
+      title: "Used / Admitted",
+      value: stats.used,
+      icon: Calendar,
+      accent: "bg-violet-500",
+      light: "bg-violet-50 text-violet-600",
+    },
+    {
+      title: "Total Revenue",
+      value: `$${stats.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: Download,
+      accent: "bg-orange-500",
+      light: "bg-orange-50 text-orange-600",
+    },
+  ];
 
-  const onlineCount = mockTickets.filter(t => t.saleType === "online").length;
-  const gateCount   = mockTickets.filter(t => t.saleType === "gate").length;
+  const onlineCount = tickets.filter((t) => t.sale_type === "online").length;
+  const gateCount = tickets.filter((t) => t.sale_type === "gate").length;
 
   return (
     <div className="space-y-8">
-
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">All Tickets</h1>
-          <p className="text-muted-foreground mt-1">View and manage all tickets sold on the platform</p>
+          <p className="text-muted-foreground mt-1">
+            View and manage all tickets sold on the platform
+          </p>
         </div>
+        <Button variant="outline" size="sm" onClick={load} className="gap-2">
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
       </div>
 
       {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { title: "Total Tickets",   value: mockTickets.length, icon: Ticket,      accent: "bg-blue-500",    light: "bg-blue-50 text-blue-600" },
-          { title: "Valid / Unused",  value: mockTickets.filter(t => !t.validated && t.paymentStatus === "completed").length, icon: CheckCircle2, accent: "bg-emerald-500", light: "bg-emerald-50 text-emerald-600" },
-          { title: "Used / Admitted", value: mockTickets.filter(t => t.validated).length, icon: Calendar, accent: "bg-violet-500", light: "bg-violet-50 text-violet-600" },
-          { title: "Total Revenue",   value: `$${totalRevenue.toLocaleString()}`, icon: Download, accent: "bg-orange-500", light: "bg-orange-50 text-orange-600" },
-        ].map(s => (
+        {statCards.map((s) => (
           <Card key={s.title} className="border-0 shadow-sm relative overflow-hidden">
             <div className={`absolute top-0 left-0 w-1 h-full ${s.accent}`} />
             <CardContent className="p-5 pl-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{s.title}</p>
-                  <p className="text-2xl font-bold mt-1">{s.value}</p>
+                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                    {s.title}
+                  </p>
+                  <p className="text-2xl font-bold mt-1">
+                    {loading ? "—" : s.value}
+                  </p>
                 </div>
                 <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${s.light}`}>
                   <s.icon className="h-5 w-5" />
@@ -127,7 +221,7 @@ export default function AdminTicketsPage() {
           <div className="relative w-72">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search event, buyer, or ticket ID..."
+              placeholder="Search event, buyer, or ticket ID…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-8 text-xs"
@@ -144,75 +238,128 @@ export default function AdminTicketsPage() {
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Channel</TableHead>
-                <TableHead className="text-right pr-6">Actions</TableHead>
+                <TableHead className="text-right pr-6">Date</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredTickets.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-16 text-muted-foreground">
+                    <RefreshCw className="h-6 w-6 mx-auto mb-3 animate-spin opacity-40" />
+                    <p className="text-sm">Loading tickets…</p>
+                  </TableCell>
+                </TableRow>
+              ) : tickets.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-16 text-muted-foreground">
                     <Search className="h-8 w-8 mx-auto mb-3 opacity-30" />
-                    <p className="font-medium">No tickets found</p>
-                    <p className="text-xs mt-1">Try adjusting your search</p>
+                    <p className="font-medium">
+                      {debouncedSearch ? "No tickets match your search" : "No tickets yet"}
+                    </p>
+                    <p className="text-xs mt-1">
+                      {debouncedSearch
+                        ? "Try adjusting your search"
+                        : "Tickets will appear here once customers complete purchases"}
+                    </p>
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredTickets.map((ticket) => (
+                tickets.map((ticket) => (
                   <TableRow key={ticket.id} className="hover:bg-muted/30 transition-colors">
                     <TableCell className="pl-6">
                       <p className="font-mono text-xs text-muted-foreground">{ticket.id}</p>
-                      <p className="text-xs font-medium mt-0.5">{ticket.ticketTypeName}</p>
+                      <p className="text-xs font-medium mt-0.5">{ticket.ticket_type_name}</p>
                     </TableCell>
                     <TableCell>
-                      <Link href={`/events/${ticket.eventId}`} className="font-medium text-sm hover:text-primary hover:underline underline-offset-2 transition-colors line-clamp-1">
-                        {ticket.eventTitle}
-                      </Link>
+                      <p className="font-medium text-sm line-clamp-1">{ticket.event_title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {ticket.event_date
+                          ? new Date(ticket.event_date).toLocaleDateString("en-ZW", {
+                              day: "numeric",
+                              month: "short",
+                              year: "numeric",
+                            })
+                          : "—"}
+                      </p>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-xs">
-                          {ticket.buyerDisplayName.charAt(0)}
+                          {ticket.buyer_display_name?.charAt(0) ?? "?"}
                         </div>
                         <div>
-                          <p className="text-sm font-medium">{ticket.buyerDisplayName}</p>
-                          <p className="text-xs text-muted-foreground">{ticket.buyerContact}</p>
+                          <p className="text-sm font-medium">{ticket.buyer_display_name}</p>
+                          <p className="text-xs text-muted-foreground">{ticket.buyer_contact}</p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <p className="font-bold text-sm">${ticket.totalPaid.toFixed(2)}</p>
+                      <p className="font-bold text-sm">${Number(ticket.total_paid).toFixed(2)}</p>
                       <p className="text-xs text-muted-foreground">{ticket.currency}</p>
                     </TableCell>
                     <TableCell>
-                      {getStatusBadge(ticket.paymentStatus, ticket.validated)}
+                      {getStatusBadge(ticket.payment_status, ticket.validated)}
                     </TableCell>
                     <TableCell>
-                      <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium ${
-                        ticket.saleType === "online"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-slate-100 text-slate-600"
-                      }`}>
-                        {ticket.saleType === "online" ? "Online" : "Gate"}
+                      <span
+                        className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium ${
+                          ticket.sale_type === "online"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {ticket.sale_type === "online" ? "Online" : "Gate"}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right pr-6">
-                      <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 hover:bg-primary/5 hover:text-primary">
-                        View <ArrowRight className="h-3 w-3" />
-                      </Button>
+                    <TableCell className="text-right pr-6 text-xs text-muted-foreground">
+                      {ticket.purchased_at
+                        ? new Date(ticket.purchased_at).toLocaleDateString("en-ZW", {
+                            day: "numeric",
+                            month: "short",
+                          })
+                        : "—"}
                     </TableCell>
                   </TableRow>
                 ))
               )}
             </TableBody>
           </Table>
-          {filteredTickets.length > 0 && (
+
+          {/* Footer: count + pagination */}
+          {!loading && tickets.length > 0 && (
             <div className="px-6 py-3 border-t bg-muted/20 flex items-center justify-between text-xs text-muted-foreground">
-              <span>{filteredTickets.length} ticket{filteredTickets.length !== 1 ? "s" : ""} shown</span>
               <span>
+                {total} ticket{total !== 1 ? "s" : ""} total ·{" "}
                 <span className="text-blue-600 font-medium">{onlineCount} online</span>
                 {" · "}
                 <span className="font-medium">{gateCount} gate</span>
+                {" (this page)"}
               </span>
+              {pages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => p - 1)}
+                  >
+                    Prev
+                  </Button>
+                  <span>
+                    Page {page} of {pages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs gap-1"
+                    disabled={page >= pages}
+                    onClick={() => setPage((p) => p + 1)}
+                  >
+                    Next <ArrowRight className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
