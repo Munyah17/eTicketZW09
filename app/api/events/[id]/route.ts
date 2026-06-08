@@ -1,8 +1,5 @@
-import { notFound } from "next/navigation";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Header } from "@/components/layout/header";
-import { Footer } from "@/components/layout/footer";
-import { EventDetailClient } from "./event-detail-client";
 import type { Event, EventCategory, OrganizerCategory } from "@/lib/types";
 
 function toEvent(r: Record<string, unknown>): Event {
@@ -45,11 +42,10 @@ function toEvent(r: Record<string, unknown>): Event {
   };
 }
 
-export default async function EventDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const { id } = await params;
   const supabase = createAdminClient();
 
@@ -61,16 +57,8 @@ export default async function EventDetailPage({
     .single();
 
   if (error || !data) {
-    notFound();
+    return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
-  const event = toEvent(data as Record<string, unknown>);
-
-  return (
-    <div className="flex min-h-screen flex-col">
-      <Header />
-      <EventDetailClient event={event} />
-      <Footer />
-    </div>
-  );
+  return NextResponse.json({ event: toEvent(data as Record<string, unknown>) });
 }

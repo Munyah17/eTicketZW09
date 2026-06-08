@@ -44,7 +44,7 @@ export class PaymentService {
     const reference = uuidv4();
     const supabase = createAdminClient();
 
-    await supabase.from("payments").insert({
+    const { error: insertError } = await supabase.from("payments").insert({
       reference,
       provider: request.provider,
       amount: request.amount,
@@ -55,6 +55,11 @@ export class PaymentService {
       ticket_type_id: request.ticket_type_id || null,
       metadata: request.metadata || {},
     });
+
+    if (insertError) {
+      console.error("Payment record insert failed:", insertError.message);
+      return { success: false, reference, redirect_url: "", error: "Failed to create payment record" };
+    }
 
     let result: PaymentInitiateResponse;
     if (request.provider === "paynow") {
@@ -68,9 +73,12 @@ export class PaymentService {
     if (!result.success) {
       await supabase.from("payments").update({ status: "failed", error_message: result.error }).eq("reference", reference);
     } else if (result.stripe_session_id) {
-      await supabase.from("payments")
+      const { error: updateError } = await supabase.from("payments")
         .update({ stripe_session_id: result.stripe_session_id, metadata: { ...request.metadata, stripe_session_id: result.stripe_session_id } })
         .eq("reference", reference);
+      if (updateError) {
+        console.error("Payment stripe_session_id update failed:", updateError.message);
+      }
     }
 
     return result;

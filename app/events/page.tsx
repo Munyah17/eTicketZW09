@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, Suspense } from "react";
+import { useState, useMemo, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -16,8 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search, Filter, X, Calendar, MapPin, LayoutGrid, List } from "lucide-react";
-import { mockEvents } from "@/lib/mock-data";
-import { EVENT_CATEGORIES, EventCategory } from "@/lib/types";
+import { EVENT_CATEGORIES, EventCategory, type Event } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const cities = ["All Cities", "Harare", "Bulawayo", "Victoria Falls", "Mutare", "Gweru"];
@@ -35,6 +34,8 @@ function EventsPageContent() {
   const initialCategory = searchParams.get("category") as EventCategory | null;
   const initialSort = searchParams.get("sort");
 
+  const [allEvents, setAllEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || "all");
   const [selectedCity, setSelectedCity] = useState("All Cities");
@@ -42,8 +43,16 @@ function EventsPageContent() {
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showFilters, setShowFilters] = useState(false);
 
+  useEffect(() => {
+    fetch("/api/events")
+      .then((r) => r.json())
+      .then((data) => setAllEvents(data.events ?? []))
+      .catch(() => setAllEvents([]))
+      .finally(() => setLoading(false));
+  }, []);
+
   const filteredEvents = useMemo(() => {
-    let events = mockEvents.filter((e) => e.status === "published");
+    let events = allEvents.filter((e) => e.status === "published");
 
     // Filter by search query
     if (searchQuery) {
@@ -267,7 +276,12 @@ function EventsPageContent() {
             </div>
           </div>
 
-          {filteredEvents.length === 0 ? (
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+              <p className="mt-4 text-muted-foreground">Loading events…</p>
+            </div>
+          ) : filteredEvents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Search className="h-12 w-12 text-muted-foreground/50" />
               <h3 className="mt-4 text-lg font-semibold">No events found</h3>

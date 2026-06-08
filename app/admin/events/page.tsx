@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,44 +20,65 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Search, Tag, Percent } from "lucide-react";
-import { mockEvents } from "@/lib/mock-data";
-import { Event } from "@/lib/types";
+import { Search, Tag, Percent, RefreshCw } from "lucide-react";
+import type { Event } from "@/lib/types";
 
 export default function AdminEventsPage() {
-  const [events, setEvents] = useState<Event[]>(mockEvents);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [markupValue, setMarkupValue] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const filteredEvents = events.filter(
-    (event) =>
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.organizerName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const fetchEvents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (searchQuery) params.set("search", searchQuery);
+      const res = await fetch(`/api/admin/events?${params}`);
+      const data = await res.json();
+      setEvents(data.events ?? []);
+    } catch {
+      setEvents([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [searchQuery]);
 
-  const handleSetMarkup = () => {
-    if (editingEvent && markupValue) {
-      setEvents((prev) =>
-        prev.map((e) =>
-          e.id === editingEvent.id
-            ? { ...e, platformMarkup: parseFloat(markupValue) }
-            : e
-        )
-      );
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  const handleSetMarkup = async () => {
+    if (!editingEvent) return;
+    setSaving(true);
+    try {
+      await fetch("/api/admin/events", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: editingEvent.id,
+          platformMarkup: markupValue ? parseFloat(markupValue) : null,
+        }),
+      });
       setDialogOpen(false);
       setEditingEvent(null);
       setMarkupValue("");
+      fetchEvents();
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleRemoveMarkup = (eventId: string) => {
-    setEvents((prev) =>
-      prev.map((e) =>
-        e.id === eventId ? { ...e, platformMarkup: undefined } : e
-      )
-    );
+  const handleRemoveMarkup = async (eventId: string) => {
+    await fetch("/api/admin/events", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId, platformMarkup: null }),
+    });
+    fetchEvents();
   };
 
   return (
@@ -69,92 +90,104 @@ export default function AdminEventsPage() {
         </p>
       </div>
 
-      {/* Search */}
-      <div className="relative max-w-md">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Search events or organizers..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="pl-10"
-        />
+      <div className="flex gap-3 max-w-md">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search events or organizers..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Button variant="outline" size="icon" onClick={fetchEvents} disabled={loading}>
+          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+        </Button>
       </div>
 
-      {/* Events Table */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Tag className="h-5 w-5" />
-            All Events
+            All Events {!loading && `(${events.length})`}
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Event</TableHead>
-                <TableHead>Organizer</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead>Tickets Sold</TableHead>
-                <TableHead>Platform Markup</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEvents.map((event) => (
-                <TableRow key={event.id}>
-                  <TableCell className="font-medium">{event.title}</TableCell>
-                  <TableCell>{event.organizerName}</TableCell>
-                  <TableCell className="capitalize">{event.category}</TableCell>
-                  <TableCell>
-                    {new Date(event.date).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell>
-                    {event.soldTickets} / {event.totalTickets}
-                  </TableCell>
-                  <TableCell>
-                    {event.platformMarkup ? (
-                      <span className="inline-flex items-center gap-1 text-green-700 bg-green-100 px-2 py-1 rounded-full text-sm">
-                        <Percent className="h-3 w-3" />
-                        {event.platformMarkup}%
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">None</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditingEvent(event);
-                          setMarkupValue(event.platformMarkup?.toString() || "");
-                          setDialogOpen(true);
-                        }}
-                      >
-                        {event.platformMarkup ? "Edit" : "Add"} Markup
-                      </Button>
-                      {event.platformMarkup && (
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleRemoveMarkup(event.id)}
-                        >
-                          Remove
-                        </Button>
-                      )}
-                    </div>
-                  </TableCell>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Event</TableHead>
+                  <TableHead>Organizer</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Tickets Sold</TableHead>
+                  <TableHead>Platform Markup</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {events.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      No events found
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  events.map((event) => (
+                    <TableRow key={event.id}>
+                      <TableCell className="font-medium">{event.title}</TableCell>
+                      <TableCell>{event.organizerName}</TableCell>
+                      <TableCell className="capitalize">{event.category}</TableCell>
+                      <TableCell>{new Date(event.date).toLocaleDateString()}</TableCell>
+                      <TableCell>{event.soldTickets} / {event.totalTickets}</TableCell>
+                      <TableCell>
+                        {event.platformMarkup ? (
+                          <span className="inline-flex items-center gap-1 text-green-700 bg-green-100 px-2 py-1 rounded-full text-sm">
+                            <Percent className="h-3 w-3" />
+                            {event.platformMarkup}%
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">None</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditingEvent(event);
+                              setMarkupValue(event.platformMarkup?.toString() || "");
+                              setDialogOpen(true);
+                            }}
+                          >
+                            {event.platformMarkup ? "Edit" : "Add"} Markup
+                          </Button>
+                          {event.platformMarkup ? (
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleRemoveMarkup(event.id)}
+                            >
+                              Remove
+                            </Button>
+                          ) : null}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
-      {/* Markup Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -164,9 +197,7 @@ export default function AdminEventsPage() {
           <div className="space-y-4">
             <div>
               <p className="font-medium">{editingEvent?.title}</p>
-              <p className="text-sm text-muted-foreground">
-                {editingEvent?.organizerName}
-              </p>
+              <p className="text-sm text-muted-foreground">{editingEvent?.organizerName}</p>
             </div>
 
             <div>
@@ -187,16 +218,15 @@ export default function AdminEventsPage() {
               </div>
               <p className="text-sm text-muted-foreground mt-2">
                 This markup will be added on top of all ticket prices for this event.
-                Organizer still receives their full price, markup goes to platform.
               </p>
             </div>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Cancel
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSetMarkup} disabled={saving}>
+              {saving ? "Saving…" : "Save Markup"}
             </Button>
-            <Button onClick={handleSetMarkup}>Save Markup</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
