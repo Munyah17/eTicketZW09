@@ -87,12 +87,13 @@ function ticketTypeToDbRow(tt: TicketType, eventId: string) {
   };
 }
 
-export async function getStoredEvents(): Promise<Event[]> {
+export async function getStoredEvents(limit = 50): Promise<Event[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("events")
     .select("*, ticket_types(*)")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(limit);
   if (error) { console.error("getStoredEvents:", error.message); return []; }
   return (data || []).map(dbToEvent);
 }
@@ -147,23 +148,25 @@ export async function getEventById(id: string): Promise<Event | undefined> {
   return data ? dbToEvent(data) : undefined;
 }
 
-export async function getOrganizerEvents(organizerId: string): Promise<Event[]> {
+export async function getOrganizerEvents(organizerId: string, limit = 50): Promise<Event[]> {
   const supabase = createClient();
   const { data } = await supabase
     .from("events")
     .select("*, ticket_types(*)")
     .eq("organizer_id", organizerId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(limit);
   return (data || []).map(dbToEvent);
 }
 
-export async function getPublishedEvents(): Promise<Event[]> {
+export async function getPublishedEvents(limit = 100): Promise<Event[]> {
   const supabase = createClient();
   const { data } = await supabase
     .from("events")
     .select("*, ticket_types(*)")
     .eq("status", "published")
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(limit);
   return (data || []).map(dbToEvent);
 }
 
@@ -189,18 +192,19 @@ export async function getNewestEvents(count = 8): Promise<Event[]> {
   return (data || []).map(dbToEvent);
 }
 
-export async function getEventsByCategory(category: string): Promise<Event[]> {
+export async function getEventsByCategory(category: string, limit = 12): Promise<Event[]> {
   const supabase = createClient();
   const { data } = await supabase
     .from("events")
     .select("*, ticket_types(*)")
     .eq("status", "published")
     .eq("category", category)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(limit);
   return (data || []).map(dbToEvent);
 }
 
-export async function getUpcomingEvents(): Promise<Event[]> {
+export async function getUpcomingEvents(limit = 20): Promise<Event[]> {
   const supabase = createClient();
   const today = new Date().toISOString().split("T")[0];
   const { data } = await supabase
@@ -208,6 +212,7 @@ export async function getUpcomingEvents(): Promise<Event[]> {
     .select("*, ticket_types(*)")
     .eq("status", "published")
     .gte("date", today)
-    .order("date", { ascending: true });
+    .order("date", { ascending: true })
+    .limit(limit);
   return (data || []).map(dbToEvent);
 }

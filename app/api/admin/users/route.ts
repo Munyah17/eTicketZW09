@@ -1,20 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/server-auth";
 
-const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 const VALID_ROLES = new Set(["super_admin", "admin", "organizer", "staff", "customer"]);
-
-async function requireAdmin(): Promise<{ error: NextResponse } | { userId: string }> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (!profile || !ADMIN_ROLES.has(profile.role)) {
-    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-  }
-  return { userId: user.id };
-}
 
 export async function GET() {
   const auth = await requireAdmin();
