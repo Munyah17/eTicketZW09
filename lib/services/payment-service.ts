@@ -3,6 +3,8 @@ import { v4 as uuidv4 } from "uuid";
 import { Paynow } from "paynow";
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { generateTicket } from "@/lib/ticket-generator";
+import { sendTicketEmail } from "@/lib/email/send-ticket-email";
 
 export type PaymentProvider = "paynow" | "stripe";
 
@@ -88,6 +90,51 @@ export class PaymentService {
   static async updatePaymentStatus(reference: string, status: "paid" | "failed"): Promise<void> {
     const supabase = createAdminClient();
     await supabase.from("payments").update({ status }).eq("reference", reference);
+  }
+
+  // Shared "this payment succeeded" path — used by the Stripe/Paynow webhooks,
+  // the direct Stripe status re-check, and the admin manual-verification tool.
+  // Idempotent: no-ops if the payment is already resolved or a ticket already exists.
+  static async confirmPaid(
+    reference: string,
+    opts: { amount?: number; currency?: string; paymentMethod: string }
+  ): Promise<void> {
+    const payment = await PaymentService.getPayment(reference);
+    if (!payment || payment.status === "paid" || payment.status === "failed") return;
+
+    await PaymentService.updatePaymentStatus(reference, "paid");
+
+    const existingTicket = await PaymentService.getTicketByPaymentReference(reference);
+    if (existingTicket) return;
+
+    const m = (payment.metadata ?? {}) as Record<string, unknown>;
+    const ticket = await generateTicket({
+      paymentId: reference,
+      eventId: (m.eventId as string) || "",
+      ticketTypeId: (m.ticketTypeId as string) || "",
+      ticketTypeName: m.ticketTypeName as string | undefined,
+      eventTitle: m.eventTitle as string | undefined,
+      eventDate: m.eventDate as string | undefined,
+      eventTime: m.eventTime as string | undefined,
+      venue: m.venue as string | undefined,
+      buyerName: (m.buyerName as string) || "",
+      buyerEmail: (m.buyerEmail as string) || "",
+      buyerPhone: (m.buyerPhone as string) || "",
+      buyerUserId: payment.userId,
+      displayName: m.displayName as string | undefined,
+      quantity: m.quantity as number | undefined,
+      amount: opts.amount ?? payment.amount,
+      currency: (opts.currency ?? payment.currency).toUpperCase(),
+      paymentMethod: opts.paymentMethod,
+    });
+    await sendTicketEmail(ticket);
+  }
+
+  // Shared "this payment did not succeed" path. Idempotent like confirmPaid.
+  static async markFailed(reference: string): Promise<void> {
+    const payment = await PaymentService.getPayment(reference);
+    if (!payment || payment.status === "paid" || payment.status === "failed") return;
+    await PaymentService.updatePaymentStatus(reference, "failed");
   }
 
   static async getPayment(reference: string): Promise<PaymentStatus | undefined> {

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { PaymentService } from "@/lib/services/payment-service";
-import { generateTicket as createTicket } from "@/lib/ticket-generator";
-import { sendTicketEmail } from "@/lib/email/send-ticket-email";
 
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const STRIPE_WEBHOOK_TOLERANCE_SECONDS = 300;
@@ -85,32 +83,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ received: true });
       }
 
-      await PaymentService.updatePaymentStatus(reference, "paid");
-
-      const existingTicket = await PaymentService.getTicketByPaymentReference(reference);
-      if (!existingTicket) {
-        const m = (payment.metadata ?? {}) as Record<string, unknown>;
-        const ticket = await createTicket({
-          paymentId: reference,
-          eventId: (m.eventId as string) || "",
-          ticketTypeId: (m.ticketTypeId as string) || "",
-          ticketTypeName: m.ticketTypeName as string | undefined,
-          eventTitle: m.eventTitle as string | undefined,
-          eventDate: m.eventDate as string | undefined,
-          eventTime: m.eventTime as string | undefined,
-          venue: m.venue as string | undefined,
-          buyerName: (m.buyerName as string) || "",
-          buyerEmail: (m.buyerEmail as string) || "",
-          buyerPhone: (m.buyerPhone as string) || "",
-          buyerUserId: payment.userId,
-          displayName: m.displayName as string | undefined,
-          quantity: m.quantity as number | undefined,
-          amount: session.amount_total / 100,
-          currency: session.currency.toUpperCase(),
-          paymentMethod: "stripe",
-        });
-        await sendTicketEmail(ticket);
-      }
+      await PaymentService.confirmPaid(reference, {
+        amount: session.amount_total / 100,
+        currency: session.currency.toUpperCase(),
+        paymentMethod: "stripe",
+      });
 
       console.log("Payment successful and ticket generated:", reference);
     } else if (event.type === "checkout.session.expired") {
@@ -120,11 +97,8 @@ export async function POST(req: NextRequest) {
       console.log("Checkout session expired:", session.id, reference);
 
       if (reference) {
-        const payment = await PaymentService.getPayment(reference);
-        if (payment && payment.status === "pending") {
-          await PaymentService.updatePaymentStatus(reference, "failed");
-          console.log("Payment expired:", reference);
-        }
+        await PaymentService.markFailed(reference);
+        console.log("Payment expired:", reference);
       }
     }
 

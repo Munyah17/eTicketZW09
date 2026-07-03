@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PaymentService } from "@/lib/services/payment-service";
-import { generateTicket } from "@/lib/ticket-generator";
 
 export async function GET(req: NextRequest) {
   const reference = req.nextUrl.searchParams.get("ref");
@@ -36,32 +35,13 @@ export async function GET(req: NextRequest) {
         console.log("Direct Stripe session check:", session.id, session.status, session.payment_status);
 
         if (res.ok && (session.payment_status === "paid" || session.status === "complete")) {
-          // Only generate ticket if one doesn't exist yet (idempotency)
-          const existingTicket = await PaymentService.getTicketByPaymentReference(reference);
-          if (!existingTicket) {
-            const m = (payment.metadata ?? {}) as Record<string, unknown>;
-            await generateTicket({
-              paymentId: reference,
-              eventId: (m.eventId as string) || "",
-              ticketTypeId: (m.ticketTypeId as string) || "",
-              ticketTypeName: m.ticketTypeName as string | undefined,
-              eventTitle: m.eventTitle as string | undefined,
-              eventDate: m.eventDate as string | undefined,
-              eventTime: m.eventTime as string | undefined,
-              venue: m.venue as string | undefined,
-              buyerName: (m.buyerName as string) || "",
-              buyerEmail: (m.buyerEmail as string) || "",
-              buyerPhone: (m.buyerPhone as string) || "",
-              displayName: m.displayName as string | undefined,
-              quantity: m.quantity as number | undefined,
-              amount: session.amount_total ? session.amount_total / 100 : payment.amount,
-              currency: (session.currency || payment.currency).toUpperCase(),
-              paymentMethod: "stripe",
-            });
-          }
-          await PaymentService.updatePaymentStatus(reference, "paid");
+          await PaymentService.confirmPaid(reference, {
+            amount: session.amount_total ? session.amount_total / 100 : payment.amount,
+            currency: (session.currency || payment.currency).toUpperCase(),
+            paymentMethod: "stripe",
+          });
         } else if (res.ok && session.status === "expired") {
-          await PaymentService.updatePaymentStatus(reference, "failed");
+          await PaymentService.markFailed(reference);
         }
       } catch (err) {
         console.error("Direct Stripe verification error:", err);

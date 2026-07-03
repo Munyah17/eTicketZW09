@@ -22,6 +22,7 @@ import {
   Settings2,
   HeadphonesIcon,
   Shield,
+  ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,7 @@ const superAdminLinks = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, group: "Operations" },
   { href: "/admin/events", label: "Events & Markups", icon: Tag, group: "Operations" },
   { href: "/admin/tickets", label: "All Tickets", icon: Ticket, group: "Operations" },
+  { href: "/admin/payments", label: "Payment Verification", icon: ShieldAlert, group: "Operations" },
   { href: "/admin/organizers", label: "Organizers", icon: Users, group: "Operations" },
   { href: "/admin/banners", label: "Banner Management", icon: Image, group: "Operations" },
   { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign, group: "Operations" },
@@ -50,6 +52,7 @@ const adminLinks = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, group: "Operations" },
   { href: "/admin/events", label: "Events & Markups", icon: Tag, group: "Operations" },
   { href: "/admin/tickets", label: "All Tickets", icon: Ticket, group: "Operations" },
+  { href: "/admin/payments", label: "Payment Verification", icon: ShieldAlert, group: "Operations" },
   { href: "/admin/organizers", label: "Organizers", icon: Users, group: "Operations" },
   { href: "/admin/banners", label: "Banner Management", icon: Image, group: "Operations" },
   { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign, group: "Operations" },
