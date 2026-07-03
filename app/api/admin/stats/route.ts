@@ -13,12 +13,19 @@ export async function GET() {
   const [
     { count: totalEvents },
     { count: organizerCount },
+    { count: totalUsers },
+    { count: customerCount },
+    { count: pendingPayouts },
     { data: pubData },
     { data: recentEvents },
     { data: recentOrganizers },
+    { data: recentUsers },
   ] = await Promise.all([
     supabase.from("events").select("*", { count: "exact", head: true }),
     supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "organizer"),
+    supabase.from("profiles").select("*", { count: "exact", head: true }),
+    supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "customer"),
+    supabase.from("payout_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
     // Fetch only the two columns needed to compute totals — no ticket_types here
     supabase.from("events").select("id, sold_tickets").eq("status", "published"),
     supabase
@@ -33,6 +40,11 @@ export async function GET() {
       .eq("role", "organizer")
       .order("created_at", { ascending: false })
       .limit(4),
+    supabase
+      .from("profiles")
+      .select("id, name, email, role, created_at")
+      .order("created_at", { ascending: false })
+      .limit(5),
   ]);
 
   const publishedIds = (pubData ?? []).map((e) => e.id as string);

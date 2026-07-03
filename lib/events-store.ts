@@ -65,6 +65,7 @@ function eventToDbRow(event: Event) {
     organizer_name: event.organizerName,
     organizer_category: event.organizerCategory || null,
     organizer_subtype: event.organizerSubtype || null,
+    total_tickets: event.totalTickets,
     status: event.status,
     platform_markup: event.platformMarkup || 0,
     promo_video: event.promoVideo || null,

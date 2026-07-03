@@ -14,6 +14,7 @@ export interface TicketGenerationData {
   buyerName: string;
   buyerEmail: string;
   buyerPhone: string;
+  buyerUserId?: string;
   amount: number;
   currency: string;
   paymentMethod: string;
@@ -33,6 +34,7 @@ export interface GeneratedTicket {
   buyerName: string;
   buyerContact: string;
   buyerDisplayName: string;
+  buyerEmail: string;
   price: number;
   markup: number;
   totalPaid: number;
@@ -47,7 +49,7 @@ export interface GeneratedTicket {
 }
 
 export async function generateTicket(data: TicketGenerationData): Promise<GeneratedTicket> {
-  const ticketId = `tkt-${uuidv4()}`;
+  const ticketId = uuidv4();
   const qrCode = await generateQRCode(ticketId);
 
   const ticket: GeneratedTicket = {
@@ -62,6 +64,7 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     buyerName: data.buyerName,
     buyerContact: data.buyerPhone,
     buyerDisplayName: data.displayName || data.buyerName.split(" ").map((n) => n[0]).join(""),
+    buyerEmail: data.buyerEmail,
     price: data.amount / (data.quantity || 1),
     markup: 0,
     totalPaid: data.amount,
@@ -90,6 +93,8 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     buyer_name: ticket.buyerName,
     buyer_contact: ticket.buyerContact,
     buyer_display_name: ticket.buyerDisplayName,
+    buyer_email: ticket.buyerEmail,
+    buyer_user_id: data.buyerUserId || null,
     price: ticket.price,
     markup: ticket.markup,
     total_paid: ticket.totalPaid,
@@ -119,12 +124,4 @@ async function generateQRCode(ticketId: string): Promise<string> {
     console.error("QR code generation failed:", error);
     return ticketId;
   }
-}
-
-export async function sendPaymentFailureNotification(buyerEmail: string, paymentId: string) {
-  console.log("Payment failure notification sent to:", buyerEmail, "Payment ID:", paymentId);
-}
-
-export async function sendPaymentSuccessNotification(ticket: GeneratedTicket, buyerEmail: string) {
-  console.log("Payment success notification sent to:", buyerEmail, "Ticket ID:", ticket.id);
 }

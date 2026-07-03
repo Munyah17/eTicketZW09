@@ -107,7 +107,7 @@ function EventsPageContent() {
     }
 
     return events;
-  }, [searchQuery, selectedCategory, selectedCity, sortBy]);
+  }, [allEvents, searchQuery, selectedCategory, selectedCity, sortBy]);
 
   const activeFiltersCount = [
     selectedCategory !== "all" ? 1 : 0,

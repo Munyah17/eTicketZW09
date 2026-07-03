@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { PaymentService } from "@/lib/services/payment-service";
 import { generateTicket as createTicket } from "@/lib/ticket-generator";
+import { sendTicketEmail } from "@/lib/email/send-ticket-email";
 
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const STRIPE_WEBHOOK_TOLERANCE_SECONDS = 300;
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest) {
       const existingTicket = await PaymentService.getTicketByPaymentReference(reference);
       if (!existingTicket) {
         const m = (payment.metadata ?? {}) as Record<string, unknown>;
-        await createTicket({
+        const ticket = await createTicket({
           paymentId: reference,
           eventId: (m.eventId as string) || "",
           ticketTypeId: (m.ticketTypeId as string) || "",
@@ -101,12 +102,14 @@ export async function POST(req: NextRequest) {
           buyerName: (m.buyerName as string) || "",
           buyerEmail: (m.buyerEmail as string) || "",
           buyerPhone: (m.buyerPhone as string) || "",
+          buyerUserId: payment.userId,
           displayName: m.displayName as string | undefined,
           quantity: m.quantity as number | undefined,
           amount: session.amount_total / 100,
           currency: session.currency.toUpperCase(),
           paymentMethod: "stripe",
         });
+        await sendTicketEmail(ticket);
       }
 
       console.log("Payment successful and ticket generated:", reference);

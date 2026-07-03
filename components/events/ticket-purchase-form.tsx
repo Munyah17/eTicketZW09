@@ -11,6 +11,7 @@ import { Alert } from "@/components/ui/alert";
 import { Minus, Plus, Lock, ArrowLeft } from "lucide-react";
 import { Event, PaymentProvider, PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
 import { PaymentProviders } from "@/components/payment/payment-providers";
+import { useAuth } from "@/lib/auth-context";
 
 interface TicketPurchaseFormProps {
   event: Event;
@@ -23,6 +24,7 @@ export function TicketPurchaseForm({
   selectedTicketTypeId,
   onTicketTypeChange,
 }: TicketPurchaseFormProps) {
+  const { user } = useAuth();
   const [quantity, setQuantity] = useState(1);
   const [buyerName, setBuyerName] = useState("");
   const [buyerContact, setBuyerContact] = useState("");
@@ -80,6 +82,7 @@ export function TicketPurchaseForm({
           currency: selectedTicketType.currency,
           provider,
           origin: window.location.origin,
+          user_id: user?.id,
           metadata: {
             eventId: event.id,
             eventTitle: event.title,

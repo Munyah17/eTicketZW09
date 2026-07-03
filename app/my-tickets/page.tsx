@@ -20,33 +20,60 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
-import { mockTickets } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth-context";
+
+interface MyTicket {
+  id: string;
+  eventId: string;
+  eventTitle: string;
+  eventDate: string;
+  eventTime: string;
+  venue: string;
+  ticketTypeName: string;
+  buyerName: string;
+  buyerDisplayName: string;
+  totalPaid: number;
+  currency: string;
+  paymentMethod: string;
+  validated: boolean;
+  purchasedAt: string;
+}
 
 export default function MyTicketsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const [tickets, setTickets] = useState<MyTicket[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
 
-  // Generate QR codes for all tickets
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+    fetch("/api/tickets/mine")
+      .then((r) => r.json())
+      .then((data) => setTickets(data.tickets ?? []))
+      .catch(() => setTickets([]))
+      .finally(() => setLoading(false));
+  }, [user, authLoading]);
+
   useEffect(() => {
     const generateQRCodes = async () => {
       const codes: Record<string, string> = {};
-      for (const ticket of mockTickets) {
-        const qrData = JSON.stringify({
-          ticketId: ticket.id,
-          eventId: ticket.eventId,
-          qrCode: ticket.qrCode,
-        });
-        codes[ticket.id] = await QRCode.toDataURL(qrData, {
-          width: 150,
-          margin: 1,
-        });
+      for (const ticket of tickets) {
+        codes[ticket.id] = await QRCode.toDataURL(
+          JSON.stringify({ ticketId: ticket.id, eventId: ticket.eventId }),
+          { width: 150, margin: 1 }
+        );
       }
       setQrCodes(codes);
     };
-    generateQRCodes();
-  }, []);
+    if (tickets.length > 0) generateQRCodes();
+  }, [tickets]);
 
-  const filteredTickets = mockTickets.filter(
+  const filteredTickets = tickets.filter(
     (ticket) =>
       ticket.eventTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ticket.id.toLowerCase().includes(searchQuery.toLowerCase())
@@ -72,6 +99,8 @@ export default function MyTicketsPage() {
 
   const getPaymentMethodLabel = (method: string) => {
     const methods: Record<string, string> = {
+      stripe: "Stripe (Card)",
+      paynow: "Paynow",
       ecocash: "EcoCash",
       innbucks: "InnBucks",
       visa: "Visa Card",
@@ -121,7 +150,23 @@ export default function MyTicketsPage() {
 
           {/* Tickets List */}
           <div className="mt-8 space-y-6">
-            {filteredTickets.length === 0 ? (
+            {authLoading || loading ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                <p className="mt-4 text-muted-foreground">Loading tickets…</p>
+              </div>
+            ) : !user ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Ticket className="h-16 w-16 text-muted-foreground/50" />
+                <h3 className="mt-4 text-lg font-semibold">Sign in to see your tickets</h3>
+                <p className="mt-2 text-muted-foreground">
+                  Log in with the account you used at checkout to view purchased tickets
+                </p>
+                <Link href="/login">
+                  <Button className="mt-4">Log In</Button>
+                </Link>
+              </div>
+            ) : filteredTickets.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <Ticket className="h-16 w-16 text-muted-foreground/50" />
                 <h3 className="mt-4 text-lg font-semibold">No tickets found</h3>
@@ -187,7 +232,7 @@ export default function MyTicketsPage() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Name on Ticket</span>
-                            <span>{ticket.buyerDisplayName}</span>
+                            <span>{ticket.buyerDisplayName || ticket.buyerName}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Amount Paid</span>
@@ -217,10 +262,12 @@ export default function MyTicketsPage() {
                       <p className="mt-2 text-xs text-muted-foreground">
                         Show this at entry
                       </p>
-                      <Button variant="outline" size="sm" className="mt-3 gap-2">
-                        <Download className="h-3 w-3" />
-                        Download
-                      </Button>
+                      <a href={`/api/tickets/${ticket.id}/download`} download={`ticket-${ticket.id}.png`}>
+                        <Button variant="outline" size="sm" className="mt-3 gap-2">
+                          <Download className="h-3 w-3" />
+                          Download PNG
+                        </Button>
+                      </a>
                     </div>
                   </div>
                 </Card>

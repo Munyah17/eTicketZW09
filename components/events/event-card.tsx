@@ -15,9 +15,11 @@ interface EventCardProps {
 }
 
 export function EventCard({ event, variant = "default" }: EventCardProps) {
-  const lowestPrice = Math.min(...event.ticketTypes.map((t) => t.price));
+  const lowestPrice = event.ticketTypes.length > 0 ? Math.min(...event.ticketTypes.map((t) => t.price)) : 0;
   const availableTickets = event.totalTickets - event.soldTickets;
-  const soldPercentage = Math.round((event.soldTickets / event.totalTickets) * 100);
+  const soldPercentage = event.totalTickets > 0
+    ? Math.round((event.soldTickets / event.totalTickets) * 100)
+    : 0;
   const categoryLabel = EVENT_CATEGORIES.find((c) => c.value === event.category)?.label || event.category;
 
   const formatDate = (dateString: string) => {
@@ -84,7 +86,7 @@ export function EventCard({ event, variant = "default" }: EventCardProps) {
               Only {availableTickets} left!
             </Badge>
           )}
-          {availableTickets === 0 && (
+          {availableTickets === 0 && event.totalTickets > 0 && (
             <Badge className="absolute right-3 top-3 bg-destructive text-destructive-foreground">
               Sold Out
             </Badge>

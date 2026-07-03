@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PaymentService } from "@/lib/services/payment-service";
 import { generateTicket as createTicket } from "@/lib/ticket-generator";
+import { sendTicketEmail } from "@/lib/email/send-ticket-email";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
       await PaymentService.updatePaymentStatus(reference, "paid");
       
       const m = (payment.metadata ?? {}) as Record<string, unknown>;
-      await createTicket({
+      const ticket = await createTicket({
         paymentId: reference,
         eventId: (m.eventId as string) || "",
         ticketTypeId: (m.ticketTypeId as string) || "",
@@ -48,13 +49,15 @@ export async function POST(req: NextRequest) {
         buyerName: (m.buyerName as string) || "",
         buyerEmail: (m.buyerEmail as string) || "",
         buyerPhone: (m.buyerPhone as string) || "",
+        buyerUserId: payment.userId,
         displayName: m.displayName as string | undefined,
         quantity: m.quantity as number | undefined,
         amount: amount || payment.amount,
         currency: payment.currency,
         paymentMethod: "paynow",
       });
-      
+      await sendTicketEmail(ticket);
+
       console.log("Payment successful and ticket generated:", reference);
     } else {
       // Payment failed

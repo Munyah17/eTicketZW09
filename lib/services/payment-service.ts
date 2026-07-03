@@ -37,6 +37,7 @@ export interface PaymentStatus {
   updated_at: string;
   metadata?: Record<string, unknown>;
   error?: string;
+  userId?: string;
 }
 
 export class PaymentService {
@@ -104,6 +105,7 @@ export class PaymentService {
       updated_at: data.updated_at,
       metadata: data.metadata,
       error: data.error_message,
+      userId: data.user_id ?? undefined,
     };
   }
 

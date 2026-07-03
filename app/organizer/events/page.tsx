@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -23,14 +23,34 @@ import {
   Eye,
   Edit,
   Trash2,
-  ArrowRight,
 } from "lucide-react";
-import { mockEvents } from "@/lib/mock-data";
+import { useAuth } from "@/lib/auth-context";
+import { getOrganizerEvents } from "@/lib/events-store";
+import { Event } from "@/lib/types";
 
 export default function OrganizerEventsPage() {
+  const { user } = useAuth();
+  const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const organizerEvents = mockEvents.slice(0, 4);
+  const loadEvents = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const events = await getOrganizerEvents(user.id);
+      setOrganizerEvents(events);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadEvents();
+    const refresh = () => { loadEvents(); };
+    window.addEventListener("eticket:events-updated", refresh);
+    return () => window.removeEventListener("eticket:events-updated", refresh);
+  }, [loadEvents]);
 
   const filteredEvents = organizerEvents.filter(
     (event) =>
@@ -142,7 +162,13 @@ export default function OrganizerEventsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEvents.length === 0 ? (
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      Loading events…
+                    </TableCell>
+                  </TableRow>
+                ) : filteredEvents.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No events found
@@ -150,9 +176,9 @@ export default function OrganizerEventsPage() {
                   </TableRow>
                 ) : (
                   filteredEvents.map((event) => {
-                    const soldPercentage = Math.round(
-                      (event.soldTickets / event.totalTickets) * 100
-                    );
+                    const soldPercentage = event.totalTickets > 0
+                      ? Math.round((event.soldTickets / event.totalTickets) * 100)
+                      : 0;
                     const revenue = event.ticketTypes.reduce(
                       (sum, t) => sum + t.sold * t.price,
                       0

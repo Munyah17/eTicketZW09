@@ -304,10 +304,16 @@ function TicketConfirmationContent() {
                 </Card>
 
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                  <Button className="flex-1 gap-2">
-                    <Download className="h-4 w-4" />
-                    Download Ticket
-                  </Button>
+                  <a
+                    href={`/api/tickets/${ticketData.id}/download`}
+                    download={`ticket-${ticketData.id}.png`}
+                    className="flex-1"
+                  >
+                    <Button className="w-full gap-2">
+                      <Download className="h-4 w-4" />
+                      Download Ticket (PNG)
+                    </Button>
+                  </a>
                   <Button variant="outline" className="flex-1 gap-2">
                     <Share2 className="h-4 w-4" />
                     Share
