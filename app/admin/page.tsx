@@ -147,7 +147,7 @@ export default function AdminDashboard() {
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
               </span>
             )}
-            <span className="text-xs font-medium text-emerald-600 uppercase tracking-widest">Live</span>
+            <span className="text-xs font-medium text-emerald-600 font-mono uppercase tracking-widest">Live</span>
           </div>
           <h1 className="text-3xl font-bold tracking-tight">Platform Overview</h1>
           <p className="text-muted-foreground mt-1">Real-time metrics for E-TicketsZW</p>
@@ -170,10 +170,10 @@ export default function AdminDashboard() {
             <CardContent className="p-5 pl-6">
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-1">
+                  <p className="text-xs font-semibold font-mono uppercase tracking-widest text-muted-foreground mb-1">
                     {kpi.title}
                   </p>
-                  <p className="text-3xl font-bold tracking-tight">{kpi.value}</p>
+                  <p className="text-3xl font-mono font-bold tracking-tight">{kpi.value}</p>
                   <p className="text-xs text-muted-foreground mt-1 truncate">{kpi.sub}</p>
                 </div>
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${kpi.light} ml-3`}>

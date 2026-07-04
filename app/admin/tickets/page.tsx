@@ -193,10 +193,10 @@ export default function AdminTicketsPage() {
             <CardContent className="p-5 pl-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                  <p className="text-xs font-semibold font-mono uppercase tracking-widest text-muted-foreground">
                     {s.title}
                   </p>
-                  <p className="text-2xl font-bold mt-1">
+                  <p className="text-2xl font-mono font-bold mt-1">
                     {loading ? "—" : s.value}
                   </p>
                 </div>
@@ -294,7 +294,7 @@ export default function AdminTicketsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <p className="font-bold text-sm">${Number(ticket.total_paid).toFixed(2)}</p>
+                      <p className="font-mono font-bold text-sm">${Number(ticket.total_paid).toFixed(2)}</p>
                       <p className="text-xs text-muted-foreground">{ticket.currency}</p>
                     </TableCell>
                     <TableCell>

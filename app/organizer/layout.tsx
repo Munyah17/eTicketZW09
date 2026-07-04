@@ -107,7 +107,7 @@ export default function OrganizerLayout({
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <Ticket className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-bold">
+            <span className="font-heading font-bold">
               E-Tickets<span className="text-primary">ZW</span>
             </span>
           </Link>

@@ -109,7 +109,7 @@ export default function OrganizerAdvertisingPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Total Cost</span>
-                  <span className="font-semibold text-primary">${totalCost.toFixed(2)}</span>
+                  <span className="font-mono font-semibold text-primary">${totalCost.toFixed(2)}</span>
                 </div>
               </div>
             </div>
@@ -164,7 +164,7 @@ export default function OrganizerAdvertisingPage() {
               <DollarSign className="h-5 w-5 text-warning" />
             </div>
             <div>
-              <p className="text-2xl font-bold">${bannerType === "hero" ? HERO_BANNER_PRICE_PER_DAY : SECTION_BANNER_PRICE_PER_DAY}</p>
+              <p className="text-2xl font-mono font-bold">${bannerType === "hero" ? HERO_BANNER_PRICE_PER_DAY : SECTION_BANNER_PRICE_PER_DAY}</p>
               <p className="text-sm text-muted-foreground">Per Day</p>
             </div>
           </CardContent>
@@ -333,14 +333,14 @@ export default function OrganizerAdvertisingPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Price per day</span>
-                    <span className="font-medium">${bannerType === "hero" ? HERO_BANNER_PRICE_PER_DAY : SECTION_BANNER_PRICE_PER_DAY}</span>
+                    <span className="font-mono font-medium">${bannerType === "hero" ? HERO_BANNER_PRICE_PER_DAY : SECTION_BANNER_PRICE_PER_DAY}</span>
                   </div>
                 </div>
 
                 <div className="border-t pt-4">
                   <div className="flex justify-between text-lg font-semibold">
                     <span>Total</span>
-                    <span className="text-primary">${totalCost.toFixed(2)}</span>
+                    <span className="font-mono text-primary">${totalCost.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -361,7 +361,7 @@ export default function OrganizerAdvertisingPage() {
                   ) : (
                     <>
                       <Megaphone className="h-4 w-4" />
-                      Request Banner - ${totalCost.toFixed(2)}
+                      Request Banner - <span className="font-mono">${totalCost.toFixed(2)}</span>
                     </>
                   )}
                 </Button>

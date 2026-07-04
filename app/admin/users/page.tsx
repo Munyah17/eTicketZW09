@@ -162,7 +162,7 @@ export default function UsersPage() {
         ].map(s => (
           <Card key={s.label} className="border-0 shadow-sm">
             <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-widest">{s.label}</p>
+              <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">{s.label}</p>
               <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
             </CardContent>
           </Card>

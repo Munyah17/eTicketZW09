@@ -4,6 +4,7 @@ import { HeroSlider } from "@/components/home/hero-slider";
 import { SearchSection } from "@/components/home/search-section";
 import { TrustSection } from "@/components/home/trust-section";
 import { EventSections } from "@/components/home/event-sections";
+import { AdvertiseCTA } from "@/components/home/section-banner";
 
 export default function HomePage() {
   return (
@@ -17,11 +18,15 @@ export default function HomePage() {
         {/* Search Section */}
         <SearchSection />
 
+        {/* All Event Sections — Featured Events leads right after the hero/search,
+            ending in the Coming Soon row */}
+        <EventSections />
+
         {/* Trust Section */}
         <TrustSection />
 
-        {/* All Event Sections — client-side, loads from localStorage */}
-        <EventSections />
+        {/* Promote Your Event CTA */}
+        <AdvertiseCTA />
       </main>
 
       <Footer />

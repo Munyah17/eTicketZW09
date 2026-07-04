@@ -573,7 +573,7 @@ export default function CreateEventPage() {
                     <div className="rounded bg-secondary/50 p-3 text-sm">
                       <p>
                         Buyer pays:{" "}
-                        <strong>
+                        <strong className="font-mono">
                           $
                           {(
                             parseFloat(ticketType.price) *
@@ -581,7 +581,7 @@ export default function CreateEventPage() {
                           ).toFixed(2)}
                         </strong>
                       </p>
-                      <p className="text-muted-foreground">
+                      <p className="text-muted-foreground font-mono">
                         You receive: ${parseFloat(ticketType.price).toFixed(2)} per
                         ticket
                       </p>
@@ -672,7 +672,7 @@ export default function CreateEventPage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold">${parseFloat(t.price).toFixed(2)}</p>
+                    <p className="font-mono font-semibold">${parseFloat(t.price).toFixed(2)}</p>
                     <p className="text-xs text-muted-foreground">Your price</p>
                   </div>
                 </div>

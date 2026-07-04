@@ -171,8 +171,8 @@ export default function SupportPage() {
                 <HeadphonesIcon className={`h-5 w-5 ${s.color}`} />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-widest">{s.label}</p>
-                <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+                <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">{s.label}</p>
+                <p className={`text-2xl font-mono font-bold ${s.color}`}>{s.value}</p>
               </div>
             </CardContent>
           </Card>
@@ -338,7 +338,7 @@ export default function SupportPage() {
                   <p className="text-xs text-muted-foreground">{t.ticket_type_name} · {new Date(t.purchased_at).toLocaleDateString()}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold">${Number(t.total_paid).toFixed(2)}</p>
+                  <p className="text-sm font-mono font-bold">${Number(t.total_paid).toFixed(2)}</p>
                   <Badge className={t.payment_status === "completed" ? "bg-emerald-100 text-emerald-700 border-0 text-xs" : "text-xs"}>
                     {t.payment_status}
                   </Badge>

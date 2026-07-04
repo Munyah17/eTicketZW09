@@ -185,7 +185,7 @@ export default function OrganizerSalesPage() {
                       </TableCell>
                       <TableCell>{sale.ticketTypeName}</TableCell>
                       <TableCell>
-                        <span className="font-medium">${sale.totalPaid.toFixed(2)}</span>
+                        <span className="font-mono font-medium">${sale.totalPaid.toFixed(2)}</span>
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize">

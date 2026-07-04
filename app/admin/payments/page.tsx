@@ -109,12 +109,12 @@ export default function AdminPaymentsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/40">
-                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Reference</th>
-                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Buyer / Event</th>
-                  <th className="text-right px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Amount</th>
-                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Provider</th>
-                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Status</th>
-                  <th className="text-right px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Action</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Reference</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Buyer / Event</th>
+                  <th className="text-right px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Amount</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Provider</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Status</th>
+                  <th className="text-right px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -135,7 +135,7 @@ export default function AdminPaymentsPage() {
                         <p className="font-medium text-sm">{(m.buyerName as string) || "—"}</p>
                         <p className="text-xs text-muted-foreground truncate max-w-[220px]">{(m.eventTitle as string) || "—"}</p>
                       </td>
-                      <td className="px-5 py-3.5 text-right font-bold text-sm">{p.currency} {Number(p.amount).toFixed(2)}</td>
+                      <td className="px-5 py-3.5 text-right font-mono font-bold text-sm">{p.currency} {Number(p.amount).toFixed(2)}</td>
                       <td className="px-5 py-3.5">
                         <span className="flex items-center gap-1.5 text-xs">
                           <CreditCard className="h-3 w-3 text-muted-foreground" />
@@ -201,7 +201,7 @@ export default function AdminPaymentsPage() {
           {confirmAction && (
             <div className="py-2 space-y-1 text-sm">
               <p><span className="text-muted-foreground">Reference:</span> <span className="font-mono text-xs">{confirmAction.payment.reference}</span></p>
-              <p><span className="text-muted-foreground">Amount:</span> <strong>{confirmAction.payment.currency} {Number(confirmAction.payment.amount).toFixed(2)}</strong></p>
+              <p><span className="text-muted-foreground">Amount:</span> <strong className="font-mono">{confirmAction.payment.currency} {Number(confirmAction.payment.amount).toFixed(2)}</strong></p>
               <p><span className="text-muted-foreground">Provider:</span> {confirmAction.payment.provider}</p>
             </div>
           )}

@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import { Minus, Plus, Lock, ArrowLeft } from "lucide-react";
 import { Event, PaymentProvider, PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
+import { calculatePlatformFee, calculateTotalWithFee } from "@/lib/pricing";
 import { PaymentProviders } from "@/components/payment/payment-providers";
 import { useAuth } from "@/lib/auth-context";
 
@@ -55,8 +56,8 @@ export function TicketPurchaseForm({
     : 0;
 
   const basePrice = selectedTicketType ? selectedTicketType.price * quantity : 0;
-  const platformFee = basePrice * (feePercent / 100);
-  const totalPrice = basePrice + platformFee;
+  const platformFee = calculatePlatformFee(basePrice, feePercent);
+  const totalPrice = calculateTotalWithFee(basePrice, feePercent);
   const showBaseUrlWarning = !process.env.NEXT_PUBLIC_BASE_URL;
 
   const handleQuantityChange = (delta: number) => {
@@ -237,7 +238,7 @@ export function TicketPurchaseForm({
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">{selectedTicketType.name}</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm font-mono text-muted-foreground">
                     ${selectedTicketType.price.toFixed(2)} each
                   </p>
                 </div>
@@ -336,17 +337,17 @@ export function TicketPurchaseForm({
             <div className="space-y-2 border-t pt-4 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
-                <span>${basePrice.toFixed(2)}</span>
+                <span className="font-mono">${basePrice.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
                   Service Fee ({feePercent}%)
                 </span>
-                <span>${platformFee.toFixed(2)}</span>
+                <span className="font-mono">${platformFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between border-t pt-2 text-base font-semibold">
                 <span>Total</span>
-                <span className="text-primary">${totalPrice.toFixed(2)}</span>
+                <span className="font-heading text-lg text-primary">${totalPrice.toFixed(2)}</span>
               </div>
             </div>
 
@@ -372,7 +373,7 @@ export function TicketPurchaseForm({
                   </p>
                   <p className="text-sm text-muted-foreground">{event.title}</p>
                 </div>
-                <span className="font-bold text-primary">${totalPrice.toFixed(2)}</span>
+                <span className="font-heading font-bold text-primary">${totalPrice.toFixed(2)}</span>
               </div>
             </div>
 

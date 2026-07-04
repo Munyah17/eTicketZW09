@@ -236,7 +236,7 @@ export default function MyTicketsPage() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Amount Paid</span>
-                            <span className="font-medium">
+                            <span className="font-mono font-medium">
                               ${ticket.totalPaid.toFixed(2)} ({getPaymentMethodLabel(ticket.paymentMethod)})
                             </span>
                           </div>

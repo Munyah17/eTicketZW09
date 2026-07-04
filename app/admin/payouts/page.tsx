@@ -148,8 +148,8 @@ export default function AdminPayoutsPage() {
             <CardContent className="p-5 pl-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{item.label}</p>
-                  <p className="text-2xl font-bold mt-1">{item.count}</p>
+                  <p className="text-xs font-semibold font-mono uppercase tracking-widest text-muted-foreground">{item.label}</p>
+                  <p className="text-2xl font-mono font-bold mt-1">{item.count}</p>
                 </div>
                 <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-${item.color}-50 text-${item.color}-600`}>
                   <item.icon className="h-5 w-5" />
@@ -316,8 +316,8 @@ export default function AdminPayoutsPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div><p className="text-xs text-muted-foreground">Amount</p><p className="font-bold text-base">${selectedPayout.amount} {selectedPayout.currency}</p></div>
-                  <div><p className="text-xs text-muted-foreground">Net (after fee)</p><p className="font-medium">${(selectedPayout.amount - selectedPayout.transactionCost).toFixed(2)}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Amount</p><p className="font-mono font-bold text-base">${selectedPayout.amount} {selectedPayout.currency}</p></div>
+                  <div><p className="text-xs text-muted-foreground">Net (after fee)</p><p className="font-mono font-medium">${(selectedPayout.amount - selectedPayout.transactionCost).toFixed(2)}</p></div>
                   <div><p className="text-xs text-muted-foreground">Method</p><p className="font-medium capitalize">{selectedPayout.paymentMethod}</p></div>
                   <div><p className="text-xs text-muted-foreground">Details</p><p className="font-medium text-xs truncate">{selectedPayout.paymentDetails}</p></div>
                 </div>

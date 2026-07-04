@@ -237,7 +237,7 @@ function TicketConfirmationContent() {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Ticket className="h-5 w-5" />
-                        <span className="font-semibold">E-TicketsZW</span>
+                        <span className="font-heading font-semibold">E-TicketsZW</span>
                       </div>
                       <Badge variant="secondary" className="bg-primary-foreground/20 text-primary-foreground">
                         {ticketData.ticketType}
@@ -273,7 +273,7 @@ function TicketConfirmationContent() {
                           className="h-[200px] w-[200px] rounded-lg border p-2"
                         />
                       )}
-                      <p className="mt-2 text-xs text-muted-foreground">Ticket reference: {ticketData.id}</p>
+                      <p className="mt-2 text-xs font-mono text-muted-foreground">Ticket reference: {ticketData.id}</p>
                       <p className="mt-1 text-sm font-medium">
                         Quantity: {ticketData.quantity} {ticketData.quantity > 1 ? "tickets" : "ticket"}
                       </p>
@@ -294,7 +294,7 @@ function TicketConfirmationContent() {
                         </div>
                         <div className="flex items-center gap-2">
                           <CreditCard className="h-4 w-4 text-muted-foreground" />
-                          <span>
+                          <span className="font-mono">
                             Paid ${ticketData.totalPaid.toFixed(2)} via {getPaymentMethodLabel(ticketData.paymentMethod)}
                           </span>
                         </div>

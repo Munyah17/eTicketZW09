@@ -157,7 +157,7 @@ export default function PlatformPage() {
               </div>
               <div className="pb-1">
                 <p className="text-xs text-muted-foreground">For a $100 ticket</p>
-                <p className="text-lg font-bold text-emerald-600">+${((parseFloat(feeInput) || 0)).toFixed(2)}</p>
+                <p className="text-lg font-mono font-bold text-emerald-600">+${((parseFloat(feeInput) || 0)).toFixed(2)}</p>
               </div>
             </div>
           </CardContent>

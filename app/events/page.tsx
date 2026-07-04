@@ -19,6 +19,10 @@ import { Search, Filter, X, Calendar, MapPin, LayoutGrid, List } from "lucide-re
 import { EVENT_CATEGORIES, EventCategory, type Event } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+const COLUMNS = 5;
+const ROWS_PER_PAGE = 5;
+const PAGE_SIZE = COLUMNS * ROWS_PER_PAGE;
+
 const cities = ["All Cities", "Harare", "Bulawayo", "Victoria Falls", "Mutare", "Gweru"];
 const sortOptions = [
   { value: "newest", label: "Recently Posted" },
@@ -42,6 +46,7 @@ function EventsPageContent() {
   const [sortBy, setSortBy] = useState(initialSort === "newest" ? "newest" : "date-asc");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showFilters, setShowFilters] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
     fetch("/api/events")
@@ -108,6 +113,13 @@ function EventsPageContent() {
 
     return events;
   }, [allEvents, searchQuery, selectedCategory, selectedCity, sortBy]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [searchQuery, selectedCategory, selectedCity, sortBy]);
+
+  const visibleEvents = filteredEvents.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredEvents.length;
 
   const activeFiltersCount = [
     selectedCategory !== "all" ? 1 : 0,
@@ -265,7 +277,8 @@ function EventsPageContent() {
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <p className="text-sm text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{filteredEvents.length}</span> events
+                Showing <span className="font-medium text-foreground">{visibleEvents.length}</span> of{" "}
+                <span className="font-medium text-foreground">{filteredEvents.length}</span> events
               </p>
               {sortBy === "newest" && (
                 <Badge variant="secondary" className="gap-1">
@@ -292,18 +305,34 @@ function EventsPageContent() {
                 Clear all filters
               </Button>
             </div>
-          ) : viewMode === "grid" ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {filteredEvents.map((event) => (
-                <EventCard key={event.id} event={event} />
-              ))}
-            </div>
           ) : (
-            <div className="space-y-4">
-              {filteredEvents.map((event) => (
-                <EventCard key={event.id} event={event} variant="compact" />
-              ))}
-            </div>
+            <>
+              {viewMode === "grid" ? (
+                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+                  {visibleEvents.map((event) => (
+                    <EventCard key={event.id} event={event} />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {visibleEvents.map((event) => (
+                    <EventCard key={event.id} event={event} variant="compact" />
+                  ))}
+                </div>
+              )}
+
+              {hasMore && (
+                <div className="mt-8 flex justify-center">
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                  >
+                    Show More
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </section>
       </main>

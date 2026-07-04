@@ -44,7 +44,7 @@ export function PaymentProviders({ amount, onSelect, selectedProvider }: Payment
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
         Select your preferred payment method to complete your purchase of{" "}
-        <strong>${amount.toFixed(2)}</strong>
+        <strong className="font-mono">${amount.toFixed(2)}</strong>
       </p>
 
       {ONLINE_PAYMENT_PROVIDERS.map((provider) => (

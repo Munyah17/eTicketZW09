@@ -120,7 +120,7 @@ export default function AdvertisePage() {
             <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
               {stats.map((stat) => (
                 <div key={stat.label} className="text-center">
-                  <p className="text-3xl font-bold">{stat.value}</p>
+                  <p className="text-3xl font-mono font-bold">{stat.value}</p>
                   <p className="mt-1 text-sm text-primary-foreground/80">{stat.label}</p>
                 </div>
               ))}
@@ -185,7 +185,7 @@ export default function AdvertisePage() {
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="flex items-baseline gap-1">
-                      <span className="text-3xl font-bold">${banner.price}</span>
+                      <span className="text-3xl font-heading font-bold">${banner.price}</span>
                       <span className="text-muted-foreground">/day</span>
                     </div>
 

@@ -130,7 +130,7 @@ export default function AdminLayout({
       <>
         {Object.entries(groups).map(([group, links]) => (
           <div key={group} className="mb-3">
-            <p className="px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-1">{group}</p>
+            <p className="px-3 text-[10px] font-semibold font-mono uppercase tracking-widest text-slate-500 mb-1">{group}</p>
             {links.map((link) => {
               const isActive = pathname === link.href ||
                 (link.href !== "/admin" && pathname.startsWith(link.href));
@@ -207,7 +207,7 @@ export default function AdminLayout({
               <PanelIcon className="h-4 w-4 text-primary-foreground" />
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-bold text-white truncate">E-TicketsZW</p>
+              <p className="text-sm font-heading font-bold text-white truncate">E-TicketsZW</p>
               <Badge className="h-4 px-1.5 text-[9px] bg-primary/20 text-primary border-0 mt-0.5">
                 {panelLabel}
               </Badge>

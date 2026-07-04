@@ -127,7 +127,7 @@ export default function TransactionsPage() {
                 <k.icon className={`h-5 w-5 ${k.color}`} />
               </div>
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-widest">{k.label}</p>
+                <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">{k.label}</p>
                 <p className={`text-xl font-bold ${k.color}`}>{k.value}</p>
               </div>
             </CardContent>
@@ -151,14 +151,14 @@ export default function TransactionsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/40">
-                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Reference</th>
-                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Buyer</th>
-                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest hidden md:table-cell">Event</th>
-                  <th className="text-right px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Amount</th>
-                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest hidden sm:table-cell">Provider</th>
-                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Status</th>
-                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest hidden lg:table-cell">Date</th>
-                  <th className="text-right px-5 py-3 font-medium text-muted-foreground text-xs uppercase tracking-widest">Action</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Reference</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Buyer</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest hidden md:table-cell">Event</th>
+                  <th className="text-right px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Amount</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest hidden sm:table-cell">Provider</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Status</th>
+                  <th className="text-left px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest hidden lg:table-cell">Date</th>
+                  <th className="text-right px-5 py-3 font-medium text-muted-foreground text-xs font-mono uppercase tracking-widest">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -180,7 +180,7 @@ export default function TransactionsPage() {
                       <td className="px-5 py-3.5 hidden md:table-cell">
                         <p className="text-sm truncate max-w-[180px]">{tx.eventTitle}</p>
                       </td>
-                      <td className="px-5 py-3.5 text-right font-bold text-sm">${tx.amount.toFixed(2)}</td>
+                      <td className="px-5 py-3.5 text-right font-mono font-bold text-sm">${tx.amount.toFixed(2)}</td>
                       <td className="px-5 py-3.5 hidden sm:table-cell">
                         <span className="flex items-center gap-1.5 text-xs">
                           <CreditCard className="h-3 w-3 text-muted-foreground" />
@@ -192,7 +192,7 @@ export default function TransactionsPage() {
                           <cfg.icon className="h-3 w-3" /> {cfg.label}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 hidden lg:table-cell text-xs text-muted-foreground">
+                      <td className="px-5 py-3.5 hidden lg:table-cell font-mono text-xs text-muted-foreground">
                         {new Date(tx.createdAt).toLocaleDateString("en-ZW", { day: "numeric", month: "short", year: "2-digit" })}
                       </td>
                       <td className="px-5 py-3.5 text-right">
@@ -240,7 +240,7 @@ export default function TransactionsPage() {
             <div className="py-2 space-y-1">
               <p className="text-sm"><span className="text-muted-foreground">Buyer:</span> <strong>{confirmRefund.buyerName}</strong></p>
               <p className="text-sm"><span className="text-muted-foreground">Event:</span> {confirmRefund.eventTitle}</p>
-              <p className="text-sm"><span className="text-muted-foreground">Amount:</span> <strong className="text-orange-600">${confirmRefund.amount.toFixed(2)}</strong></p>
+              <p className="text-sm"><span className="text-muted-foreground">Amount:</span> <strong className="font-mono text-orange-600">${confirmRefund.amount.toFixed(2)}</strong></p>
               <p className="text-sm"><span className="text-muted-foreground">Provider:</span> {confirmRefund.provider}</p>
             </div>
           )}

@@ -221,7 +221,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-lg font-bold">${ticketType.price.toFixed(2)}</p>
+                          <p className="text-lg font-heading font-bold">${ticketType.price.toFixed(2)}</p>
                         </div>
                       </CardContent>
                     </Card>

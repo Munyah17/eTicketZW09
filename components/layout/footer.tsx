@@ -44,7 +44,7 @@ export function Footer() {
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
                 <Ticket className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold tracking-tight">
+              <span className="text-xl font-heading font-bold tracking-tight">
                 E-Tickets<span className="text-primary">ZW</span>
               </span>
             </Link>
@@ -139,11 +139,11 @@ export function Footer() {
                 ))}
               </div>
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm font-mono text-muted-foreground">
               &copy; {new Date().getFullYear()} E-TicketsZW. All rights reserved.
             </p>
           </div>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 md:justify-start">
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 md:justify-start font-mono">
             <Link href="/terms" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
               Terms of Service
             </Link>

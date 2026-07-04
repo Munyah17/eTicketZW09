@@ -188,7 +188,7 @@ export default function BannerManagementPage() {
             <CardContent className="p-5 pl-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{s.label}</p>
+                  <p className="text-xs font-semibold font-mono uppercase tracking-widest text-muted-foreground">{s.label}</p>
                   <p className="text-2xl font-bold mt-1">{s.value}</p>
                 </div>
                 <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${s.light}`}>

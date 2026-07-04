@@ -19,6 +19,7 @@ import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@/lib/types";
 
 const navigation = [
+  { name: "Home", href: "/" },
   { name: "Events", href: "/events" },
   { name: "For Organizers", href: "/organizer" },
   { name: "Advertise", href: "/advertise" },
@@ -57,7 +58,7 @@ export function Header() {
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
             <Ticket className="h-5 w-5 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold tracking-tight">
+          <span className="text-xl font-heading font-bold tracking-tight">
             E-Tickets<span className="text-primary">ZW</span>
           </span>
         </Link>
@@ -315,7 +316,7 @@ export function Header() {
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
                 <Ticket className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="text-lg font-bold">E-TicketsZW</span>
+              <span className="text-lg font-heading font-bold">E-TicketsZW</span>
             </Link>
             <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)}>
               <X className="h-5 w-5" />

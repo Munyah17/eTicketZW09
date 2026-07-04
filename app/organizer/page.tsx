@@ -103,7 +103,7 @@ export default function OrganizerDashboard() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-muted-foreground">{stat.title}</p>
-                  <p className="mt-1 text-2xl font-bold">{stat.value}</p>
+                  <p className="mt-1 text-2xl font-mono font-bold">{stat.value}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{stat.sub}</p>
                 </div>
                 <div className={`rounded-lg bg-secondary p-3 ${stat.color}`}>
@@ -184,7 +184,7 @@ export default function OrganizerDashboard() {
                       </div>
                       <div className="text-center">
                         <p className="text-sm text-muted-foreground">Revenue</p>
-                        <p className="font-semibold">${eventRevenue.toFixed(2)}</p>
+                        <p className="font-mono font-semibold">${eventRevenue.toFixed(2)}</p>
                       </div>
                       <Badge
                         variant={

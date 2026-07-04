@@ -76,13 +76,13 @@ export async function GET() {
   const recent = (recentRows ?? []) as unknown as Record<string, unknown>[];
 
   const byCategory = (cat: string) =>
-    recent.filter((e) => e.category === cat).slice(0, 8).map(toEvent);
+    recent.filter((e) => e.category === cat).slice(0, 12).map(toEvent);
 
   const featured = (featuredRows ?? []) as unknown as Record<string, unknown>[];
 
   return NextResponse.json({
     featured: featured.map(toEvent),
-    newest: recent.slice(0, 8).map(toEvent),
+    newest: recent.slice(0, 12).map(toEvent),
     upcoming: recent
       .filter((e) => (e.date as string) >= today)
       .sort((a, b) => (a.date as string).localeCompare(b.date as string))
@@ -92,6 +92,9 @@ export async function GET() {
     music: byCategory("music"),
     sports: byCategory("sports"),
     marathon: byCategory("marathon"),
+    conference: byCategory("conference"),
+    workshop: byCategory("workshop"),
     festival: byCategory("festival"),
+    theater: byCategory("theater"),
   });
 }

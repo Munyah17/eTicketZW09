@@ -222,7 +222,7 @@ export default function GateManagementPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Total Tickets</p>
-                    <p className="text-2xl font-bold">{tickets.length}</p>
+                    <p className="text-2xl font-mono font-bold">{tickets.length}</p>
                   </div>
                 </div>
               </CardContent>
@@ -235,7 +235,7 @@ export default function GateManagementPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Admitted</p>
-                    <p className="text-2xl font-bold">{admittedCount}</p>
+                    <p className="text-2xl font-mono font-bold">{admittedCount}</p>
                   </div>
                 </div>
               </CardContent>
@@ -248,7 +248,7 @@ export default function GateManagementPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Pending Entry</p>
-                    <p className="text-2xl font-bold">{validCount}</p>
+                    <p className="text-2xl font-mono font-bold">{validCount}</p>
                   </div>
                 </div>
               </CardContent>

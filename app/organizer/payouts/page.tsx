@@ -172,7 +172,7 @@ export default function OrganizerPayoutsPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Available Balance</p>
-                <p className="text-2xl font-bold">${availableBalance.toLocaleString()}</p>
+                <p className="text-2xl font-mono font-bold">${availableBalance.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -185,7 +185,7 @@ export default function OrganizerPayoutsPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Pending Payouts</p>
-                <p className="text-2xl font-bold">${pendingPayouts.toLocaleString()}</p>
+                <p className="text-2xl font-mono font-bold">${pendingPayouts.toLocaleString()}</p>
               </div>
             </div>
           </CardContent>
@@ -198,7 +198,7 @@ export default function OrganizerPayoutsPage() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Total Withdrawn</p>
-                <p className="text-2xl font-bold">
+                <p className="text-2xl font-mono font-bold">
                   $
                   {organizerPayouts
                     .filter((p) => p.status === "approved")
@@ -305,7 +305,7 @@ export default function OrganizerPayoutsPage() {
           <div className="space-y-4">
             <div className="bg-muted p-4 rounded-lg">
               <p className="text-sm text-muted-foreground">Available Balance</p>
-              <p className="text-2xl font-bold">${availableBalance.toLocaleString()}</p>
+              <p className="text-2xl font-mono font-bold">${availableBalance.toLocaleString()}</p>
             </div>
 
             <div>
@@ -366,7 +366,7 @@ export default function OrganizerPayoutsPage() {
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
               <p className="text-sm">
                 <strong>Transaction fee:</strong> {PAYOUT_TRANSACTION_COST_PERCENTAGE}% will be deducted from your payout amount.
-                You will receive <strong>${formData.amount ? Math.max(0, parseFloat(formData.amount || "0") * (1 - PAYOUT_TRANSACTION_COST_PERCENTAGE / 100)).toFixed(2) : "0.00"}</strong>.
+                You will receive <strong className="font-mono">${formData.amount ? Math.max(0, parseFloat(formData.amount || "0") * (1 - PAYOUT_TRANSACTION_COST_PERCENTAGE / 100)).toFixed(2) : "0.00"}</strong>.
               </p>
             </div>
             {formData.paymentMethod === "cash_pickup" && (

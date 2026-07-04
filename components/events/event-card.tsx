@@ -132,7 +132,7 @@ export function EventCard({ event, variant = "default" }: EventCardProps) {
           <div className="mt-4 flex items-center justify-between">
             <div>
               <span className="text-xs text-muted-foreground">From</span>
-              <p className="text-lg font-bold text-primary">${lowestPrice}</p>
+              <p className="text-lg font-heading font-bold text-primary">${lowestPrice}</p>
             </div>
             <Button size="sm" className="bg-primary hover:bg-primary/90">
               Get Tickets

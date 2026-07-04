@@ -8,7 +8,7 @@ import {
   CategorySection,
   UpcomingSection,
 } from "@/components/home/category-section";
-import { SectionBanner, AdvertiseCTA } from "@/components/home/section-banner";
+import { SectionBanner } from "@/components/home/section-banner";
 
 type HomeSections = {
   featured: Event[];
@@ -18,12 +18,16 @@ type HomeSections = {
   music: Event[];
   sports: Event[];
   marathon: Event[];
+  conference: Event[];
+  workshop: Event[];
   festival: Event[];
+  theater: Event[];
 };
 
 const EMPTY: HomeSections = {
   featured: [], newest: [], upcoming: [],
-  comedy: [], music: [], sports: [], marathon: [], festival: [],
+  comedy: [], music: [], sports: [], marathon: [],
+  conference: [], workshop: [], festival: [], theater: [],
 };
 
 export function EventSections() {
@@ -74,14 +78,17 @@ export function EventSections() {
       <SectionBanner position={1} />
       <NewestEventsSection events={sections.newest} />
       <SectionBanner position={2} />
-      {sections.comedy.length > 0 && <CategorySection category="comedy" events={sections.comedy} />}
-      {sections.music.length > 0 && <CategorySection category="music" events={sections.music} />}
-      {sections.sports.length > 0 && <CategorySection category="sports" events={sections.sports} />}
-      {sections.marathon.length > 0 && <CategorySection category="marathon" events={sections.marathon} />}
+      <CategorySection category="comedy" events={sections.comedy} />
+      <CategorySection category="music" events={sections.music} />
+      <CategorySection category="sports" events={sections.sports} />
+      <CategorySection category="marathon" events={sections.marathon} />
       <SectionBanner position={3} />
-      {sections.festival.length > 0 && <CategorySection category="festival" events={sections.festival} />}
-      {sections.upcoming.length > 0 && <UpcomingSection events={sections.upcoming} />}
-      <AdvertiseCTA />
+      <CategorySection category="conference" events={sections.conference} />
+      <CategorySection category="workshop" events={sections.workshop} />
+      <CategorySection category="festival" events={sections.festival} />
+      <CategorySection category="theater" events={sections.theater} />
+      <SectionBanner position={4} />
+      <UpcomingSection events={sections.upcoming} />
     </>
   );
 }
