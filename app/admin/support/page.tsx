@@ -15,20 +15,28 @@ import {
   XCircle, Clock, HeadphonesIcon, Send, AlertTriangle, RefreshCw,
 } from "lucide-react";
 import { isSuperAdminAccount } from "@/lib/auth-context";
-import { mockTickets } from "@/lib/mock-data";
 import { User as UserType, UserRole } from "@/lib/types";
-import { useAuth } from "@/lib/auth-context";
-import { logAuditAction } from "@/lib/audit-logger";
 
-// Mock support tickets
-const MOCK_SUPPORT = [
-  { id: "sup-001", type: "payment", priority: "high", user: "Tatenda Moyo", email: "user@example.com", subject: "Payment deducted but no ticket received", status: "open", created: "2024-11-28T10:00:00Z" },
-  { id: "sup-002", type: "refund", priority: "medium", user: "John Doe", email: "john@example.com", subject: "Request refund for cancelled event", status: "open", created: "2024-11-27T14:30:00Z" },
-  { id: "sup-003", type: "account", priority: "low", user: "Mary Nyamande", email: "mary@example.com", subject: "Cannot login to account", status: "resolved", created: "2024-11-26T09:15:00Z" },
-  { id: "sup-004", type: "organizer", priority: "high", user: "Ghettocracy Entertainment", email: "info@ghettocracy.co.zw", subject: "Payout delayed for 7 days", status: "open", created: "2024-11-25T11:00:00Z" },
-  { id: "sup-005", type: "ticket", priority: "medium", user: "Peter Moyo", email: "peter@example.com", subject: "QR code not scanning at gate", status: "in_progress", created: "2024-11-24T16:45:00Z" },
-  { id: "sup-006", type: "payment", priority: "high", user: "Susan Chikwanda", email: "susan@example.com", subject: "Double charged for one ticket", status: "open", created: "2024-11-23T08:20:00Z" },
-];
+interface SupportTicket {
+  id: string;
+  name: string;
+  email: string;
+  type: string;
+  priority: "low" | "medium" | "high";
+  status: "open" | "in_progress" | "resolved" | "closed";
+  subject: string;
+  message: string;
+  created_at: string;
+}
+
+interface UserTicketRow {
+  id: string;
+  event_title: string;
+  ticket_type_name: string;
+  total_paid: number;
+  payment_status: string;
+  purchased_at: string;
+}
 
 const PRIORITY_CONFIG = {
   high: { color: "bg-red-100 text-red-700", label: "High" },
@@ -44,15 +52,32 @@ const STATUS_CONFIG = {
 };
 
 export default function SupportPage() {
-  const { user: adminUser } = useAuth();
   const [userSearch, setUserSearch] = useState("");
   const [foundUser, setFoundUser] = useState<UserType | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [userTickets, setUserTickets] = useState<UserTicketRow[]>([]);
   const [showTickets, setShowTickets] = useState(false);
   const [showNotify, setShowNotify] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState("");
-  const [tickets, setTickets] = useState(MOCK_SUPPORT);
+  const [notifySending, setNotifySending] = useState(false);
+  const [notifyError, setNotifyError] = useState("");
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState("all");
   const [allUsers, setAllUsers] = useState<UserType[]>([]);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/support");
+      const json = await res.json();
+      setTickets(json.tickets ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
 
   useEffect(() => {
     fetch("/api/admin/users")
@@ -81,23 +106,42 @@ export default function SupportPage() {
       u.phone?.includes(q)
     );
     setFoundUser(found || null);
+    setNotFound(!found);
   };
 
-  const getUserTickets = (user: UserType) =>
-    mockTickets.filter(t => t.buyerName === user.name);
-
-  const handleSendNotification = () => {
-    if (!adminUser || !foundUser || !notifyMsg.trim()) return;
-    logAuditAction(adminUser, "platform.announcement",
-      `Notification sent to ${foundUser.email}: "${notifyMsg.slice(0, 50)}"`, foundUser.id);
-    alert(`Notification queued for ${foundUser.email}`);
-    setShowNotify(false);
-    setNotifyMsg("");
+  const loadUserTickets = async (user: UserType) => {
+    const res = await fetch(`/api/admin/tickets?search=${encodeURIComponent(user.email)}`);
+    const json = await res.json();
+    setUserTickets(json.tickets ?? []);
+    setShowTickets(true);
   };
 
-  const handleResolve = (id: string) => {
-    setTickets(prev => prev.map(t => t.id === id ? { ...t, status: "resolved" } : t));
-    if (adminUser) logAuditAction(adminUser, "platform.feature_toggle", `Resolved support ticket ${id}`);
+  const handleSendNotification = async () => {
+    if (!foundUser || !notifyMsg.trim()) return;
+    setNotifySending(true);
+    setNotifyError("");
+    try {
+      const res = await fetch("/api/admin/support/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toEmail: foundUser.email, toName: foundUser.name, message: notifyMsg }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setNotifyError(json.error ?? "Failed to send"); return; }
+      setShowNotify(false);
+      setNotifyMsg("");
+    } finally {
+      setNotifySending(false);
+    }
+  };
+
+  const handleStatusChange = async (id: string, status: SupportTicket["status"]) => {
+    await fetch("/api/admin/support", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticketId: id, status }),
+    });
+    reload();
   };
 
   const filteredTickets = filterType === "all"
@@ -106,6 +150,7 @@ export default function SupportPage() {
 
   const openCount = tickets.filter(t => t.status === "open").length;
   const highCount = tickets.filter(t => t.priority === "high" && t.status !== "resolved").length;
+  const resolvedCount = tickets.filter(t => t.status === "resolved").length;
 
   return (
     <div className="space-y-6">
@@ -114,12 +159,11 @@ export default function SupportPage() {
         <p className="text-muted-foreground mt-1">User lookup, manual overrides, and support ticket management.</p>
       </div>
 
-      {/* Summary */}
       <div className="grid gap-3 sm:grid-cols-3">
         {[
           { label: "Open Tickets", value: openCount, color: "text-blue-600", bg: "bg-blue-50" },
           { label: "High Priority", value: highCount, color: "text-red-600", bg: "bg-red-50" },
-          { label: "Resolved Today", value: tickets.filter(t => t.status === "resolved").length, color: "text-emerald-600", bg: "bg-emerald-50" },
+          { label: "Resolved", value: resolvedCount, color: "text-emerald-600", bg: "bg-emerald-50" },
         ].map(s => (
           <Card key={s.label} className="border-0 shadow-sm">
             <CardContent className="p-4 flex items-center gap-3">
@@ -135,7 +179,6 @@ export default function SupportPage() {
         ))}
       </div>
 
-      {/* User Lookup */}
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-3 border-b">
           <div className="flex items-center gap-2">
@@ -182,9 +225,9 @@ export default function SupportPage() {
               </div>
 
               <div className="flex flex-wrap gap-2">
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowTickets(true)}>
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={() => loadUserTickets(foundUser)}>
                   <Ticket className="h-3.5 w-3.5" />
-                  View Tickets ({getUserTickets(foundUser).length})
+                  View Tickets
                 </Button>
                 {!isSuperAdminAccount(foundUser) && (
                   <Button size="sm" variant="outline" className="gap-1.5 text-amber-600 border-amber-200" onClick={() => setShowNotify(true)}>
@@ -194,16 +237,15 @@ export default function SupportPage() {
                 )}
               </div>
             </div>
-          ) : userSearch && (
+          ) : notFound && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-3 rounded-lg bg-muted/50">
               <XCircle className="h-4 w-4 text-red-400" />
-              No user found for "{userSearch}"
+              No user found for &quot;{userSearch}&quot;
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Support Queue */}
       <Card className="border-0 shadow-sm">
         <CardHeader className="pb-3 border-b">
           <div className="flex items-center justify-between">
@@ -229,16 +271,21 @@ export default function SupportPage() {
         </CardHeader>
         <CardContent className="p-0">
           <div className="divide-y">
-            {filteredTickets.length === 0 && (
+            {loading && (
+              <div className="flex items-center justify-center py-12">
+                <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            )}
+            {!loading && filteredTickets.length === 0 && (
               <div className="flex flex-col items-center py-12 text-center">
                 <CheckCircle2 className="h-10 w-10 text-emerald-400 mb-3" />
                 <p className="font-medium">Queue clear</p>
                 <p className="text-sm text-muted-foreground">No tickets in this category</p>
               </div>
             )}
-            {filteredTickets.map(ticket => {
-              const pCfg = PRIORITY_CONFIG[ticket.priority as keyof typeof PRIORITY_CONFIG];
-              const sCfg = STATUS_CONFIG[ticket.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.open;
+            {!loading && filteredTickets.map(ticket => {
+              const pCfg = PRIORITY_CONFIG[ticket.priority] ?? PRIORITY_CONFIG.medium;
+              const sCfg = STATUS_CONFIG[ticket.status] ?? STATUS_CONFIG.open;
               return (
                 <div key={ticket.id} className="flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors">
                   <div className="flex-1 min-w-0">
@@ -247,11 +294,12 @@ export default function SupportPage() {
                       <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${pCfg.color}`}>{pCfg.label}</span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                      <span className="flex items-center gap-1"><User className="h-3 w-3" />{ticket.user}</span>
+                      <span className="flex items-center gap-1"><User className="h-3 w-3" />{ticket.name}</span>
                       <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{ticket.email}</span>
                       <span className="capitalize">{ticket.type}</span>
-                      <span>{new Date(ticket.created).toLocaleDateString()}</span>
+                      <span>{new Date(ticket.created_at).toLocaleDateString()}</span>
                     </div>
+                    <p className="text-xs text-muted-foreground mt-1 truncate max-w-xl">{ticket.message}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${sCfg.color}`}>
@@ -259,7 +307,7 @@ export default function SupportPage() {
                     </span>
                     {ticket.status !== "resolved" && (
                       <Button size="sm" variant="outline" className="text-xs text-emerald-600 border-emerald-200"
-                        onClick={() => handleResolve(ticket.id)}>
+                        onClick={() => handleStatusChange(ticket.id, "resolved")}>
                         Resolve
                       </Button>
                     )}
@@ -271,7 +319,6 @@ export default function SupportPage() {
         </CardContent>
       </Card>
 
-      {/* User Tickets Dialog */}
       <Dialog open={showTickets} onOpenChange={setShowTickets}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -281,19 +328,19 @@ export default function SupportPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-2 max-h-80 overflow-y-auto">
-            {foundUser && getUserTickets(foundUser).length === 0 && (
+            {userTickets.length === 0 && (
               <p className="text-sm text-muted-foreground py-4 text-center">No tickets found for this user</p>
             )}
-            {foundUser && getUserTickets(foundUser).map(t => (
+            {userTickets.map(t => (
               <div key={t.id} className="flex items-center justify-between p-3 rounded-lg border bg-background">
                 <div>
-                  <p className="text-sm font-medium">{t.eventTitle}</p>
-                  <p className="text-xs text-muted-foreground">{t.ticketTypeName} · {new Date(t.purchasedAt).toLocaleDateString()}</p>
+                  <p className="text-sm font-medium">{t.event_title}</p>
+                  <p className="text-xs text-muted-foreground">{t.ticket_type_name} · {new Date(t.purchased_at).toLocaleDateString()}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-bold">${t.totalPaid.toFixed(2)}</p>
-                  <Badge className={t.paymentStatus === "completed" ? "bg-emerald-100 text-emerald-700 border-0 text-xs" : "text-xs"}>
-                    {t.paymentStatus}
+                  <p className="text-sm font-bold">${Number(t.total_paid).toFixed(2)}</p>
+                  <Badge className={t.payment_status === "completed" ? "bg-emerald-100 text-emerald-700 border-0 text-xs" : "text-xs"}>
+                    {t.payment_status}
                   </Badge>
                 </div>
               </div>
@@ -305,7 +352,6 @@ export default function SupportPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Send Notification Dialog */}
       <Dialog open={showNotify} onOpenChange={setShowNotify}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -328,16 +374,21 @@ export default function SupportPage() {
                   rows={4}
                 />
               </div>
+              {notifyError && (
+                <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 text-xs text-destructive">
+                  {notifyError}
+                </div>
+              )}
               <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 flex gap-2">
                 <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                <p className="text-xs text-amber-700">Requires an email/SMS provider to be configured. This action is logged.</p>
+                <p className="text-xs text-amber-700">Sends a real email via Resend. This action is logged.</p>
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNotify(false)}>Cancel</Button>
-            <Button onClick={handleSendNotification} disabled={!notifyMsg.trim()} className="bg-primary gap-2">
-              <Send className="h-4 w-4" /> Send
+            <Button variant="outline" onClick={() => setShowNotify(false)} disabled={notifySending}>Cancel</Button>
+            <Button onClick={handleSendNotification} disabled={!notifyMsg.trim() || notifySending} className="bg-primary gap-2">
+              <Send className="h-4 w-4" /> {notifySending ? "Sending…" : "Send"}
             </Button>
           </DialogFooter>
         </DialogContent>

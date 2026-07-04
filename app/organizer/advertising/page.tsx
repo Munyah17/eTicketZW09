@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -24,20 +24,27 @@ import {
   Eye,
   TrendingUp,
 } from "lucide-react";
-import { mockEvents } from "@/lib/mock-data";
-import { HERO_BANNER_PRICE_PER_DAY, SECTION_BANNER_PRICE_PER_DAY } from "@/lib/types";
+import { useAuth } from "@/lib/auth-context";
+import { getOrganizerEvents } from "@/lib/events-store";
+import { Event, HERO_BANNER_PRICE_PER_DAY, SECTION_BANNER_PRICE_PER_DAY } from "@/lib/types";
 
 type BannerType = "hero" | "section";
 
 export default function OrganizerAdvertisingPage() {
+  const { user } = useAuth();
+  const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState("");
   const [bannerType, setBannerType] = useState<BannerType>("hero");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState("");
 
-  // Calculate duration and cost
+  useEffect(() => {
+    if (user) getOrganizerEvents(user.id).then(setEvents);
+  }, [user]);
+
   const calculateDays = () => {
     if (!startDate || !endDate) return 0;
     const start = new Date(startDate);
@@ -51,10 +58,29 @@ export default function OrganizerAdvertisingPage() {
   const totalCost = days * (bannerType === "hero" ? HERO_BANNER_PRICE_PER_DAY : SECTION_BANNER_PRICE_PER_DAY);
 
   const handleSubmit = async () => {
+    const event = events.find((e) => e.id === selectedEvent);
+    if (!event) return;
+
     setIsSubmitting(true);
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    setIsSubmitting(false);
-    setIsSuccess(true);
+    setError("");
+    try {
+      const res = await fetch("/api/organizer/advertising", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: event.id,
+          eventTitle: event.title,
+          bannerType,
+          startDate,
+          endDate,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setError(json.error ?? "Failed to book banner"); return; }
+      setIsSuccess(true);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isSuccess) {
@@ -65,9 +91,9 @@ export default function OrganizerAdvertisingPage() {
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
               <CheckCircle2 className="h-10 w-10 text-success" />
             </div>
-            <h2 className="mt-4 text-2xl font-bold">Banner Booked!</h2>
+            <h2 className="mt-4 text-2xl font-bold">Banner Requested!</h2>
             <p className="mt-2 text-muted-foreground">
-              Your banner campaign has been submitted for review. It will go live once approved.
+              Your banner campaign has been submitted for review. It will go live once an admin approves and activates it.
             </p>
             <div className="mt-6 rounded-lg bg-secondary/50 p-4 text-left">
               <div className="grid gap-2 text-sm">
@@ -88,7 +114,7 @@ export default function OrganizerAdvertisingPage() {
               </div>
             </div>
             <Button
-              onClick={() => setIsSuccess(false)}
+              onClick={() => { setIsSuccess(false); setSelectedEvent(""); setStartDate(""); setEndDate(""); }}
               className="mt-6"
               variant="outline"
             >
@@ -102,7 +128,6 @@ export default function OrganizerAdvertisingPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold">Advertise Your Event</h1>
         <p className="text-muted-foreground">
@@ -110,7 +135,6 @@ export default function OrganizerAdvertisingPage() {
         </p>
       </div>
 
-      {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-4 p-4">
@@ -118,8 +142,8 @@ export default function OrganizerAdvertisingPage() {
               <Eye className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">10K+</p>
-              <p className="text-sm text-muted-foreground">Daily Impressions</p>
+              <p className="text-2xl font-bold">Homepage</p>
+              <p className="text-sm text-muted-foreground">Placement</p>
             </div>
           </CardContent>
         </Card>
@@ -129,8 +153,8 @@ export default function OrganizerAdvertisingPage() {
               <TrendingUp className="h-5 w-5 text-success" />
             </div>
             <div>
-              <p className="text-2xl font-bold">3x</p>
-              <p className="text-sm text-muted-foreground">Avg. Sales Boost</p>
+              <p className="text-2xl font-bold">Premium</p>
+              <p className="text-sm text-muted-foreground">Visibility</p>
             </div>
           </CardContent>
         </Card>
@@ -148,9 +172,7 @@ export default function OrganizerAdvertisingPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Form */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Select Event */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -167,7 +189,10 @@ export default function OrganizerAdvertisingPage() {
                   <SelectValue placeholder="Choose an event to promote" />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockEvents.slice(0, 3).map((event) => (
+                  {events.length === 0 && (
+                    <div className="px-2 py-1.5 text-sm text-muted-foreground">You have no events yet</div>
+                  )}
+                  {events.map((event) => (
                     <SelectItem key={event.id} value={event.id}>
                       {event.title}
                     </SelectItem>
@@ -177,7 +202,6 @@ export default function OrganizerAdvertisingPage() {
             </CardContent>
           </Card>
 
-          {/* Banner Type */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -211,7 +235,7 @@ export default function OrganizerAdvertisingPage() {
                     Premium placement in the main homepage slider
                   </p>
                   <p className="text-sm font-medium text-primary">
-                    ${HERO_BANNER_PRICE_PER_DAY}/day - 10K+ impressions
+                    ${HERO_BANNER_PRICE_PER_DAY}/day
                   </p>
                 </Label>
 
@@ -229,14 +253,13 @@ export default function OrganizerAdvertisingPage() {
                     Strategic placement between event categories
                   </p>
                   <p className="text-sm font-medium text-primary">
-                    ${SECTION_BANNER_PRICE_PER_DAY}/day - 5K+ impressions
+                    ${SECTION_BANNER_PRICE_PER_DAY}/day
                   </p>
                 </Label>
               </RadioGroup>
             </CardContent>
           </Card>
 
-          {/* Campaign Duration */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -281,7 +304,6 @@ export default function OrganizerAdvertisingPage() {
           </Card>
         </div>
 
-        {/* Order Summary */}
         <div className="lg:col-span-1">
           <div className="sticky top-24">
             <Card>
@@ -293,7 +315,7 @@ export default function OrganizerAdvertisingPage() {
                   <div className="rounded-lg bg-secondary/50 p-3">
                     <p className="text-sm text-muted-foreground">Event</p>
                     <p className="font-medium">
-                      {mockEvents.find((e) => e.id === selectedEvent)?.title}
+                      {events.find((e) => e.id === selectedEvent)?.title}
                     </p>
                   </div>
                 )}
@@ -322,6 +344,10 @@ export default function OrganizerAdvertisingPage() {
                   </div>
                 </div>
 
+                {error && (
+                  <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{error}</p>
+                )}
+
                 <Button
                   className="w-full gap-2 bg-primary hover:bg-primary/90"
                   onClick={handleSubmit}
@@ -330,18 +356,18 @@ export default function OrganizerAdvertisingPage() {
                   {isSubmitting ? (
                     <>
                       <Spinner className="h-4 w-4" />
-                      Processing...
+                      Submitting...
                     </>
                   ) : (
                     <>
                       <Megaphone className="h-4 w-4" />
-                      Book Banner - ${totalCost.toFixed(2)}
+                      Request Banner - ${totalCost.toFixed(2)}
                     </>
                   )}
                 </Button>
 
                 <p className="text-center text-xs text-muted-foreground">
-                  Payment will be processed after review
+                  Reviewed and activated manually by an admin
                 </p>
               </CardContent>
             </Card>

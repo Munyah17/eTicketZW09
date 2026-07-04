@@ -12,10 +12,34 @@ import { Mail, Phone, MapPin, Send, Clock, MessageSquare } from "lucide-react";
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitted(true);
+    setError("");
+    const form = new FormData(e.currentTarget);
+    const name = `${form.get("firstName")} ${form.get("lastName")}`.trim();
+    const email = form.get("email") as string;
+    const subject = form.get("subject") as string;
+    const message = form.get("message") as string;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, subject, message }),
+      });
+      if (!res.ok) {
+        const json = await res.json();
+        setError(json.error ?? "Failed to send message. Please try again.");
+        return;
+      }
+      setSubmitted(true);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -111,17 +135,18 @@ export default function ContactPage() {
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="firstName">First Name</Label>
-                          <Input id="firstName" placeholder="John" required />
+                          <Input id="firstName" name="firstName" placeholder="John" required />
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="lastName">Last Name</Label>
-                          <Input id="lastName" placeholder="Doe" required />
+                          <Input id="lastName" name="lastName" placeholder="Doe" required />
                         </div>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="email">Email</Label>
                         <Input
                           id="email"
+                          name="email"
                           type="email"
                           placeholder="john@example.com"
                           required
@@ -131,6 +156,7 @@ export default function ContactPage() {
                         <Label htmlFor="subject">Subject</Label>
                         <Input
                           id="subject"
+                          name="subject"
                           placeholder="How can we help?"
                           required
                         />
@@ -139,17 +165,22 @@ export default function ContactPage() {
                         <Label htmlFor="message">Message</Label>
                         <Textarea
                           id="message"
+                          name="message"
                           placeholder="Tell us more about your inquiry..."
                           rows={5}
                           required
                         />
                       </div>
+                      {error && (
+                        <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+                      )}
                       <Button
                         type="submit"
+                        disabled={submitting}
                         className="w-full gap-2 bg-primary hover:bg-primary/90"
                       >
                         <Send className="h-4 w-4" />
-                        Send Message
+                        {submitting ? "Sending…" : "Send Message"}
                       </Button>
                     </form>
                   )}

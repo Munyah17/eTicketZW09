@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 
       if (search) {
         q = q.or(
-          `event_title.ilike.%${search}%,buyer_name.ilike.%${search}%,id.ilike.%${search}%`
+          `event_title.ilike.%${search}%,buyer_name.ilike.%${search}%,buyer_email.ilike.%${search}%,id.ilike.%${search}%`
         );
       }
 
