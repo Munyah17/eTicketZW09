@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PaymentService } from "@/lib/services/payment-service";
+import { logError } from "@/lib/error-logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Paynow webhook error:", error);
+    logError("paynow_webhook", error);
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 }

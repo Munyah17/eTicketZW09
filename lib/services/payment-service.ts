@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateTicket } from "@/lib/ticket-generator";
 import { sendTicketEmail } from "@/lib/email/send-ticket-email";
+import { logError } from "@/lib/error-logger";
 
 export type PaymentProvider = "paynow" | "stripe";
 
@@ -200,7 +201,7 @@ class PaynowService {
       const paynowError = response.error || response.errors?.join(", ") || "Paynow initiation failed";
       return { success: false, reference, redirect_url: "", error: paynowError };
     } catch (error) {
-      console.error("Paynow error:", error);
+      logError("paynow_initiate", error, { reference });
       return { success: false, reference, redirect_url: "", error: "Failed to initiate Paynow payment" };
     }
   }
@@ -238,7 +239,7 @@ class StripeService {
       });
       return { success: true, reference, redirect_url: session.url ?? "", stripe_session_id: session.id };
     } catch (error: unknown) {
-      console.error("Stripe error:", error);
+      logError("stripe_initiate", error, { reference });
       return { success: false, reference, redirect_url: "", error: (error as Error)?.message || "Failed to create Stripe session" };
     }
   }

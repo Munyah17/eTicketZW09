@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { PaymentService } from "@/lib/services/payment-service";
+import { logError } from "@/lib/error-logger";
 
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const STRIPE_WEBHOOK_TOLERANCE_SECONDS = 300;
@@ -104,7 +105,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (error) {
-    console.error("Stripe webhook error:", error);
+    logError("stripe_webhook", error);
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 }

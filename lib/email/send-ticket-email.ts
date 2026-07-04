@@ -1,5 +1,6 @@
 import { Resend } from "resend";
 import { renderTicketPng, TicketPngData } from "@/lib/ticket-png";
+import { logError } from "@/lib/error-logger";
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -78,11 +79,11 @@ export async function sendTicketEmail(ticket: TicketPngData): Promise<void> {
     });
 
     if (error) {
-      console.error("Failed to send ticket email:", error);
+      logError("ticket_email_send", error, { ticketId: ticket.id, buyerEmail: ticket.buyerEmail });
     } else {
       console.log("Ticket email sent to:", ticket.buyerEmail, "for ticket:", ticket.id);
     }
   } catch (err) {
-    console.error("Ticket email generation/send failed:", err);
+    logError("ticket_email_generation", err, { ticketId: ticket.id, buyerEmail: ticket.buyerEmail });
   }
 }

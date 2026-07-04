@@ -1,3 +1,7 @@
+# Local error log file (lib/error-logger.ts) — dev-only, never persists
+# in production anyway (Vercel's filesystem is read-only outside /tmp)
+logs/
+
 # v0 sandbox internal files
 __v0_runtime_loader.js
 __v0_devtools.tsx

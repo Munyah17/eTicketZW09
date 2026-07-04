@@ -1,6 +1,7 @@
 import QRCode from "qrcode";
 import { v4 as uuidv4 } from "uuid";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logError } from "@/lib/error-logger";
 
 export interface TicketGenerationData {
   paymentId: string;
@@ -109,7 +110,7 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
   });
 
   if (error) {
-    console.error("Failed to persist ticket to DB:", error.message);
+    logError("ticket_persist", error, { ticketId, paymentReference: data.paymentId });
   } else {
     console.log("Ticket saved:", { ticketId, paymentReference: data.paymentId });
   }
@@ -121,7 +122,7 @@ async function generateQRCode(ticketId: string): Promise<string> {
   try {
     return await QRCode.toDataURL(ticketId);
   } catch (error) {
-    console.error("QR code generation failed:", error);
+    logError("qr_code_generation", error, { ticketId });
     return ticketId;
   }
 }
