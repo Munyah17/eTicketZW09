@@ -217,6 +217,7 @@ export interface User {
   organizerSubtype?: string;
   avatar?: string;
   verified: boolean;
+  isSuspended?: boolean;
   createdAt: string;
   password?: string;
 }

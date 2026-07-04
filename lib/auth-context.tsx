@@ -56,6 +56,7 @@ function dbProfileToUser(profile: Record<string, unknown>): User {
     organizerSubtype: profile.organizer_subtype as string | undefined,
     avatar: profile.avatar as string | undefined,
     verified: Boolean(profile.verified),
+    isSuspended: Boolean(profile.is_suspended),
     createdAt: profile.created_at as string,
   };
 }
@@ -71,6 +72,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select("*")
       .eq("id", userId)
       .single();
+    // Suspension can be applied to an already-active session — catch it here
+    // too, not just at sign-in, so it takes effect on the next page load.
+    if (profile?.is_suspended) {
+      await supabase.auth.signOut();
+      setUser(null);
+      setLoading(false);
+      return;
+    }
     if (profile) setUser(dbProfileToUser(profile));
     setLoading(false);
   }, []);
@@ -93,8 +102,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_suspended")
+      .eq("id", data.user.id)
+      .single();
+    if (profile?.is_suspended) {
+      await supabase.auth.signOut();
+      throw new Error("This account has been suspended. Contact support if you believe this is a mistake.");
+    }
   };
 
   const signUp = async (

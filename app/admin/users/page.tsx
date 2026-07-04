@@ -13,52 +13,23 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  Crown, Shield, User, Search, Plus, Trash2, UserX, UserCheck,
-  KeyRound, RefreshCw, Users, AlertTriangle,
+  User, Search, Plus, Trash2, UserX, UserCheck,
+  RefreshCw, Users, AlertTriangle,
 } from "lucide-react";
-import { isSuperAdminAccount, SUPER_ADMIN_EMAIL } from "@/lib/auth-context";
 import { useAuth } from "@/lib/auth-context";
-import { logAuditAction } from "@/lib/audit-logger";
 import { User as UserType, UserRole } from "@/lib/types";
 
 const ROLE_COLORS: Record<string, string> = {
-  super_admin: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  admin: "bg-blue-100 text-blue-800 border-blue-200",
   organizer: "bg-purple-100 text-purple-800 border-purple-200",
   staff: "bg-cyan-100 text-cyan-800 border-cyan-200",
   customer: "bg-gray-100 text-gray-700 border-gray-200",
 };
 
-const ROLE_ICONS: Record<string, React.ReactNode> = {
-  super_admin: <Crown className="h-3 w-3" />,
-  admin: <Shield className="h-3 w-3" />,
-  organizer: <User className="h-3 w-3" />,
-  staff: <User className="h-3 w-3" />,
-  customer: <User className="h-3 w-3" />,
-};
-
-const SUSPENDED_KEY = "eticket_suspended_users";
-
-function getSuspendedIds(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const d = localStorage.getItem(SUSPENDED_KEY);
-    return new Set(d ? JSON.parse(d) : []);
-  } catch { return new Set(); }
-}
-
-function toggleSuspend(id: string): void {
-  const ids = getSuspendedIds();
-  if (ids.has(id)) ids.delete(id); else ids.add(id);
-  localStorage.setItem(SUSPENDED_KEY, JSON.stringify([...ids]));
-}
-
 export default function UsersPage() {
-  const { user: adminUser, isSuperAdmin } = useAuth();
+  const { user: adminUser } = useAuth();
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [users, setUsers] = useState<UserType[]>([]);
-  const [suspendedIds, setSuspendedIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<UserType | null>(null);
@@ -68,7 +39,7 @@ export default function UsersPage() {
   const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState<"admin" | "organizer">("admin");
+  const [newRole, setNewRole] = useState<"organizer" | "customer" | "staff">("customer");
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -85,11 +56,11 @@ export default function UsersPage() {
         phone: (r.phone as string) ?? "",
         role: (r.role as UserRole) ?? "customer",
         verified: (r.verified as boolean) ?? false,
+        isSuspended: Boolean(r.is_suspended),
         createdAt: (r.created_at as string) ?? "",
         organizerId: (r.organizer_id as string | undefined),
       }));
       setUsers(mapped);
-      setSuspendedIds(getSuspendedIds());
     } finally {
       setLoading(false);
     }
@@ -101,51 +72,40 @@ export default function UsersPage() {
     const matchSearch =
       u.name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase());
-    const matchRole = filterRole === "all" || u.role === filterRole;
-    const matchSuspended = filterRole === "suspended" ? suspendedIds.has(u.id) : true;
-    if (filterRole === "suspended") return matchSearch && matchSuspended;
+    const matchRole =
+      filterRole === "all" ? true :
+      filterRole === "suspended" ? u.isSuspended :
+      u.role === filterRole;
     return matchSearch && matchRole;
   });
 
-  const handleSuspend = (u: UserType) => {
-    if (!adminUser) return;
-    const wasSuspended = suspendedIds.has(u.id);
-    toggleSuspend(u.id);
-    logAuditAction(adminUser, wasSuspended ? "user.activate" : "user.suspend",
-      `${wasSuspended ? "Activated" : "Suspended"} user ${u.email}`, u.id);
-    setSuspendedIds(getSuspendedIds());
+  const handleSuspend = async (u: UserType) => {
+    await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: u.id, is_suspended: !u.isSuspended }),
+    });
+    reload();
   };
 
   const handleDelete = async (u: UserType) => {
-    if (!adminUser) return;
     await fetch("/api/admin/users", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: u.id }),
     });
-    logAuditAction(adminUser, "user.delete", `Deleted user ${u.email}`, u.id);
     setConfirmDelete(null);
     reload();
   };
 
   const handleRoleChange = async (u: UserType, role: UserRole) => {
-    if (!adminUser) return;
     await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: u.id, role }),
     });
-    logAuditAction(adminUser, "user.role_change",
-      `Changed ${u.email} role from ${u.role} to ${role}`, u.id);
     setConfirmRole(null);
     reload();
-  };
-
-  const handlePasswordReset = (u: UserType) => {
-    if (!adminUser) return;
-    logAuditAction(adminUser, "user.password_reset",
-      `Password reset triggered for ${u.email}`, u.id);
-    alert(`Password reset notification would be sent to ${u.email}`);
   };
 
   const handleCreate = async () => {
@@ -162,8 +122,6 @@ export default function UsersPage() {
       });
       const json = await res.json();
       if (!res.ok) { setCreateError(json.error ?? "Failed to create user"); return; }
-      if (adminUser) logAuditAction(adminUser, "user.create",
-        `Created ${newRole} account for ${newEmail}`, json.userId);
       setShowCreate(false);
       setNewName(""); setNewEmail(""); setNewPhone(""); setNewPassword("");
       reload();
@@ -174,31 +132,30 @@ export default function UsersPage() {
 
   const counts = {
     total: users.length,
-    admins: users.filter(u => u.role === "admin" || u.role === "super_admin").length,
     organizers: users.filter(u => u.role === "organizer").length,
     customers: users.filter(u => u.role === "customer").length,
-    suspended: suspendedIds.size,
+    staff: users.filter(u => u.role === "staff").length,
+    suspended: users.filter(u => u.isSuspended).length,
   };
+
+  if (!adminUser) return null;
 
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
-          <p className="text-muted-foreground mt-1">Full control over all platform accounts and roles.</p>
+          <p className="text-muted-foreground mt-1">Manage organizer, staff, and customer accounts.</p>
         </div>
-        {isSuperAdmin && (
-          <Button onClick={() => setShowCreate(true)} className="gap-2 bg-primary">
-            <Plus className="h-4 w-4" /> Create Admin
-          </Button>
-        )}
+        <Button onClick={() => setShowCreate(true)} className="gap-2 bg-primary">
+          <Plus className="h-4 w-4" /> Create Account
+        </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: "Total Users", value: counts.total, color: "text-foreground" },
-          { label: "Admins", value: counts.admins, color: "text-blue-600" },
           { label: "Organizers", value: counts.organizers, color: "text-purple-600" },
           { label: "Customers", value: counts.customers, color: "text-gray-600" },
           { label: "Suspended", value: counts.suspended, color: "text-red-600" },
@@ -224,8 +181,6 @@ export default function UsersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Users</SelectItem>
-            <SelectItem value="super_admin">Super Admin</SelectItem>
-            <SelectItem value="admin">Admin</SelectItem>
             <SelectItem value="organizer">Organizer</SelectItem>
             <SelectItem value="staff">Staff</SelectItem>
             <SelectItem value="customer">Customer</SelectItem>
@@ -253,89 +208,69 @@ export default function UsersPage() {
                 <p className="text-sm text-muted-foreground mt-1">Try adjusting your search or filter</p>
               </div>
             )}
-            {!loading && filtered.map(u => {
-              const isSA = isSuperAdminAccount(u);
-              const isSuspended = suspendedIds.has(u.id);
-              return (
-                <div key={u.id} className={`flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors ${isSuspended ? "opacity-60" : ""}`}>
-                  {/* Avatar + Info */}
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold
-                      ${isSA ? "bg-yellow-100 text-yellow-700" : "bg-primary/10 text-primary"}`}>
-                      {u.name.charAt(0)}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-sm truncate">{u.name}</p>
-                        {isSA && <Crown className="h-3.5 w-3.5 text-yellow-500 shrink-0" />}
-                        {isSuspended && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Suspended</Badge>}
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                      <p className="text-xs text-muted-foreground">{u.phone || "—"} · Joined {new Date(u.createdAt).toLocaleDateString()}</p>
-                    </div>
+            {!loading && filtered.map(u => (
+              <div key={u.id} className={`flex flex-col sm:flex-row sm:items-center gap-3 px-5 py-4 hover:bg-muted/30 transition-colors ${u.isSuspended ? "opacity-60" : ""}`}>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold bg-primary/10 text-primary">
+                    {u.name.charAt(0)}
                   </div>
-
-                  {/* Role badge */}
-                  <div className="sm:w-32 shrink-0">
-                    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full border ${ROLE_COLORS[u.role] || "bg-gray-100"}`}>
-                      {ROLE_ICONS[u.role]} {u.role.replace("_", " ")}
-                    </span>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0 flex-wrap">
-                    {!isSA && (
-                      <Button
-                        size="sm" variant="ghost"
-                        className={isSuspended ? "text-emerald-600 hover:text-emerald-700" : "text-amber-600 hover:text-amber-700"}
-                        onClick={() => handleSuspend(u)}
-                        title={isSuspended ? "Activate" : "Suspend"}
-                      >
-                        {isSuspended ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
-                        <span className="ml-1 text-xs hidden sm:inline">{isSuspended ? "Activate" : "Suspend"}</span>
-                      </Button>
-                    )}
-
-                    {isSuperAdmin && !isSA && (
-                      <Select
-                        value={u.role}
-                        onValueChange={(role) => setConfirmRole({ user: u, newRole: role as UserRole })}
-                      >
-                        <SelectTrigger className="h-8 text-xs w-[120px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="organizer">Organizer</SelectItem>
-                          <SelectItem value="staff">Staff</SelectItem>
-                          <SelectItem value="customer">Customer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    )}
-
-                    <Button size="sm" variant="ghost" className="text-primary" onClick={() => handlePasswordReset(u)} title="Reset password">
-                      <KeyRound className="h-4 w-4" />
-                    </Button>
-
-                    {isSuperAdmin && !isSA && (
-                      <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setConfirmDelete(u)} title="Delete user">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-sm truncate">{u.name}</p>
+                      {u.isSuspended && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Suspended</Badge>}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                    <p className="text-xs text-muted-foreground">{u.phone || "—"} · Joined {new Date(u.createdAt).toLocaleDateString()}</p>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="sm:w-32 shrink-0">
+                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full border ${ROLE_COLORS[u.role] || "bg-gray-100"}`}>
+                    <User className="h-3 w-3" /> {u.role}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0 flex-wrap">
+                  <Button
+                    size="sm" variant="ghost"
+                    className={u.isSuspended ? "text-emerald-600 hover:text-emerald-700" : "text-amber-600 hover:text-amber-700"}
+                    onClick={() => handleSuspend(u)}
+                    title={u.isSuspended ? "Activate" : "Suspend"}
+                  >
+                    {u.isSuspended ? <UserCheck className="h-4 w-4" /> : <UserX className="h-4 w-4" />}
+                    <span className="ml-1 text-xs hidden sm:inline">{u.isSuspended ? "Activate" : "Suspend"}</span>
+                  </Button>
+
+                  <Select
+                    value={u.role}
+                    onValueChange={(role) => setConfirmRole({ user: u, newRole: role as UserRole })}
+                  >
+                    <SelectTrigger className="h-8 text-xs w-[120px]">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="organizer">Organizer</SelectItem>
+                      <SelectItem value="staff">Staff</SelectItem>
+                      <SelectItem value="customer">Customer</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setConfirmDelete(u)} title="Delete user">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Create Admin Dialog */}
+      {/* Create Account Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Shield className="h-5 w-5 text-blue-500" /> Create Admin Account</DialogTitle>
-            <DialogDescription>New admin accounts are immediately active and can access the admin panel.</DialogDescription>
+            <DialogTitle className="flex items-center gap-2"><User className="h-5 w-5 text-primary" /> Create Account</DialogTitle>
+            <DialogDescription>Creates an organizer, staff, or customer account. Admin accounts are managed under Staff Management.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             {createError && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{createError}</p>}
@@ -351,7 +286,7 @@ export default function UsersPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Email *</Label>
-              <Input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="admin@example.com" />
+              <Input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="user@example.com" />
             </div>
             <div className="space-y-1.5">
               <Label>Password *</Label>
@@ -359,11 +294,12 @@ export default function UsersPage() {
             </div>
             <div className="space-y-1.5">
               <Label>Role</Label>
-              <Select value={newRole} onValueChange={v => setNewRole(v as "admin" | "organizer")}>
+              <Select value={newRole} onValueChange={v => setNewRole(v as "organizer" | "customer" | "staff")}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="organizer">Organizer</SelectItem>
+                  <SelectItem value="staff">Staff</SelectItem>
+                  <SelectItem value="customer">Customer</SelectItem>
                 </SelectContent>
               </Select>
             </div>

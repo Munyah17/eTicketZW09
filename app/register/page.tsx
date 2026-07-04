@@ -130,6 +130,13 @@ export default function RegisterPage() {
 
               {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
 
+              <p className="text-xs text-muted-foreground">
+                By creating an account, you agree to our{" "}
+                <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">Terms of Service</Link>{" "}
+                and{" "}
+                <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy Policy</Link>.
+              </p>
+
               <Button type="submit" className="w-full" disabled={isSubmitting}>
                 {isSubmitting ? "Creating account…" : <><UserPlus className="mr-2 h-4 w-4" />Create Account</>}
               </Button>

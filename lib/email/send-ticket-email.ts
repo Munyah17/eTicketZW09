@@ -62,7 +62,7 @@ export async function sendTicketEmail(ticket: TicketPngData): Promise<void> {
   try {
     const png = await renderTicketPng(ticket);
     const resend = new Resend(apiKey);
-    const from = process.env.EMAIL_FROM || "E-TicketsZW <tickets@eticketszw.com>";
+    const from = process.env.EMAIL_FROM || "E-TicketsZW <pay@eticket.co.zw>";
 
     const { error } = await resend.emails.send({
       from,

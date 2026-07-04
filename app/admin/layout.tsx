@@ -39,8 +39,9 @@ const superAdminLinks = [
   { href: "/admin/organizers", label: "Organizers", icon: Users, group: "Operations" },
   { href: "/admin/banners", label: "Banner Management", icon: Image, group: "Operations" },
   { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign, group: "Operations" },
+  { href: "/admin/users", label: "User Management", icon: UserCog, group: "Operations" },
   // ── Super Admin ──────────────────────────────
-  { href: "/admin/users", label: "User Management", icon: UserCog, group: "Super Admin" },
+  { href: "/admin/staff", label: "Staff Management", icon: Crown, group: "Super Admin" },
   { href: "/admin/transactions", label: "Transactions", icon: CreditCard, group: "Super Admin" },
   { href: "/admin/platform", label: "Platform Config", icon: Settings2, group: "Super Admin" },
   { href: "/admin/support", label: "Support & Ops", icon: HeadphonesIcon, group: "Super Admin" },
@@ -56,6 +57,7 @@ const adminLinks = [
   { href: "/admin/organizers", label: "Organizers", icon: Users, group: "Operations" },
   { href: "/admin/banners", label: "Banner Management", icon: Image, group: "Operations" },
   { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign, group: "Operations" },
+  { href: "/admin/users", label: "User Management", icon: UserCog, group: "Operations" },
 ];
 
 export default function AdminLayout({

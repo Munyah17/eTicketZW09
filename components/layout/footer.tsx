@@ -17,7 +17,7 @@ const footerLinks = {
   support: [
     { name: "+263 773 909 307", href: "tel:+263773909307", icon: Phone },
     { name: "support@eticket.co.zw", href: "mailto:support@eticket.co.zw", icon: Mail },
-    { name: "31 Lincoln Road, Avondale, Harare", href: "/contact", icon: MapPin },
+    { name: "Office C3, Cyrus Building, Corner Mbuya Nehanda and Speke, Harare", href: "/contact", icon: MapPin },
   ],
   company: [
     { name: "About Us", href: "/about" },
@@ -142,6 +142,17 @@ export function Footer() {
             <p className="text-sm text-muted-foreground">
               &copy; {new Date().getFullYear()} E-TicketsZW. All rights reserved.
             </p>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 md:justify-start">
+            <Link href="/terms" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
+              Terms of Service
+            </Link>
+            <Link href="/privacy" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
+              Privacy Policy
+            </Link>
+            <Link href="/refund-policy" className="text-xs text-muted-foreground transition-colors hover:text-foreground">
+              Refund Policy
+            </Link>
           </div>
         </div>
       </div>

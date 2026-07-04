@@ -78,7 +78,7 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-semibold">Office</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      31 Lincoln Road, Avondale
+                      Office C3, Cyrus Building, Corner Mbuya Nehanda and Speke
                     </p>
                     <p className="text-sm text-muted-foreground">Harare, Zimbabwe</p>
                   </div>

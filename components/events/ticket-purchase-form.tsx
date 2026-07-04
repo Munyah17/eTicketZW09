@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -400,6 +401,10 @@ export function TicketPurchaseForm({
           <Lock className="h-3 w-3" />
           <span>Secure checkout powered by E-TicketsZW</span>
         </div>
+        <p className="text-center text-xs text-muted-foreground">
+          Ticket sales are covered by our{" "}
+          <Link href="/refund-policy" className="underline underline-offset-2 hover:text-foreground">Refund Policy</Link>.
+        </p>
       </CardContent>
     </Card>
   );
