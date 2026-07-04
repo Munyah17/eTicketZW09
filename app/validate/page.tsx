@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
@@ -22,65 +23,62 @@ import {
   Ticket,
   CreditCard,
   RefreshCw,
+  ShieldAlert,
 } from "lucide-react";
-import { mockTickets } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
 type ValidationStatus = "idle" | "scanning" | "valid" | "invalid" | "used";
 
+interface TicketRow {
+  id: string;
+  event_title: string;
+  event_date: string;
+  event_time: string;
+  venue: string;
+  ticket_type_name: string;
+  buyer_display_name: string;
+  buyer_name: string;
+  buyer_contact: string;
+  total_paid: number;
+  payment_method: string;
+  validated_at?: string;
+}
+
 interface ValidationResult {
   status: ValidationStatus;
-  ticket?: typeof mockTickets[0];
+  ticket?: TicketRow;
   message?: string;
 }
 
+const AUTHORIZED_ROLES = new Set(["admin", "super_admin", "organizer", "staff"]);
+
 export default function ValidatePage() {
+  const { user, isLoggedIn, loading: authLoading } = useAuth();
   const [ticketCode, setTicketCode] = useState("");
-  const [validationResult, setValidationResult] = useState<ValidationResult>({
-    status: "idle",
-  });
+  const [validationResult, setValidationResult] = useState<ValidationResult>({ status: "idle" });
   const [isValidating, setIsValidating] = useState(false);
 
   const handleValidate = async () => {
     if (!ticketCode.trim()) return;
-
     setIsValidating(true);
     setValidationResult({ status: "scanning" });
 
-    // Simulate validation delay
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // Mock validation logic
-    const ticket = mockTickets.find(
-      (t) =>
-        t.id.toLowerCase() === ticketCode.toLowerCase() ||
-        t.qrCode.toLowerCase() === ticketCode.toLowerCase()
-    );
-
-    if (ticket) {
-      if (ticket.validated) {
-        setValidationResult({
-          status: "used",
-          ticket,
-          message: `This ticket was already validated on ${new Date(
-            ticket.validatedAt!
-          ).toLocaleString()}`,
-        });
-      } else {
-        setValidationResult({
-          status: "valid",
-          ticket,
-          message: "Ticket is valid! Allow entry.",
-        });
-      }
-    } else {
-      setValidationResult({
-        status: "invalid",
-        message: "Invalid ticket code. Please check and try again.",
+    try {
+      const res = await fetch("/api/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "lookup", code: ticketCode.trim() }),
       });
+      const json = await res.json();
+      setValidationResult({
+        status: json.status === "invalid" ? "invalid" : json.status,
+        ticket: json.ticket,
+        message: json.message,
+      });
+    } finally {
+      setIsValidating(false);
     }
-
-    setIsValidating(false);
   };
 
   const handleReset = () => {
@@ -88,14 +86,15 @@ export default function ValidatePage() {
     setValidationResult({ status: "idle" });
   };
 
-  const handleMarkAsUsed = () => {
-    if (validationResult.ticket) {
-      setValidationResult({
-        ...validationResult,
-        status: "used",
-        message: "Ticket has been marked as validated.",
-      });
-    }
+  const handleMarkAsUsed = async () => {
+    if (!validationResult.ticket) return;
+    const res = await fetch("/api/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "mark_used", ticketId: validationResult.ticket.id }),
+    });
+    const json = await res.json();
+    setValidationResult({ status: "used", ticket: json.ticket, message: json.message });
   };
 
   const getPaymentMethodLabel = (method: string) => {
@@ -108,13 +107,47 @@ export default function ValidatePage() {
     return methods[method] || method;
   };
 
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Header />
+        <main className="flex flex-1 items-center justify-center">
+          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!isLoggedIn || !user || !AUTHORIZED_ROLES.has(user.role)) {
+    return (
+      <div className="flex min-h-screen flex-col">
+        <Header />
+        <main className="flex flex-1 items-center justify-center">
+          <div className="max-w-md text-center px-4">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-destructive/10">
+              <ShieldAlert className="h-8 w-8 text-destructive" />
+            </div>
+            <h1 className="mt-4 text-2xl font-bold">Staff Access Required</h1>
+            <p className="mt-2 text-muted-foreground">
+              Ticket validation is restricted to authorized staff, organizer, and admin accounts.
+            </p>
+            <Link href="/login" className="mt-6 inline-block">
+              <Button>Sign In</Button>
+            </Link>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
 
       <main className="flex-1 bg-secondary/30">
         <div className="mx-auto max-w-2xl px-4 py-10 lg:px-8">
-          {/* Header */}
           <div className="text-center">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
               <QrCode className="h-8 w-8 text-primary" />
@@ -125,7 +158,6 @@ export default function ValidatePage() {
             </p>
           </div>
 
-          {/* Validation Form */}
           <Card className="mt-8">
             <CardHeader>
               <CardTitle>Enter Ticket Code</CardTitle>
@@ -141,7 +173,7 @@ export default function ValidatePage() {
                     id="ticketCode"
                     value={ticketCode}
                     onChange={(e) => setTicketCode(e.target.value)}
-                    placeholder="e.g., TKT-123456 or ETKT-001-GHT24-MB-TM"
+                    placeholder="Enter ticket ID or QR code"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleValidate();
                     }}
@@ -160,17 +192,9 @@ export default function ValidatePage() {
                   </Button>
                 </div>
               </div>
-
-              {/* Demo Codes */}
-              <div className="rounded-lg bg-secondary/50 p-3">
-                <p className="text-xs text-muted-foreground">
-                  <strong>Demo codes to try:</strong> tkt-001, tkt-002, ETKT-001-GHT24-MB-TM
-                </p>
-              </div>
             </CardContent>
           </Card>
 
-          {/* Validation Result */}
           {validationResult.status !== "idle" && (
             <Card
               className={cn(
@@ -180,7 +204,6 @@ export default function ValidatePage() {
                 validationResult.status === "used" && "border-warning"
               )}
             >
-              {/* Status Header */}
               <div
                 className={cn(
                   "flex items-center gap-3 p-4",
@@ -216,22 +239,18 @@ export default function ValidatePage() {
                 )}
               </div>
 
-              {/* Ticket Details */}
               {validationResult.ticket && (
                 <CardContent className="p-6 space-y-6">
-                  {/* Event Info */}
                   <div>
-                    <h3 className="text-lg font-semibold">
-                      {validationResult.ticket.eventTitle}
-                    </h3>
+                    <h3 className="text-lg font-semibold">{validationResult.ticket.event_title}</h3>
                     <div className="mt-3 grid gap-2">
                       <div className="flex items-center gap-2 text-sm">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <span>{validationResult.ticket.eventDate}</span>
+                        <span>{validationResult.ticket.event_date}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span>{validationResult.ticket.eventTime}</span>
+                        <span>{validationResult.ticket.event_time}</span>
                       </div>
                       <div className="flex items-center gap-2 text-sm">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
@@ -240,41 +259,35 @@ export default function ValidatePage() {
                     </div>
                   </div>
 
-                  {/* Ticket Type */}
                   <div className="flex items-center gap-2">
                     <Ticket className="h-4 w-4 text-muted-foreground" />
-                    <Badge>{validationResult.ticket.ticketTypeName}</Badge>
+                    <Badge>{validationResult.ticket.ticket_type_name}</Badge>
                   </div>
 
-                  {/* Buyer Info */}
                   <div className="rounded-lg border p-4">
                     <h4 className="font-medium">Ticket Holder</h4>
                     <div className="mt-3 grid gap-2 text-sm">
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{validationResult.ticket.buyerDisplayName}</span>
-                        {validationResult.ticket.buyerDisplayName !==
-                          validationResult.ticket.buyerName && (
-                          <span className="text-muted-foreground">
-                            ({validationResult.ticket.buyerName})
-                          </span>
+                        <span>{validationResult.ticket.buyer_display_name}</span>
+                        {validationResult.ticket.buyer_display_name !== validationResult.ticket.buyer_name && (
+                          <span className="text-muted-foreground">({validationResult.ticket.buyer_name})</span>
                         )}
                       </div>
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{validationResult.ticket.buyerContact}</span>
+                        <span>{validationResult.ticket.buyer_contact}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <CreditCard className="h-4 w-4 text-muted-foreground" />
                         <span>
-                          ${validationResult.ticket.totalPaid.toFixed(2)} via{" "}
-                          {getPaymentMethodLabel(validationResult.ticket.paymentMethod)}
+                          ${Number(validationResult.ticket.total_paid).toFixed(2)} via{" "}
+                          {getPaymentMethodLabel(validationResult.ticket.payment_method)}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Message */}
                   {validationResult.message && (
                     <p
                       className={cn(
@@ -287,7 +300,6 @@ export default function ValidatePage() {
                     </p>
                   )}
 
-                  {/* Actions */}
                   <div className="flex gap-3">
                     {validationResult.status === "valid" && (
                       <Button
@@ -305,7 +317,6 @@ export default function ValidatePage() {
                 </CardContent>
               )}
 
-              {/* Invalid Ticket Message */}
               {validationResult.status === "invalid" && (
                 <CardContent className="p-6">
                   <p className="text-muted-foreground">{validationResult.message}</p>
@@ -317,7 +328,6 @@ export default function ValidatePage() {
             </Card>
           )}
 
-          {/* Instructions */}
           <Card className="mt-8">
             <CardHeader>
               <CardTitle className="text-lg">How to Validate Tickets</CardTitle>
@@ -325,36 +335,20 @@ export default function ValidatePage() {
             <CardContent>
               <ol className="space-y-3 text-sm text-muted-foreground">
                 <li className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-                    1
-                  </span>
-                  <span>
-                    Ask the attendee to show their ticket QR code or provide their ticket ID
-                  </span>
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">1</span>
+                  <span>Ask the attendee to show their ticket QR code or provide their ticket ID</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-                    2
-                  </span>
-                  <span>
-                    Enter the ticket code in the field above and click Validate
-                  </span>
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">2</span>
+                  <span>Enter the ticket code in the field above and click Validate</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-                    3
-                  </span>
-                  <span>
-                    Verify the ticket details match the attendee (name, ticket type)
-                  </span>
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">3</span>
+                  <span>Verify the ticket details match the attendee (name, ticket type)</span>
                 </li>
                 <li className="flex gap-3">
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-                    4
-                  </span>
-                  <span>
-                    If valid, click &quot;Mark as Validated&quot; to register entry
-                  </span>
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">4</span>
+                  <span>If valid, click &quot;Mark as Validated&quot; to register entry</span>
                 </li>
               </ol>
             </CardContent>
