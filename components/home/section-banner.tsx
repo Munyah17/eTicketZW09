@@ -1,22 +1,44 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { mockBanners } from "@/lib/mock-data";
 
 interface SectionBannerProps {
   position?: number;
 }
 
-export function SectionBanner({ position = 1 }: SectionBannerProps) {
-  const banner = mockBanners.find(
-    (b) => b.type === "section" && b.position === position
-  );
+interface BannerData {
+  position: number;
+  image?: string;
+  link?: string;
+  title?: string;
+}
 
-  // If no active banner or no image, show "Advertise Here" placeholder
-  if (!banner || !banner.image || banner.status === "available") {
+export function SectionBanner({ position = 1 }: SectionBannerProps) {
+  const [banner, setBanner] = useState<BannerData | null>(null);
+
+  useEffect(() => {
+    fetch("/api/banners?type=section")
+      .then((res) => res.json())
+      .then((data) => {
+        const banners = (data.banners ?? []) as Record<string, unknown>[];
+        const match = banners.find((b) => b.position === position);
+        if (match) {
+          setBanner({
+            position: match.position as number,
+            image: match.image as string | undefined,
+            link: match.link as string | undefined,
+            title: match.title as string | undefined,
+          });
+        }
+      })
+      .catch(() => {});
+  }, [position]);
+
+  if (!banner || !banner.image) {
     return (
       <section className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
         <Link href="/advertise">
@@ -25,7 +47,7 @@ export function SectionBanner({ position = 1 }: SectionBannerProps) {
               <Megaphone className="h-6 w-6 md:h-8 md:w-8" />
               <div className="text-center">
                 <p className="text-lg font-semibold md:text-xl">Advertise Here</p>
-                <p className="text-xs md:text-sm">Reach thousands of event-goers - $20/day</p>
+                <p className="text-xs md:text-sm">Reach thousands of event-goers - $10/day</p>
               </div>
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />
             </div>
@@ -39,19 +61,12 @@ export function SectionBanner({ position = 1 }: SectionBannerProps) {
     <section className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
       <Link href={banner.link || "#"}>
         <div className="relative h-24 overflow-hidden rounded-xl bg-gradient-to-r from-primary/20 via-primary/10 to-accent md:h-32">
-          {banner.image && (
-            <Image
-              src={banner.image}
-              alt={banner.title || "Advertisement"}
-              fill
-              className="object-cover"
-            />
-          )}
-          {!banner.image && banner.title && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <p className="text-lg font-semibold text-foreground md:text-xl">{banner.title}</p>
-            </div>
-          )}
+          <Image
+            src={banner.image}
+            alt={banner.title || "Advertisement"}
+            fill
+            className="object-cover"
+          />
         </div>
       </Link>
     </section>
@@ -67,7 +82,7 @@ export function AdvertiseCTA() {
           Promote Your Event to Thousands
         </h2>
         <p className="mx-auto mt-3 max-w-2xl text-muted-foreground text-pretty">
-          Get premium banner placement on our homepage and reach thousands of active ticket buyers across Zimbabwe. Starting at just $20/day.
+          Get premium banner placement on our homepage and reach thousands of active ticket buyers across Zimbabwe. Starting at just $10/day.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Link href="/advertise">

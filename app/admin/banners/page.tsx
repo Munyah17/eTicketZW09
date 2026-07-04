@@ -1,81 +1,117 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { 
+import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Upload, X, Image as ImageIcon, Link as LinkIcon, LayoutTemplate, Layers, DollarSign, CheckCircle2 } from "lucide-react";
-import { mockBanners } from "@/lib/mock-data";
+import { Upload, X, Image as ImageIcon, Link as LinkIcon, LayoutTemplate, Layers, DollarSign, CheckCircle2, RefreshCw } from "lucide-react";
 import { Banner } from "@/lib/types";
 
 export default function BannerManagementPage() {
-  const [banners, setBanners] = useState<Banner[]>(mockBanners);
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftLink, setDraftLink] = useState("");
+  const [draftFile, setDraftFile] = useState<File | null>(null);
+  const [draftPreview, setDraftPreview] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/banners");
+      const json = await res.json();
+      const rows = (json.banners ?? []) as Record<string, unknown>[];
+      setBanners(rows.map((r) => ({
+        id: r.id as string,
+        type: r.type as "hero" | "section",
+        position: r.position as number,
+        image: (r.image as string) || undefined,
+        link: (r.link as string) || undefined,
+        title: (r.title as string) || undefined,
+        pricePerDay: Number(r.price_per_day),
+        status: r.status as Banner["status"],
+      })));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
 
   const heroBanners = banners.filter(b => b.type === "hero");
   const sectionBanners = banners.filter(b => b.type === "section");
 
-  const handleUpload = (bannerId: string) => {
-    // Simulate file upload
-    setBanners(prev => prev.map(b => 
-      b.id === bannerId 
-        ? { ...b, image: "/placeholder-banner.jpg", status: "active" as const }
-        : b
-    ));
+  const openEditor = (banner: Banner) => {
+    setEditingBanner(banner);
+    setDraftTitle(banner.title || "");
+    setDraftLink(banner.link || "");
+    setDraftFile(null);
+    setDraftPreview(null);
+    setDialogOpen(true);
   };
 
-  const handleRemove = (bannerId: string) => {
-    setBanners(prev => prev.map(b => 
-      b.id === bannerId 
-        ? { ...b, image: "", link: "", title: "", status: "available" as const }
-        : b
-    ));
+  const handleFileSelect = (file: File | null) => {
+    setDraftFile(file);
+    setDraftPreview(file ? URL.createObjectURL(file) : null);
   };
 
-  const handleSaveBanner = () => {
-    if (editingBanner) {
-      setBanners(prev => prev.map(b => 
-        b.id === editingBanner.id ? editingBanner : b
-      ));
+  const handleSaveBanner = async () => {
+    if (!editingBanner) return;
+    setSaving(true);
+    try {
+      const form = new FormData();
+      form.set("title", draftTitle);
+      form.set("link", draftLink);
+      if (draftFile) form.set("image", draftFile);
+
+      await fetch(`/api/admin/banners/${editingBanner.id}`, { method: "PATCH", body: form });
+      setDialogOpen(false);
+      setEditingBanner(null);
+      reload();
+    } finally {
+      setSaving(false);
     }
-    setDialogOpen(false);
-    setEditingBanner(null);
   };
 
-  const activeCount    = banners.filter(b => b.status === "active").length;
+  const handleRemove = async (bannerId: string) => {
+    const form = new FormData();
+    form.set("clear", "true");
+    await fetch(`/api/admin/banners/${bannerId}`, { method: "PATCH", body: form });
+    reload();
+  };
+
+  const activeCount = banners.filter(b => b.status === "active").length;
   const availableCount = banners.filter(b => b.status === "available").length;
   const totalDailyRevenue = banners.filter(b => b.status === "active").reduce((s, b) => s + b.pricePerDay, 0);
 
   const statusCfg = {
-    active:    { cls: "bg-emerald-100 text-emerald-700 border-emerald-200", label: "Active" },
-    available: { cls: "bg-amber-100 text-amber-700 border-amber-200",       label: "Available" },
-    reserved:  { cls: "bg-blue-100 text-blue-700 border-blue-200",          label: "Reserved" },
+    active: { cls: "bg-emerald-100 text-emerald-700 border-emerald-200", label: "Active" },
+    available: { cls: "bg-amber-100 text-amber-700 border-amber-200", label: "Available" },
+    pending: { cls: "bg-blue-100 text-blue-700 border-blue-200", label: "Pending" },
+    expired: { cls: "bg-gray-100 text-gray-700 border-gray-200", label: "Expired" },
   } as const;
 
   const BannerCard = ({ banner }: { banner: Banner }) => {
-    const cfg = statusCfg[banner.status as keyof typeof statusCfg] ?? statusCfg.available;
+    const cfg = statusCfg[banner.status] ?? statusCfg.available;
     return (
       <Card className="border-0 shadow-sm overflow-hidden">
-        {/* Preview area */}
         <div className="aspect-[3/1] bg-muted/60 flex items-center justify-center border-b relative">
           {banner.image ? (
-            <div className="absolute inset-0 bg-linear-to-r from-primary/10 to-primary/5 flex items-center justify-center">
-              <div className="text-center">
-                <ImageIcon className="h-6 w-6 mx-auto text-primary/40 mb-1" />
-                <span className="text-xs font-medium text-primary/60">{banner.title || "Banner uploaded"}</span>
-              </div>
-            </div>
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={banner.image} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" />
           ) : (
             <div className="flex flex-col items-center gap-1.5 text-muted-foreground/50">
               <ImageIcon className="h-7 w-7" />
@@ -107,30 +143,16 @@ export default function BannerManagementPage() {
 
           <div className="flex gap-2">
             {!banner.image ? (
-              <Button
-                size="sm"
-                className="flex-1 gap-1.5"
-                onClick={() => { setEditingBanner(banner); setDialogOpen(true); }}
-              >
+              <Button size="sm" className="flex-1 gap-1.5" onClick={() => openEditor(banner)}>
                 <Upload className="h-3.5 w-3.5" />
                 Upload
               </Button>
             ) : (
               <>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => { setEditingBanner(banner); setDialogOpen(true); }}
-                >
+                <Button size="sm" variant="outline" className="flex-1" onClick={() => openEditor(banner)}>
                   Replace
                 </Button>
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  className="px-2.5"
-                  onClick={() => handleRemove(banner.id)}
-                >
+                <Button size="sm" variant="destructive" className="px-2.5" onClick={() => handleRemove(banner.id)}>
                   <X className="h-3.5 w-3.5" />
                 </Button>
               </>
@@ -143,21 +165,23 @@ export default function BannerManagementPage() {
 
   return (
     <div className="space-y-8">
-
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Banner Management</h1>
-        <p className="text-muted-foreground mt-1">
-          Manage hero slider and section banners sold to advertisers
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Banner Management</h1>
+          <p className="text-muted-foreground mt-1">
+            Upload or replace a banner and it goes live on the homepage immediately — no deploy needed.
+          </p>
+        </div>
+        <Button variant="outline" size="icon" onClick={reload} title="Refresh">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
-      {/* Summary stats */}
       <div className="grid gap-4 sm:grid-cols-3">
         {[
-          { label: "Active Banners", value: activeCount,    icon: CheckCircle2, accent: "bg-emerald-500", light: "bg-emerald-50 text-emerald-600" },
-          { label: "Open Slots",     value: availableCount, icon: Layers,       accent: "bg-amber-500",   light: "bg-amber-50 text-amber-600" },
-          { label: "Daily Revenue",  value: `$${totalDailyRevenue}`, icon: DollarSign, accent: "bg-violet-500", light: "bg-violet-50 text-violet-600" },
+          { label: "Active Banners", value: activeCount, icon: CheckCircle2, accent: "bg-emerald-500", light: "bg-emerald-50 text-emerald-600" },
+          { label: "Open Slots", value: availableCount, icon: Layers, accent: "bg-amber-500", light: "bg-amber-50 text-amber-600" },
+          { label: "Daily Revenue", value: `$${totalDailyRevenue}`, icon: DollarSign, accent: "bg-violet-500", light: "bg-violet-50 text-violet-600" },
         ].map(s => (
           <Card key={s.label} className="border-0 shadow-sm relative overflow-hidden">
             <div className={`absolute top-0 left-0 w-1 h-full ${s.accent}`} />
@@ -176,55 +200,57 @@ export default function BannerManagementPage() {
         ))}
       </div>
 
-      {/* Hero Slider */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="flex flex-row items-center gap-2 border-b pb-4">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50">
-            <LayoutTemplate className="h-4 w-4 text-violet-600" />
-          </div>
-          <div className="flex-1">
-            <CardTitle className="text-base">Hero Slider</CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">Up to 10 full-width slides on the homepage</p>
-          </div>
-          <Badge variant="outline" className="text-xs">{heroBanners.filter(b => b.status === "active").length}/{heroBanners.length} active</Badge>
-        </CardHeader>
-        <CardContent className="pt-5">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {heroBanners.map(b => <BannerCard key={b.id} banner={b} />)}
-          </div>
-        </CardContent>
-      </Card>
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <>
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="flex flex-row items-center gap-2 border-b pb-4">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-50">
+                <LayoutTemplate className="h-4 w-4 text-violet-600" />
+              </div>
+              <div className="flex-1">
+                <CardTitle className="text-base">Hero Slider</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Full-width slides on the homepage</p>
+              </div>
+              <Badge variant="outline" className="text-xs">{heroBanners.filter(b => b.status === "active").length}/{heroBanners.length} active</Badge>
+            </CardHeader>
+            <CardContent className="pt-5">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {heroBanners.map(b => <BannerCard key={b.id} banner={b} />)}
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Section Banners */}
-      <Card className="border-0 shadow-sm">
-        <CardHeader className="flex flex-row items-center gap-2 border-b pb-4">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50">
-            <Layers className="h-4 w-4 text-blue-600" />
-          </div>
-          <div className="flex-1">
-            <CardTitle className="text-base">Section Banners</CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">Inline banners shown between event listings</p>
-          </div>
-          <Badge variant="outline" className="text-xs">{sectionBanners.filter(b => b.status === "active").length}/{sectionBanners.length} active</Badge>
-        </CardHeader>
-        <CardContent className="pt-5">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {sectionBanners.map(b => <BannerCard key={b.id} banner={b} />)}
-          </div>
-        </CardContent>
-      </Card>
+          <Card className="border-0 shadow-sm">
+            <CardHeader className="flex flex-row items-center gap-2 border-b pb-4">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-50">
+                <Layers className="h-4 w-4 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <CardTitle className="text-base">Section Banners</CardTitle>
+                <p className="text-xs text-muted-foreground mt-0.5">Inline banners shown between event listings</p>
+              </div>
+              <Badge variant="outline" className="text-xs">{sectionBanners.filter(b => b.status === "active").length}/{sectionBanners.length} active</Badge>
+            </CardHeader>
+            <CardContent className="pt-5">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {sectionBanners.map(b => <BannerCard key={b.id} banner={b} />)}
+              </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
 
-      {/* Upload / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>
-              {editingBanner?.image ? "Replace Banner" : "Upload Banner"}
-            </DialogTitle>
+            <DialogTitle>{editingBanner?.image ? "Replace Banner" : "Upload Banner"}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Slot info */}
             {editingBanner && (
               <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/60 border text-sm">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-xs">
@@ -239,13 +265,27 @@ export default function BannerManagementPage() {
 
             <div>
               <Label>Banner Image</Label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => handleFileSelect(e.target.files?.[0] ?? null)}
+              />
               <div
-                className="mt-2 border-2 border-dashed rounded-xl p-8 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all"
-                onClick={() => editingBanner && handleUpload(editingBanner.id)}
+                className="mt-2 border-2 border-dashed rounded-xl p-6 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-all overflow-hidden"
+                onClick={() => fileInputRef.current?.click()}
               >
-                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                <p className="text-sm font-medium">Click to upload</p>
-                <p className="text-xs text-muted-foreground mt-1">PNG, JPG, WebP · {editingBanner?.type === "hero" ? "1200×400px recommended" : "970×250px recommended"}</p>
+                {draftPreview || editingBanner?.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={draftPreview || editingBanner?.image} alt="Preview" className="mx-auto max-h-40 rounded-lg object-cover" />
+                ) : (
+                  <>
+                    <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                    <p className="text-sm font-medium">Click to upload</p>
+                  </>
+                )}
+                <p className="text-xs text-muted-foreground mt-2">PNG, JPG, WebP · {editingBanner?.type === "hero" ? "1200×400px recommended" : "970×250px recommended"}</p>
               </div>
             </div>
 
@@ -253,9 +293,9 @@ export default function BannerManagementPage() {
               <Label htmlFor="banner-title">Title (Optional)</Label>
               <Input
                 id="banner-title"
-                value={editingBanner?.title || ""}
-                onChange={(e) => setEditingBanner(prev => prev ? { ...prev, title: e.target.value } : null)}
-                placeholder="e.g. Summer Festival 2025"
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+                placeholder="e.g. Summer Festival 2026"
                 className="mt-1.5"
               />
             </div>
@@ -266,9 +306,9 @@ export default function BannerManagementPage() {
                 <LinkIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="banner-link"
-                  value={editingBanner?.link || ""}
-                  onChange={(e) => setEditingBanner(prev => prev ? { ...prev, link: e.target.value } : null)}
-                  placeholder="/events/evt-001"
+                  value={draftLink}
+                  onChange={(e) => setDraftLink(e.target.value)}
+                  placeholder="/events/some-event-id"
                   className="pl-10"
                 />
               </div>
@@ -276,12 +316,11 @@ export default function BannerManagementPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveBanner}>Save Banner</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={handleSaveBanner} disabled={saving}>{saving ? "Saving…" : "Save Banner"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }
