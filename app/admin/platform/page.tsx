@@ -13,53 +13,94 @@ import {
 } from "@/components/ui/select";
 import {
   Settings2, Percent, Zap, CreditCard, Megaphone, ShieldCheck,
-  Save, RotateCcw, CheckCircle2, AlertTriangle, XCircle,
+  Save, RotateCcw, CheckCircle2, AlertTriangle, XCircle, RefreshCw,
 } from "lucide-react";
-import { getPlatformConfig, savePlatformConfig, PlatformConfig } from "@/lib/platform-config";
-import { useAuth } from "@/lib/auth-context";
-import { logAuditAction } from "@/lib/audit-logger";
+
+interface PlatformConfig {
+  service_fee_percent: number;
+  new_registrations: boolean;
+  new_organizer_signups: boolean;
+  maintenance_mode: boolean;
+  online_payments: boolean;
+  stripe_enabled: boolean;
+  paynow_enabled: boolean;
+  announcement_active: boolean;
+  announcement_message: string;
+  announcement_type: "info" | "warning" | "error";
+}
 
 export default function PlatformPage() {
-  const { user: adminUser } = useAuth();
   const [config, setConfig] = useState<PlatformConfig | null>(null);
+  const [original, setOriginal] = useState<PlatformConfig | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [feeInput, setFeeInput] = useState("10");
 
-  useEffect(() => {
-    const c = getPlatformConfig();
-    setConfig(c);
-    setFeeInput(c.serviceFeePercent.toString());
-  }, []);
-
-  if (!config) return null;
-
-  const setFeature = (key: keyof PlatformConfig["features"], val: boolean) => {
-    setConfig(prev => prev ? { ...prev, features: { ...prev.features, [key]: val } } : prev);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/platform-config");
+      const json = await res.json();
+      setConfig(json.config);
+      setOriginal(json.config);
+      setFeeInput(String(json.config.service_fee_percent));
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const setAnnouncement = (key: keyof PlatformConfig["announcement"], val: string | boolean) => {
-    setConfig(prev => prev ? { ...prev, announcement: { ...prev.announcement, [key]: val } } : prev);
+  useEffect(() => { load(); }, []);
+
+  if (loading || !config) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const setFeature = <K extends keyof PlatformConfig>(key: K, val: PlatformConfig[K]) => {
+    setConfig(prev => prev ? { ...prev, [key]: val } : prev);
   };
 
-  const handleSave = () => {
-    if (!config || !adminUser) return;
-    const fee = parseFloat(feeInput);
-    const updated: PlatformConfig = {
-      ...config,
-      serviceFeePercent: isNaN(fee) ? 10 : Math.min(Math.max(fee, 0), 50),
-    };
-    savePlatformConfig(updated);
-    setConfig(updated);
-    logAuditAction(adminUser, "platform.fee_change",
-      `Platform config saved: fee=${updated.serviceFeePercent}%, maintenance=${updated.features.maintenanceMode}`);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const fee = parseFloat(feeInput);
+      const res = await fetch("/api/admin/platform", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_fee_percent: isNaN(fee) ? 10 : Math.min(Math.max(fee, 0), 50),
+          new_registrations: config.new_registrations,
+          new_organizer_signups: config.new_organizer_signups,
+          maintenance_mode: config.maintenance_mode,
+          online_payments: config.online_payments,
+          stripe_enabled: config.stripe_enabled,
+          paynow_enabled: config.paynow_enabled,
+          announcement_active: config.announcement_active,
+          announcement_message: config.announcement_message,
+          announcement_type: config.announcement_type,
+        }),
+      });
+      const json = await res.json();
+      if (res.ok) {
+        setConfig(json.config);
+        setOriginal(json.config);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleReset = () => {
-    const fresh = getPlatformConfig();
-    setConfig(fresh);
-    setFeeInput(fresh.serviceFeePercent.toString());
+    if (original) {
+      setConfig(original);
+      setFeeInput(String(original.service_fee_percent));
+    }
     setSaved(false);
   };
 
@@ -68,7 +109,7 @@ export default function PlatformPage() {
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Platform Configuration</h1>
-          <p className="text-muted-foreground mt-1">Control fees, feature availability, payment gateways, and announcements.</p>
+          <p className="text-muted-foreground mt-1">Control fees, feature availability, payment gateways, and announcements — every toggle here takes effect immediately, site-wide.</p>
         </div>
         <div className="flex items-center gap-2">
           {saved && (
@@ -76,18 +117,16 @@ export default function PlatformPage() {
               <CheckCircle2 className="h-4 w-4" /> Saved
             </span>
           )}
-          <Button variant="outline" onClick={handleReset} className="gap-2">
+          <Button variant="outline" onClick={handleReset} className="gap-2" disabled={saving}>
             <RotateCcw className="h-4 w-4" /> Reset
           </Button>
-          <Button onClick={handleSave} className="gap-2 bg-primary">
-            <Save className="h-4 w-4" /> Save Changes
+          <Button onClick={handleSave} className="gap-2 bg-primary" disabled={saving}>
+            <Save className="h-4 w-4" /> {saving ? "Saving…" : "Save Changes"}
           </Button>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-
-        {/* Service Fee */}
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center gap-2">
@@ -98,7 +137,7 @@ export default function PlatformPage() {
             </div>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
-            <p className="text-sm text-muted-foreground">Percentage added to every ticket sale as platform revenue. Applied before checkout.</p>
+            <p className="text-sm text-muted-foreground">Percentage added to every ticket sale as platform revenue. Read live by checkout — changes apply to the next purchase.</p>
             <div className="flex items-end gap-3">
               <div className="flex-1 space-y-1.5">
                 <Label htmlFor="fee">Fee Percentage</Label>
@@ -121,14 +160,9 @@ export default function PlatformPage() {
                 <p className="text-lg font-bold text-emerald-600">+${((parseFloat(feeInput) || 0)).toFixed(2)}</p>
               </div>
             </div>
-            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 flex gap-2">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700">Changes take effect on new checkout sessions only. Existing sessions are unaffected.</p>
-            </div>
           </CardContent>
         </Card>
 
-        {/* Feature Flags */}
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center gap-2">
@@ -140,34 +174,33 @@ export default function PlatformPage() {
           </CardHeader>
           <CardContent className="pt-4 divide-y">
             {([
-              { key: "maintenanceMode" as const, label: "Maintenance Mode", desc: "Takes the site offline for all non-admin users", danger: true },
-              { key: "newRegistrations" as const, label: "New Registrations", desc: "Allow new users to create accounts" },
-              { key: "newOrganizerSignups" as const, label: "New Organizer Signups", desc: "Allow organizers to request accounts" },
-              { key: "onlinePayments" as const, label: "Online Payments", desc: "Master switch for all payment processing" },
-              { key: "stripeEnabled" as const, label: "Stripe Gateway", desc: "Card payments via Stripe" },
-              { key: "paynowEnabled" as const, label: "Paynow Gateway", desc: "Zimbabwe payments via Paynow" },
+              { key: "maintenance_mode" as const, label: "Maintenance Mode", desc: "Takes the site offline for all non-admin visitors", danger: true },
+              { key: "new_registrations" as const, label: "New Registrations", desc: "Allow new users to create accounts" },
+              { key: "new_organizer_signups" as const, label: "New Organizer Signups", desc: "Allow organizers to request accounts" },
+              { key: "online_payments" as const, label: "Online Payments", desc: "Master switch for all payment processing" },
+              { key: "stripe_enabled" as const, label: "Stripe Gateway", desc: "Card payments via Stripe" },
+              { key: "paynow_enabled" as const, label: "Paynow Gateway", desc: "Zimbabwe payments via Paynow" },
             ] as const).map(f => (
               <div key={f.key} className="flex items-center justify-between py-3 gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium">{f.label}</p>
-                    {'danger' in f && f.danger && config.features[f.key] && (
+                    {'danger' in f && f.danger && config[f.key] && (
                       <Badge className="bg-red-100 text-red-700 border-0 text-[10px] px-1.5">ACTIVE</Badge>
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-0.5">{f.desc}</p>
                 </div>
                 <Switch
-                  checked={config.features[f.key]}
+                  checked={config[f.key]}
                   onCheckedChange={val => setFeature(f.key, val)}
-                  className={'danger' in f && f.danger && config.features[f.key] ? "data-[state=checked]:bg-red-500" : ""}
+                  className={'danger' in f && f.danger && config[f.key] ? "data-[state=checked]:bg-red-500" : ""}
                 />
               </div>
             ))}
           </CardContent>
         </Card>
 
-        {/* Payment Gateway Status */}
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center gap-2">
@@ -182,18 +215,14 @@ export default function PlatformPage() {
               {
                 name: "Stripe",
                 desc: "International cards · USD settlement",
-                enabled: config.features.stripeEnabled,
+                enabled: config.stripe_enabled,
                 docsUrl: "https://dashboard.stripe.com",
-                mode: "Live",
-                modeColor: "bg-emerald-100 text-emerald-700",
               },
               {
                 name: "Paynow",
                 desc: "Zimbabwe local gateway · USD & ZWL",
-                enabled: config.features.paynowEnabled,
+                enabled: config.paynow_enabled,
                 docsUrl: "https://www.paynow.co.zw",
-                mode: "Live",
-                modeColor: "bg-emerald-100 text-emerald-700",
               },
             ].map(gw => (
               <div key={gw.name} className="flex items-center justify-between p-3 rounded-lg border bg-background">
@@ -204,7 +233,9 @@ export default function PlatformPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium">{gw.name}</p>
-                      <Badge className={`text-[10px] px-1.5 border-0 ${gw.modeColor}`}>{gw.mode}</Badge>
+                      <Badge className={`text-[10px] px-1.5 border-0 ${gw.enabled ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>
+                        {gw.enabled ? "Enabled" : "Disabled"}
+                      </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">{gw.desc}</p>
                   </div>
@@ -214,11 +245,10 @@ export default function PlatformPage() {
                 </Button>
               </div>
             ))}
-            <p className="text-xs text-muted-foreground">Toggle gateways using Feature Controls above. API keys are managed via Netlify environment variables.</p>
+            <p className="text-xs text-muted-foreground">Toggle gateways using Feature Controls above — enforced on the payment initiation endpoint, not just this UI.</p>
           </CardContent>
         </Card>
 
-        {/* Platform Announcement */}
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center gap-2">
@@ -229,31 +259,31 @@ export default function PlatformPage() {
             </div>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
-            <p className="text-sm text-muted-foreground">Shows a banner to all site visitors. Use for maintenance notices, promotions, or important updates.</p>
+            <p className="text-sm text-muted-foreground">Shows a dismissible banner to all site visitors. Use for maintenance notices, promotions, or important updates.</p>
             <div className="flex items-center justify-between">
               <Label htmlFor="ann-active">Show Announcement</Label>
               <Switch
                 id="ann-active"
-                checked={config.announcement.active}
-                onCheckedChange={v => setAnnouncement("active", v)}
+                checked={config.announcement_active}
+                onCheckedChange={v => setFeature("announcement_active", v)}
               />
             </div>
             <div className="space-y-1.5">
               <Label>Message</Label>
               <Textarea
-                value={config.announcement.message}
-                onChange={e => setAnnouncement("message", e.target.value)}
+                value={config.announcement_message}
+                onChange={e => setFeature("announcement_message", e.target.value)}
                 placeholder="e.g. We are currently experiencing intermittent issues with Paynow payments. We are working to resolve this."
                 rows={3}
-                disabled={!config.announcement.active}
+                disabled={!config.announcement_active}
               />
             </div>
             <div className="space-y-1.5">
               <Label>Type</Label>
               <Select
-                value={config.announcement.type}
-                onValueChange={v => setAnnouncement("type", v)}
-                disabled={!config.announcement.active}
+                value={config.announcement_type}
+                onValueChange={v => setFeature("announcement_type", v as PlatformConfig["announcement_type"])}
+                disabled={!config.announcement_active}
               >
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -263,20 +293,19 @@ export default function PlatformPage() {
                 </SelectContent>
               </Select>
             </div>
-            {config.announcement.active && config.announcement.message && (
+            {config.announcement_active && config.announcement_message && (
               <div className={`rounded-lg p-3 text-sm flex items-start gap-2 ${
-                config.announcement.type === "error" ? "bg-red-50 text-red-800 border border-red-200" :
-                config.announcement.type === "warning" ? "bg-amber-50 text-amber-800 border border-amber-200" :
+                config.announcement_type === "error" ? "bg-red-50 text-red-800 border border-red-200" :
+                config.announcement_type === "warning" ? "bg-amber-50 text-amber-800 border border-amber-200" :
                 "bg-blue-50 text-blue-800 border border-blue-200"
               }`}>
                 <Megaphone className="h-4 w-4 shrink-0 mt-0.5" />
-                <p>{config.announcement.message}</p>
+                <p>{config.announcement_message}</p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Security Overview */}
         <Card className="border-0 shadow-sm lg:col-span-2">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center gap-2">
@@ -289,10 +318,10 @@ export default function PlatformPage() {
           <CardContent className="pt-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {[
-                { label: "API Keys", value: "Env-managed", ok: true, note: "Stored in Netlify env vars" },
+                { label: "API Keys", value: "Env-managed", ok: true, note: "Stored in Vercel env vars" },
                 { label: "Webhook Signing", value: "Stripe only", ok: true, note: "STRIPE_WEBHOOK_SECRET must be set" },
                 { label: "PCI Compliance", value: "Stripe handles", ok: true, note: "No card data touches our servers" },
-                { label: "Session Storage", value: "sessionStorage", ok: true, note: "Cleared on browser close" },
+                { label: "Maintenance Mode", value: config.maintenance_mode ? "Active" : "Off", ok: !config.maintenance_mode, note: "Enforced in middleware" },
               ].map(s => (
                 <div key={s.label} className="rounded-lg border bg-background p-3">
                   <div className="flex items-center gap-1.5 mb-1">

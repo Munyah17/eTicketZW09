@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PaymentService, PaymentInitiateRequest } from "@/lib/services/payment-service";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -25,6 +26,19 @@ export async function POST(req: NextRequest) {
         { error: "Invalid provider. Must be 'paynow' or 'stripe'" },
         { status: 400 }
       );
+    }
+
+    const supabase = createAdminClient();
+    const { data: platformConfig } = await supabase.from("platform_config").select("*").eq("id", 1).single();
+
+    if (platformConfig && !platformConfig.online_payments) {
+      return NextResponse.json({ error: "Online payments are currently disabled" }, { status: 503 });
+    }
+    if (platformConfig && body.provider === "stripe" && !platformConfig.stripe_enabled) {
+      return NextResponse.json({ error: "Card payments are currently disabled" }, { status: 503 });
+    }
+    if (platformConfig && body.provider === "paynow" && !platformConfig.paynow_enabled) {
+      return NextResponse.json({ error: "Paynow payments are currently disabled" }, { status: 503 });
     }
 
     const result = await PaymentService.initiatePayment(body);

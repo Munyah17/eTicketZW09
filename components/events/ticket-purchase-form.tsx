@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +36,18 @@ export function TicketPurchaseForm({
   const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+  const [feePercent, setFeePercent] = useState(PLATFORM_FEE_PERCENTAGE);
+
+  useEffect(() => {
+    fetch("/api/platform-config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.config?.service_fee_percent !== undefined) {
+          setFeePercent(Number(data.config.service_fee_percent));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const selectedTicketType = event.ticketTypes.find((t) => t.id === selectedTicketTypeId);
   const available = selectedTicketType
@@ -43,7 +55,7 @@ export function TicketPurchaseForm({
     : 0;
 
   const basePrice = selectedTicketType ? selectedTicketType.price * quantity : 0;
-  const platformFee = basePrice * (PLATFORM_FEE_PERCENTAGE / 100);
+  const platformFee = basePrice * (feePercent / 100);
   const totalPrice = basePrice + platformFee;
   const showBaseUrlWarning = !process.env.NEXT_PUBLIC_BASE_URL;
 
@@ -328,7 +340,7 @@ export function TicketPurchaseForm({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
-                  Service Fee ({PLATFORM_FEE_PERCENTAGE}%)
+                  Service Fee ({feePercent}%)
                 </span>
                 <span>${platformFee.toFixed(2)}</span>
               </div>

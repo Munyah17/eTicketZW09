@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Providers } from '@/components/providers'
+import { AnnouncementBanner } from '@/components/announcement-banner'
 import './globals.css'
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
@@ -72,6 +73,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className={`${geist.variable} ${geistMono.variable}`}>
       <body className="font-sans antialiased min-h-screen overflow-x-hidden">
         <Providers>
+          <AnnouncementBanner />
           {children}
         </Providers>
         {process.env.NODE_ENV === 'production' && <Analytics />}
