@@ -1,62 +1,66 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { BarChart3, TrendingUp, Ticket, DollarSign, Users, Calendar, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { BarChart3, Ticket, DollarSign, TrendingUp, RefreshCw } from "lucide-react";
 import { ProgressBar } from "@/components/ui/progress-bar";
-import { mockEvents, mockTickets } from "@/lib/mock-data";
+
+interface OrgEvent {
+  id: string;
+  title: string;
+  category: string;
+  date: string;
+  city: string;
+  total_tickets: number;
+  sold_tickets: number;
+  ticket_types: { price: number; sold: number }[];
+}
+
+interface OrgTicket {
+  event_id: string;
+  total_paid: number;
+  payment_method: string;
+}
 
 export default function OrganizerAnalyticsPage() {
-  const organizerEvents = mockEvents.slice(0, 3);
-  const eventIds = organizerEvents.map((e) => e.id);
-  const sales = mockTickets.filter((t) => eventIds.includes(t.eventId));
+  const [events, setEvents] = useState<OrgEvent[]>([]);
+  const [tickets, setTickets] = useState<OrgTicket[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const totalRevenue = sales.reduce((sum, t) => sum + t.totalPaid, 0);
-  const totalTickets = organizerEvents.reduce((sum, e) => sum + e.totalTickets, 0);
-  const soldTickets = organizerEvents.reduce((sum, e) => sum + e.soldTickets, 0);
-  const avgTicketPrice =
-    organizerEvents.length > 0
-      ? organizerEvents.reduce(
-          (sum, e) =>
-            sum + e.ticketTypes.reduce((s, t) => s + t.price * t.sold, 0) / Math.max(e.soldTickets, 1),
-          0
-        ) / organizerEvents.length
-      : 0;
+  useEffect(() => {
+    fetch("/api/organizer/sales")
+      .then((res) => res.json())
+      .then((data) => {
+        setEvents(data.events ?? []);
+        setTickets(data.tickets ?? []);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totalRevenue = tickets.reduce((sum, t) => sum + Number(t.total_paid), 0);
+  const totalTickets = events.reduce((sum, e) => sum + e.total_tickets, 0);
+  const soldTickets = events.reduce((sum, e) => sum + e.sold_tickets, 0);
+  const avgTicketPrice = soldTickets > 0 ? totalRevenue / soldTickets : 0;
+  const sellThroughRate = totalTickets > 0 ? Math.round((soldTickets / totalTickets) * 100) : 0;
 
   const stats = [
-    {
-      title: "Total Revenue",
-      value: `$${totalRevenue.toLocaleString()}`,
-      change: "+12%",
-      trend: "up" as const,
-      icon: DollarSign,
-    },
-    {
-      title: "Tickets Sold",
-      value: soldTickets.toLocaleString(),
-      change: "+8%",
-      trend: "up" as const,
-      icon: Ticket,
-    },
-    {
-      title: "Avg. Ticket Price",
-      value: `$${avgTicketPrice.toFixed(2)}`,
-      change: "-2%",
-      trend: "down" as const,
-      icon: BarChart3,
-    },
-    {
-      title: "Sell-Through Rate",
-      value: `${Math.round((soldTickets / totalTickets) * 100)}%`,
-      change: "+5%",
-      trend: "up" as const,
-      icon: TrendingUp,
-    },
+    { title: "Total Revenue", value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign },
+    { title: "Tickets Sold", value: soldTickets.toLocaleString(), icon: Ticket },
+    { title: "Avg. Ticket Price", value: `$${avgTicketPrice.toFixed(2)}`, icon: BarChart3 },
+    { title: "Sell-Through Rate", value: `${sellThroughRate}%`, icon: TrendingUp },
   ];
 
-  const topEvents = [...organizerEvents]
-    .sort((a, b) => b.soldTickets - a.soldTickets)
-    .slice(0, 5);
+  const topEvents = [...events].sort((a, b) => b.sold_tickets - a.sold_tickets).slice(0, 5);
+  const categories = [...new Set(events.map((e) => e.category))];
+  const paymentMethods = [...new Set(tickets.map((t) => t.payment_method).filter(Boolean))];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -67,7 +71,6 @@ export default function OrganizerAnalyticsPage() {
         </p>
       </div>
 
-      {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.title}>
@@ -76,21 +79,6 @@ export default function OrganizerAnalyticsPage() {
                 <div>
                   <p className="text-sm text-muted-foreground">{stat.title}</p>
                   <p className="mt-1 text-2xl font-bold">{stat.value}</p>
-                  <div className="mt-1 flex items-center gap-1 text-xs">
-                    {stat.trend === "up" ? (
-                      <ArrowUpRight className="h-3 w-3 text-success" />
-                    ) : (
-                      <ArrowDownRight className="h-3 w-3 text-destructive" />
-                    )}
-                    <span
-                      className={
-                        stat.trend === "up" ? "text-success" : "text-destructive"
-                      }
-                    >
-                      {stat.change}
-                    </span>
-                    <span className="text-muted-foreground">vs last month</span>
-                  </div>
                 </div>
                 <div className="rounded-lg bg-secondary p-3">
                   <stat.icon className="h-5 w-5 text-primary" />
@@ -101,45 +89,32 @@ export default function OrganizerAnalyticsPage() {
         ))}
       </div>
 
-      {/* Top Events */}
       <Card>
         <CardHeader>
           <CardTitle>Top Performing Events</CardTitle>
           <CardDescription>Events ranked by ticket sales</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {topEvents.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">No events yet</p>
+          )}
           {topEvents.map((event, index) => {
-            const soldPercentage = Math.round(
-              (event.soldTickets / event.totalTickets) * 100
-            );
-            const revenue = event.ticketTypes.reduce(
-              (sum, t) => sum + t.sold * t.price,
-              0
-            );
+            const soldPercentage = event.total_tickets > 0 ? Math.round((event.sold_tickets / event.total_tickets) * 100) : 0;
+            const revenue = event.ticket_types.reduce((sum, tt) => sum + Number(tt.price) * Number(tt.sold), 0);
             return (
-              <div
-                key={event.id}
-                className="flex items-center gap-4 rounded-lg border p-4"
-              >
+              <div key={event.id} className="flex items-center gap-4 rounded-lg border p-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
                   {index + 1}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold truncate">{event.title}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {new Date(event.date).toLocaleDateString("en-ZW", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}{" "}
-                    · {event.city}
+                    {new Date(event.date).toLocaleDateString("en-ZW", { day: "numeric", month: "short", year: "numeric" })} · {event.city}
                   </p>
                 </div>
                 <div className="text-right">
                   <p className="font-semibold">${revenue.toLocaleString()}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {event.soldTickets} tickets · {soldPercentage}%
-                  </p>
+                  <p className="text-xs text-muted-foreground">{event.sold_tickets} tickets · {soldPercentage}%</p>
                 </div>
               </div>
             );
@@ -147,25 +122,23 @@ export default function OrganizerAnalyticsPage() {
         </CardContent>
       </Card>
 
-      {/* Sales by Ticket Type */}
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Sales by Category</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {["comedy", "music", "sports", "marathon"].map((cat) => {
-              const catEvents = organizerEvents.filter((e) => e.category === cat);
-              const catSold = catEvents.reduce((sum, e) => sum + e.soldTickets, 0);
-              const catTotal = catEvents.reduce((sum, e) => sum + e.totalTickets, 0);
+            {categories.length === 0 && <p className="text-sm text-muted-foreground">No events yet</p>}
+            {categories.map((cat) => {
+              const catEvents = events.filter((e) => e.category === cat);
+              const catSold = catEvents.reduce((sum, e) => sum + e.sold_tickets, 0);
+              const catTotal = catEvents.reduce((sum, e) => sum + e.total_tickets, 0);
               const percentage = catTotal > 0 ? Math.round((catSold / catTotal) * 100) : 0;
               return (
                 <div key={cat} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <span className="capitalize font-medium">{cat}</span>
-                    <span className="text-muted-foreground">
-                      {catSold}/{catTotal} ({percentage}%)
-                    </span>
+                    <span className="text-muted-foreground">{catSold}/{catTotal} ({percentage}%)</span>
                   </div>
                   <ProgressBar value={percentage} />
                 </div>
@@ -179,11 +152,11 @@ export default function OrganizerAnalyticsPage() {
             <CardTitle>Payment Methods</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {["ecocash", "visa", "innbucks", "cash"].map((method) => {
-              const methodSales = sales.filter((s) => s.paymentMethod === method);
-              const methodRevenue = methodSales.reduce((sum, s) => sum + s.totalPaid, 0);
-              const totalSalesRevenue = sales.reduce((sum, s) => sum + s.totalPaid, 0);
-              const percentage = totalSalesRevenue > 0 ? Math.round((methodRevenue / totalSalesRevenue) * 100) : 0;
+            {paymentMethods.length === 0 && <p className="text-sm text-muted-foreground">No sales yet</p>}
+            {paymentMethods.map((method) => {
+              const methodSales = tickets.filter((t) => t.payment_method === method);
+              const methodRevenue = methodSales.reduce((sum, s) => sum + Number(s.total_paid), 0);
+              const percentage = totalRevenue > 0 ? Math.round((methodRevenue / totalRevenue) * 100) : 0;
               return (
                 <div key={method} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">

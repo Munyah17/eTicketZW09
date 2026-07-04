@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,47 +29,90 @@ import {
   Search,
   UserCheck,
   Ban,
+  RefreshCw,
 } from "lucide-react";
-import { mockEvents, mockTickets } from "@/lib/mock-data";
-import { Ticket as TicketType } from "@/lib/types";
+import { useAuth } from "@/lib/auth-context";
+import { getOrganizerEvents } from "@/lib/events-store";
+import { Ticket as TicketType, Event } from "@/lib/types";
 
 type ScanResult = {
   status: "valid" | "invalid" | "admitted" | "not_found";
-  ticket?: TicketType;
+  ticket?: Record<string, unknown>;
   message: string;
 };
 
+function mapTicket(r: Record<string, unknown>): TicketType {
+  return {
+    id: r.id as string,
+    eventId: r.event_id as string,
+    ticketTypeId: r.ticket_type_id as string,
+    ticketTypeName: r.ticket_type_name as string,
+    eventTitle: r.event_title as string,
+    eventDate: r.event_date as string,
+    eventTime: r.event_time as string,
+    venue: r.venue as string,
+    buyerName: r.buyer_name as string,
+    buyerContact: r.buyer_contact as string,
+    buyerDisplayName: r.buyer_display_name as string,
+    price: Number(r.price),
+    markup: Number(r.markup),
+    totalPaid: Number(r.total_paid),
+    currency: "USD",
+    paymentMethod: r.payment_method as TicketType["paymentMethod"],
+    paymentStatus: r.payment_status as TicketType["paymentStatus"],
+    qrCode: r.qr_code as string,
+    validated: Boolean(r.validated),
+    validatedAt: r.validated_at as string | undefined,
+    validatedBy: r.validated_by as string | undefined,
+    admittedAt: r.admitted_at as string | undefined,
+    admittedBy: r.admitted_by as string | undefined,
+    isAdmitted: Boolean(r.is_admitted),
+    purchasedAt: r.purchased_at as string,
+    saleType: r.sale_type as TicketType["saleType"],
+  };
+}
+
 export default function GateManagementPage() {
+  const { user } = useAuth();
+  const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<string>("");
-  const [tickets, setTickets] = useState<TicketType[]>(mockTickets);
+  const [tickets, setTickets] = useState<TicketType[]>([]);
+  const [loading, setLoading] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
   const scannerRef = useRef<{ stop: () => void } | null>(null);
 
-  const organizerEvents = mockEvents.filter(
-    (e) => e.organizerId === "org-001" && e.status === "published"
-  );
+  useEffect(() => {
+    if (user) getOrganizerEvents(user.id).then((events) => setOrganizerEvents(events.filter((e) => e.status === "published")));
+  }, [user]);
 
-  const eventTickets = tickets.filter((t) => t.eventId === selectedEvent);
-  const admittedCount = eventTickets.filter((t) => t.isAdmitted).length;
-  const validCount = eventTickets.filter(
-    (t) => t.paymentStatus === "completed" && !t.isAdmitted
-  ).length;
+  const loadTickets = useCallback(async () => {
+    if (!selectedEvent) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/organizer/gate?eventId=${selectedEvent}`);
+      const json = await res.json();
+      setTickets(((json.tickets ?? []) as Record<string, unknown>[]).map(mapTicket));
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedEvent]);
+
+  useEffect(() => { loadTickets(); }, [loadTickets]);
+
+  const admittedCount = tickets.filter((t) => t.isAdmitted).length;
+  const validCount = tickets.filter((t) => t.paymentStatus === "completed" && !t.isAdmitted).length;
 
   const startScanner = async () => {
     try {
       const { Html5Qrcode } = await import("html5-qrcode");
       const html5QrCode = new Html5Qrcode("qr-reader");
-      
+
       await html5QrCode.start(
         { facingMode: "environment" },
-        {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-        },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
           handleScan(decodedText);
           html5QrCode.stop();
@@ -77,7 +120,7 @@ export default function GateManagementPage() {
         },
         () => {}
       );
-      
+
       scannerRef.current = { stop: () => html5QrCode.stop() };
       setIsScanning(true);
     } catch (err) {
@@ -96,44 +139,18 @@ export default function GateManagementPage() {
 
   useEffect(() => {
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop();
-      }
+      if (scannerRef.current) scannerRef.current.stop();
     };
   }, []);
 
-  const handleScan = (code: string) => {
-    const ticket = tickets.find(
-      (t) => t.qrCode === code && t.eventId === selectedEvent
-    );
-
-    if (!ticket) {
-      setScanResult({
-        status: "not_found",
-        message: "Ticket not found or not valid for this event",
-      });
-    } else if (ticket.isAdmitted) {
-      setScanResult({
-        status: "admitted",
-        ticket,
-        message: `Already admitted at ${new Date(
-          ticket.admittedAt!
-        ).toLocaleTimeString()}`,
-      });
-    } else if (ticket.paymentStatus !== "completed") {
-      setScanResult({
-        status: "invalid",
-        ticket,
-        message: "Payment not completed",
-      });
-    } else {
-      setScanResult({
-        status: "valid",
-        ticket,
-        message: "Valid ticket - Ready for admission",
-      });
-    }
-
+  const handleScan = async (code: string) => {
+    const res = await fetch("/api/organizer/gate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "scan", eventId: selectedEvent, code }),
+    });
+    const result = await res.json();
+    setScanResult(result);
     setDialogOpen(true);
   };
 
@@ -144,26 +161,16 @@ export default function GateManagementPage() {
     }
   };
 
-  const handleAdmit = () => {
-    if (scanResult?.ticket) {
-      setTickets((prev) =>
-        prev.map((t) =>
-          t.id === scanResult.ticket!.id
-            ? {
-                ...t,
-                isAdmitted: true,
-                admittedAt: new Date().toISOString(),
-                admittedBy: "gate-staff",
-              }
-            : t
-        )
-      );
-      setScanResult({
-        ...scanResult,
-        status: "admitted",
-        message: "Successfully admitted!",
-      });
-    }
+  const handleAdmit = async () => {
+    if (!scanResult?.ticket) return;
+    const res = await fetch("/api/organizer/gate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "admit", ticketId: scanResult.ticket.id }),
+    });
+    const result = await res.json();
+    setScanResult(result);
+    loadTickets();
   };
 
   return (
@@ -175,7 +182,6 @@ export default function GateManagementPage() {
         </p>
       </div>
 
-      {/* Event Selection */}
       <Card>
         <CardHeader>
           <CardTitle>Select Event</CardTitle>
@@ -186,6 +192,9 @@ export default function GateManagementPage() {
               <SelectValue placeholder="Choose an event to manage" />
             </SelectTrigger>
             <SelectContent>
+              {organizerEvents.length === 0 && (
+                <div className="px-2 py-1.5 text-sm text-muted-foreground">No published events</div>
+              )}
               {organizerEvents.map((event) => (
                 <SelectItem key={event.id} value={event.id}>
                   {event.title} - {new Date(event.date).toLocaleDateString()}
@@ -196,9 +205,14 @@ export default function GateManagementPage() {
         </CardContent>
       </Card>
 
-      {selectedEvent && (
+      {selectedEvent && loading && (
+        <div className="flex items-center justify-center py-16">
+          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {selectedEvent && !loading && (
         <>
-          {/* Stats */}
           <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardContent className="pt-6">
@@ -208,7 +222,7 @@ export default function GateManagementPage() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Total Tickets</p>
-                    <p className="text-2xl font-bold">{eventTickets.length}</p>
+                    <p className="text-2xl font-bold">{tickets.length}</p>
                   </div>
                 </div>
               </CardContent>
@@ -241,9 +255,7 @@ export default function GateManagementPage() {
             </Card>
           </div>
 
-          {/* Scanner Section */}
           <div className="grid gap-6 md:grid-cols-2">
-            {/* QR Scanner */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -252,10 +264,7 @@ export default function GateManagementPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div
-                  id="qr-reader"
-                  className="w-full aspect-square bg-muted rounded-lg overflow-hidden"
-                >
+                <div id="qr-reader" className="w-full aspect-square bg-muted rounded-lg overflow-hidden">
                   {!isScanning && (
                     <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground">
                       <QrCode className="h-16 w-16 mb-4" />
@@ -271,11 +280,7 @@ export default function GateManagementPage() {
                       Start Scanner
                     </Button>
                   ) : (
-                    <Button
-                      onClick={stopScanner}
-                      variant="destructive"
-                      className="flex-1"
-                    >
+                    <Button onClick={stopScanner} variant="destructive" className="flex-1">
                       Stop Scanner
                     </Button>
                   )}
@@ -283,7 +288,6 @@ export default function GateManagementPage() {
               </CardContent>
             </Card>
 
-            {/* Manual Entry */}
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
@@ -307,47 +311,21 @@ export default function GateManagementPage() {
                     </Button>
                   </div>
                 </div>
-
-                <div className="border-t pt-4">
-                  <h4 className="font-medium mb-3">Quick Test Codes</h4>
-                  <div className="space-y-2">
-                    {eventTickets.slice(0, 3).map((ticket) => (
-                      <Button
-                        key={ticket.id}
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start text-left"
-                        onClick={() => handleScan(ticket.qrCode)}
-                      >
-                        <code className="text-xs">{ticket.qrCode}</code>
-                        {ticket.isAdmitted && (
-                          <span className="ml-auto text-xs text-amber-600">
-                            Admitted
-                          </span>
-                        )}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Recent Scans */}
           <Card>
             <CardHeader>
               <CardTitle>Recent Admissions</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {eventTickets
+                {tickets
                   .filter((t) => t.isAdmitted)
                   .slice(0, 10)
                   .map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className="flex items-center justify-between p-3 bg-muted rounded-lg"
-                    >
+                    <div key={ticket.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                       <div>
                         <p className="font-medium">{ticket.buyerDisplayName}</p>
                         <p className="text-sm text-muted-foreground">
@@ -359,16 +337,13 @@ export default function GateManagementPage() {
                           Admitted
                         </span>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {ticket.admittedAt &&
-                            new Date(ticket.admittedAt).toLocaleTimeString()}
+                          {ticket.admittedAt && new Date(ticket.admittedAt).toLocaleTimeString()}
                         </p>
                       </div>
                     </div>
                   ))}
-                {eventTickets.filter((t) => t.isAdmitted).length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">
-                    No admissions yet
-                  </p>
+                {tickets.filter((t) => t.isAdmitted).length === 0 && (
+                  <p className="text-center text-muted-foreground py-8">No admissions yet</p>
                 )}
               </div>
             </CardContent>
@@ -376,81 +351,36 @@ export default function GateManagementPage() {
         </>
       )}
 
-      {/* Scan Result Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {scanResult?.status === "valid" && (
-                <>
-                  <CheckCircle className="h-6 w-6 text-green-600" />
-                  Valid Ticket
-                </>
-              )}
-              {scanResult?.status === "admitted" && (
-                <>
-                  <AlertTriangle className="h-6 w-6 text-amber-600" />
-                  Already Admitted
-                </>
-              )}
-              {scanResult?.status === "invalid" && (
-                <>
-                  <XCircle className="h-6 w-6 text-red-600" />
-                  Invalid Ticket
-                </>
-              )}
-              {scanResult?.status === "not_found" && (
-                <>
-                  <Ban className="h-6 w-6 text-red-600" />
-                  Not Found
-                </>
-              )}
+              {scanResult?.status === "valid" && (<><CheckCircle className="h-6 w-6 text-green-600" />Valid Ticket</>)}
+              {scanResult?.status === "admitted" && (<><AlertTriangle className="h-6 w-6 text-amber-600" />Already Admitted</>)}
+              {scanResult?.status === "invalid" && (<><XCircle className="h-6 w-6 text-red-600" />Invalid Ticket</>)}
+              {scanResult?.status === "not_found" && (<><Ban className="h-6 w-6 text-red-600" />Not Found</>)}
             </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
-            <p
-              className={`text-lg font-medium ${
-                scanResult?.status === "valid"
-                  ? "text-green-600"
-                  : scanResult?.status === "admitted"
-                  ? "text-amber-600"
-                  : "text-red-600"
-              }`}
-            >
+            <p className={`text-lg font-medium ${scanResult?.status === "valid" ? "text-green-600" : scanResult?.status === "admitted" ? "text-amber-600" : "text-red-600"}`}>
               {scanResult?.message}
             </p>
 
             {scanResult?.ticket && (
               <div className="bg-muted p-4 rounded-lg space-y-2">
-                <p>
-                  <strong>Name:</strong> {scanResult.ticket.buyerDisplayName}
-                </p>
-                <p>
-                  <strong>Contact:</strong> {scanResult.ticket.buyerContact}
-                </p>
-                <p>
-                  <strong>Ticket Type:</strong> {scanResult.ticket.ticketTypeName}
-                </p>
-                <p>
-                  <strong>Amount Paid:</strong> ${scanResult.ticket.totalPaid}{" "}
-                  {scanResult.ticket.currency}
-                </p>
-                <p>
-                  <strong>Payment Method:</strong>{" "}
-                  {scanResult.ticket.paymentMethod.toUpperCase()}
-                </p>
-                <p>
-                  <strong>Code:</strong> {scanResult.ticket.qrCode}
-                </p>
+                <p><strong>Name:</strong> {scanResult.ticket.buyer_display_name as string}</p>
+                <p><strong>Contact:</strong> {scanResult.ticket.buyer_contact as string}</p>
+                <p><strong>Ticket Type:</strong> {scanResult.ticket.ticket_type_name as string}</p>
+                <p><strong>Amount Paid:</strong> ${scanResult.ticket.total_paid as number} {scanResult.ticket.currency as string}</p>
+                <p><strong>Payment Method:</strong> {(scanResult.ticket.payment_method as string)?.toUpperCase()}</p>
+                <p><strong>Code:</strong> {scanResult.ticket.qr_code as string}</p>
               </div>
             )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
-              Close
-            </Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Close</Button>
             {scanResult?.status === "valid" && (
               <Button onClick={handleAdmit} className="bg-green-600 hover:bg-green-700">
                 <UserCheck className="h-4 w-4 mr-2" />

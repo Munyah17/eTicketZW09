@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,22 +19,55 @@ import {
   DollarSign,
   TrendingUp,
   Users,
-  Calendar,
-  ArrowRight,
   Download,
+  RefreshCw,
 } from "lucide-react";
-import { mockTickets, mockEvents } from "@/lib/mock-data";
+
+interface SaleRow {
+  id: string;
+  eventTitle: string;
+  buyerDisplayName: string;
+  buyerContact: string;
+  ticketTypeName: string;
+  totalPaid: number;
+  paymentMethod: string;
+  paymentStatus: string;
+  purchasedAt: string;
+  saleType: "online" | "gate";
+}
+
+function mapSale(r: Record<string, unknown>): SaleRow {
+  return {
+    id: r.id as string,
+    eventTitle: r.event_title as string,
+    buyerDisplayName: (r.buyer_display_name as string) || (r.buyer_name as string),
+    buyerContact: r.buyer_contact as string,
+    ticketTypeName: r.ticket_type_name as string,
+    totalPaid: Number(r.total_paid),
+    paymentMethod: r.payment_method as string,
+    paymentStatus: r.payment_status as string,
+    purchasedAt: r.purchased_at as string,
+    saleType: r.sale_type as "online" | "gate",
+  };
+}
 
 export default function OrganizerSalesPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [sales, setSales] = useState<SaleRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const organizerEvents = mockEvents.slice(0, 3);
-  const eventIds = organizerEvents.map((e) => e.id);
-  const sales = mockTickets.filter((t) => eventIds.includes(t.eventId));
+  useEffect(() => {
+    fetch("/api/organizer/sales")
+      .then((res) => res.json())
+      .then((data) => {
+        setSales(((data.tickets ?? []) as Record<string, unknown>[]).map(mapSale));
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const filteredSales = sales.filter(
     (sale) =>
-      sale.buyerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      sale.buyerDisplayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       sale.eventTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
       sale.id.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -45,27 +78,24 @@ export default function OrganizerSalesPage() {
   const gateSales = sales.filter((s) => s.saleType === "gate").length;
 
   const stats = [
-    {
-      title: "Total Sales",
-      value: totalTickets,
-      icon: Ticket,
-    },
-    {
-      title: "Total Revenue",
-      value: `$${totalRevenue.toLocaleString()}`,
-      icon: DollarSign,
-    },
-    {
-      title: "Online Sales",
-      value: onlineSales,
-      icon: TrendingUp,
-    },
-    {
-      title: "Gate Sales",
-      value: gateSales,
-      icon: Users,
-    },
+    { title: "Total Sales", value: totalTickets, icon: Ticket },
+    { title: "Total Revenue", value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign },
+    { title: "Online Sales", value: onlineSales, icon: TrendingUp },
+    { title: "Gate Sales", value: gateSales, icon: Users },
   ];
+
+  const exportCSV = () => {
+    const rows = [
+      ["Ticket ID", "Event", "Buyer", "Type", "Amount", "Method", "Status", "Date"],
+      ...filteredSales.map((s) => [s.id, s.eventTitle, s.buyerDisplayName, s.ticketTypeName, s.totalPaid.toFixed(2), s.paymentMethod, s.paymentStatus, s.purchasedAt]),
+    ];
+    const csv = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "sales.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="space-y-6">
@@ -76,13 +106,12 @@ export default function OrganizerSalesPage() {
             Track all ticket sales across your events
           </p>
         </div>
-        <Button variant="outline" className="gap-2">
+        <Button variant="outline" className="gap-2" onClick={exportCSV}>
           <Download className="h-4 w-4" />
           Export CSV
         </Button>
       </div>
 
-      {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.title}>
@@ -101,7 +130,6 @@ export default function OrganizerSalesPage() {
         ))}
       </div>
 
-      {/* Sales Table */}
       <Card>
         <CardHeader>
           <CardTitle>Sales History</CardTitle>
@@ -132,7 +160,13 @@ export default function OrganizerSalesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSales.length === 0 ? (
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8">
+                      <RefreshCw className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
+                    </TableCell>
+                  </TableRow>
+                ) : filteredSales.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                       No sales found
@@ -141,7 +175,7 @@ export default function OrganizerSalesPage() {
                 ) : (
                   filteredSales.map((sale) => (
                     <TableRow key={sale.id}>
-                      <TableCell className="font-mono text-xs">{sale.id}</TableCell>
+                      <TableCell className="font-mono text-xs">{sale.id.slice(0, 8)}…</TableCell>
                       <TableCell className="font-medium">{sale.eventTitle}</TableCell>
                       <TableCell>
                         <div>
@@ -161,20 +195,13 @@ export default function OrganizerSalesPage() {
                       <TableCell>
                         <Badge
                           variant={sale.paymentStatus === "completed" ? "default" : "secondary"}
-                          className={
-                            sale.paymentStatus === "completed"
-                              ? "bg-success text-success-foreground"
-                              : ""
-                          }
+                          className={sale.paymentStatus === "completed" ? "bg-success text-success-foreground" : ""}
                         >
                           {sale.paymentStatus}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {new Date(sale.purchasedAt).toLocaleDateString("en-ZW", {
-                          day: "numeric",
-                          month: "short",
-                        })}
+                        {new Date(sale.purchasedAt).toLocaleDateString("en-ZW", { day: "numeric", month: "short" })}
                       </TableCell>
                     </TableRow>
                   ))
