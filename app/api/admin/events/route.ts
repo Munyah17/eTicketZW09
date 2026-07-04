@@ -72,7 +72,6 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get("search") || "";
 
   const supabase = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any = supabase.from("events").select(COLS).order("created_at", { ascending: false }).limit(500);
 
   if (search) {

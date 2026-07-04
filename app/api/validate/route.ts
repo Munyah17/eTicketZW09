@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isUuid } from "@/lib/validation";
 
 // Ticket admission control — restricted to staff/organizer/admin accounts.
 // This searches across ALL tickets platform-wide (no event/organizer scope),
@@ -34,8 +35,7 @@ export async function POST(req: NextRequest) {
     // id is a uuid column — only include it in the OR filter when the
     // entered code actually looks like one, otherwise PostgREST errors on
     // the malformed comparison instead of just finding no rows.
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(code);
-    const filter = isUuid ? `id.eq.${code},qr_code.eq.${code}` : `qr_code.eq.${code}`;
+    const filter = isUuid(code) ? `id.eq.${code},qr_code.eq.${code}` : `qr_code.eq.${code}`;
 
     const { data: ticket } = await admin
       .from("tickets")

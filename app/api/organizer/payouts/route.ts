@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { MINIMUM_PAYOUT, PAYOUT_TRANSACTION_COST_PERCENTAGE } from "@/lib/types";
+import { calculatePayoutTransactionCost } from "@/lib/pricing";
 
 // Available balance = total ticket revenue across the organizer's own events,
 // minus every payout request that isn't declined (pending/processing count
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Amount exceeds your available balance" }, { status: 400 });
   }
 
-  const transactionCost = Number(((amount * PAYOUT_TRANSACTION_COST_PERCENTAGE) / 100).toFixed(2));
+  const transactionCost = calculatePayoutTransactionCost(amount, PAYOUT_TRANSACTION_COST_PERCENTAGE);
 
   const { error } = await supabase.from("payout_requests").insert({
     organizer_id: organizer.id,

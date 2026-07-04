@@ -59,7 +59,6 @@ export async function GET(req: NextRequest) {
   const sort = searchParams.get("sort") || "date-asc";
 
   const supabase = createAdminClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query: any = supabase.from("events").select(COLS).eq("status", "published");
 
   if (search) {

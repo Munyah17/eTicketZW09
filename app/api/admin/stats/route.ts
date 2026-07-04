@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/server-auth";
 import { PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
+import { calculatePlatformFee } from "@/lib/pricing";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -61,7 +62,7 @@ export async function GET() {
     grossRevenue = (ttRows ?? []).reduce((s, tt) => s + Number(tt.price) * Number(tt.sold), 0);
   }
 
-  const platformFees = grossRevenue * (PLATFORM_FEE_PERCENTAGE / 100);
+  const platformFees = calculatePlatformFee(grossRevenue, PLATFORM_FEE_PERCENTAGE);
 
   return NextResponse.json({
     totalEvents: totalEvents ?? 0,
