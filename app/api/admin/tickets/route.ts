@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
       let q = supabase
         .from("tickets")
         .select(
-          "id, event_title, event_date, ticket_type_name, buyer_name, buyer_display_name, buyer_contact, total_paid, currency, payment_status, validated, sale_type, purchased_at",
+          "id, event_title, event_date, ticket_type_name, buyer_name, buyer_display_name, buyer_contact, buyer_email, total_paid, currency, payment_method, payment_status, validated, sale_type, purchased_at",
           { count: "exact" }
         )
         .order("purchased_at", { ascending: false })

@@ -1,66 +1,21 @@
-"use client";
-
+// Display labels/categories for the real, server-side audit trail
+// (audit_logs table, written via lib/server-audit-log.ts). This module used
+// to also read/write a client-only localStorage log — that never left the
+// admin's own browser, so it's gone; every write now goes through logAudit()
+// on the server.
 export type AuditAction =
   | "user.create" | "user.delete" | "user.suspend" | "user.activate"
   | "user.role_change" | "user.password_reset"
+  | "staff.create" | "staff.update" | "staff.remove"
   | "event.publish" | "event.unpublish" | "event.delete" | "event.markup_change"
   | "payout.approve" | "payout.decline" | "payout.manual"
   | "platform.fee_change" | "platform.feature_toggle" | "platform.announcement"
   | "organizer.verify" | "organizer.suspend"
   | "ticket.manual_issue" | "ticket.refund" | "ticket.void"
+  | "banner.upload" | "banner.update" | "banner.clear"
+  | "support.status_change"
+  | "payment.manual_confirm" | "payment.manual_decline"
   | "admin.login" | "admin.logout";
-
-export interface AuditEntry {
-  id: string;
-  timestamp: string;
-  adminId: string;
-  adminName: string;
-  adminEmail: string;
-  action: AuditAction;
-  target?: string;
-  detail: string;
-  ip?: string;
-}
-
-const AUDIT_KEY = "eticket_audit_log";
-const MAX_ENTRIES = 500;
-
-export function logAuditAction(
-  admin: { id: string; name: string; email: string },
-  action: AuditAction,
-  detail: string,
-  target?: string
-): void {
-  if (typeof window === "undefined") return;
-  const entry: AuditEntry = {
-    id: crypto.randomUUID(),
-    timestamp: new Date().toISOString(),
-    adminId: admin.id,
-    adminName: admin.name,
-    adminEmail: admin.email,
-    action,
-    target,
-    detail,
-  };
-  const log = getAuditLog();
-  log.unshift(entry);
-  localStorage.setItem(AUDIT_KEY, JSON.stringify(log.slice(0, MAX_ENTRIES)));
-}
-
-export function getAuditLog(): AuditEntry[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const stored = localStorage.getItem(AUDIT_KEY);
-    return stored ? (JSON.parse(stored) as AuditEntry[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function clearAuditLog(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(AUDIT_KEY);
-}
 
 export const ACTION_LABELS: Record<AuditAction, string> = {
   "user.create": "Created user",
@@ -69,6 +24,9 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   "user.activate": "Activated user",
   "user.role_change": "Changed user role",
   "user.password_reset": "Reset user password",
+  "staff.create": "Added admin staff",
+  "staff.update": "Updated admin staff",
+  "staff.remove": "Removed admin staff",
   "event.publish": "Published event",
   "event.unpublish": "Unpublished event",
   "event.delete": "Deleted event",
@@ -76,7 +34,7 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   "payout.approve": "Approved payout",
   "payout.decline": "Declined payout",
   "payout.manual": "Manual payout",
-  "platform.fee_change": "Changed platform fee",
+  "platform.fee_change": "Changed platform config",
   "platform.feature_toggle": "Toggled feature flag",
   "platform.announcement": "Updated announcement",
   "organizer.verify": "Verified organizer",
@@ -84,6 +42,33 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   "ticket.manual_issue": "Manually issued ticket",
   "ticket.refund": "Processed refund",
   "ticket.void": "Voided ticket",
+  "banner.upload": "Uploaded banner",
+  "banner.update": "Updated banner",
+  "banner.clear": "Cleared banner slot",
+  "support.status_change": "Updated support ticket",
+  "payment.manual_confirm": "Manually confirmed payment",
+  "payment.manual_decline": "Manually declined payment",
   "admin.login": "Admin login",
   "admin.logout": "Admin logout",
 };
+
+export const ACTION_CATEGORY: Record<string, string> = {
+  "user.": "User",
+  "staff.": "Staff",
+  "event.": "Event",
+  "payout.": "Financial",
+  "payment.": "Financial",
+  "platform.": "Platform",
+  "organizer.": "Organizer",
+  "ticket.": "Ticket",
+  "banner.": "Banner",
+  "support.": "Support",
+  "admin.": "Auth",
+};
+
+export function getAuditCategory(action: string): string {
+  for (const prefix in ACTION_CATEGORY) {
+    if (action.startsWith(prefix)) return ACTION_CATEGORY[prefix];
+  }
+  return "Other";
+}

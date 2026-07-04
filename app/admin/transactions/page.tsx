@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { useState, useEffect, useCallback } from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -13,106 +12,95 @@ import {
 } from "@/components/ui/dialog";
 import {
   DollarSign, Search, RefreshCw, Download, RotateCcw, AlertTriangle,
-  CheckCircle2, XCircle, Clock, CreditCard, TrendingUp,
+  CheckCircle2, XCircle, Clock, CreditCard, TrendingUp, ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { mockTickets } from "@/lib/mock-data";
-import { useAuth } from "@/lib/auth-context";
-import { logAuditAction } from "@/lib/audit-logger";
 
-// Build transaction list from mock tickets
 interface TxRecord {
   id: string;
-  reference: string;
   buyerName: string;
   buyerEmail: string;
   eventTitle: string;
   amount: number;
   currency: string;
   provider: string;
-  status: "paid" | "pending" | "failed" | "refunded";
+  status: "completed" | "pending" | "failed" | "refunded";
   createdAt: string;
 }
 
-function buildTransactions(): TxRecord[] {
-  return mockTickets.map((t) => ({
-    id: t.id,
-    reference: t.id,
-    buyerName: t.buyerName,
-    buyerEmail: "",
-    eventTitle: t.eventTitle,
-    amount: t.totalPaid,
-    currency: t.currency,
-    provider: t.paymentMethod,
-    status: t.paymentStatus === "completed" ? "paid" : t.paymentStatus as "paid" | "pending" | "failed" | "refunded",
-    createdAt: t.purchasedAt,
-  }));
+function mapTx(r: Record<string, unknown>): TxRecord {
+  return {
+    id: r.id as string,
+    buyerName: (r.buyer_display_name as string) || (r.buyer_name as string),
+    buyerEmail: (r.buyer_email as string) ?? "",
+    eventTitle: r.event_title as string,
+    amount: Number(r.total_paid),
+    currency: r.currency as string,
+    provider: (r.payment_method as string) ?? "—",
+    status: r.payment_status as TxRecord["status"],
+    createdAt: r.purchased_at as string,
+  };
 }
 
 const STATUS_CONFIG = {
-  paid: { label: "Paid", icon: CheckCircle2, color: "bg-emerald-100 text-emerald-700" },
+  completed: { label: "Paid", icon: CheckCircle2, color: "bg-emerald-100 text-emerald-700" },
   pending: { label: "Pending", icon: Clock, color: "bg-amber-100 text-amber-700" },
   failed: { label: "Failed", icon: XCircle, color: "bg-red-100 text-red-700" },
   refunded: { label: "Refunded", icon: RotateCcw, color: "bg-blue-100 text-blue-700" },
 };
 
 export default function TransactionsPage() {
-  const { user: adminUser } = useAuth();
   const [txs, setTxs] = useState<TxRecord[]>([]);
+  const [stats, setStats] = useState({ total: 0, valid: 0, used: 0, revenue: 0 });
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-  const [filterProvider, setFilterProvider] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
   const [confirmRefund, setConfirmRefund] = useState<TxRecord | null>(null);
-  const [refundedIds, setRefundedIds] = useState<Set<string>>(new Set());
+  const [refunding, setRefunding] = useState(false);
 
-  useEffect(() => {
-    setTxs(buildTransactions());
-    const stored = localStorage.getItem("eticket_refunded_txs");
-    setRefundedIds(new Set(stored ? JSON.parse(stored) : []));
-  }, []);
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/tickets?search=${encodeURIComponent(search)}&page=${page}`);
+      const json = await res.json();
+      setTxs(((json.tickets ?? []) as Record<string, unknown>[]).map(mapTx));
+      setStats(json.stats ?? { total: 0, valid: 0, used: 0, revenue: 0 });
+      setPages(json.pages ?? 1);
+    } finally {
+      setLoading(false);
+    }
+  }, [search, page]);
 
-  const filtered = txs.filter(t => {
-    const s = search.toLowerCase();
-    const matchSearch = !search ||
-      t.buyerName.toLowerCase().includes(s) ||
-      t.reference.toLowerCase().includes(s) ||
-      t.eventTitle.toLowerCase().includes(s);
-    const matchStatus = filterStatus === "all" || t.status === filterStatus;
-    const matchProvider = filterProvider === "all" || t.provider === filterProvider;
-    return matchSearch && matchStatus && matchProvider;
-  });
+  useEffect(() => { reload(); }, [reload]);
 
-  const handleRefund = (tx: TxRecord) => {
-    if (!adminUser) return;
-    const ids = new Set(refundedIds);
-    ids.add(tx.id);
-    setRefundedIds(ids);
-    localStorage.setItem("eticket_refunded_txs", JSON.stringify([...ids]));
-    logAuditAction(adminUser, "ticket.refund",
-      `Manual refund processed for ${tx.reference} ($${tx.amount})`, tx.id);
-    setConfirmRefund(null);
+  const handleRefund = async (tx: TxRecord) => {
+    setRefunding(true);
+    try {
+      await fetch("/api/admin/transactions/refund", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId: tx.id }),
+      });
+      setConfirmRefund(null);
+      reload();
+    } finally {
+      setRefunding(false);
+    }
   };
 
   const exportCSV = () => {
     const rows = [
       ["Reference", "Buyer", "Event", "Amount", "Currency", "Provider", "Status", "Date"],
-      ...filtered.map(t => [t.reference, t.buyerName, t.eventTitle, t.amount, t.currency, t.provider, t.status, t.createdAt]),
+      ...txs.map(t => [t.id, t.buyerName, t.eventTitle, t.amount, t.currency, t.provider, t.status, t.createdAt]),
     ];
     const csv = rows.map(r => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "transactions.csv"; a.click();
     URL.revokeObjectURL(url);
-    if (adminUser) logAuditAction(adminUser, "ticket.refund", "Exported transactions CSV");
   };
 
-  const totalRevenue = txs.filter(t => t.status === "paid" && !refundedIds.has(t.id))
-    .reduce((s, t) => s + t.amount, 0);
-  const totalRefunded = txs.filter(t => refundedIds.has(t.id))
-    .reduce((s, t) => s + t.amount, 0);
-  const platformFees = totalRevenue * 0.1;
-  const pendingAmt = txs.filter(t => t.status === "pending").reduce((s, t) => s + t.amount, 0);
-
-  const providers = [...new Set(txs.map(t => t.provider))];
+  const platformFees = stats.revenue * 0.1;
 
   return (
     <div className="space-y-6">
@@ -122,17 +110,16 @@ export default function TransactionsPage() {
           <p className="text-muted-foreground mt-1">Full payment ledger with manual refund controls.</p>
         </div>
         <Button variant="outline" className="gap-2" onClick={exportCSV}>
-          <Download className="h-4 w-4" /> Export CSV
+          <Download className="h-4 w-4" /> Export CSV (this page)
         </Button>
       </div>
 
-      {/* KPIs */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: "Net Revenue", value: `$${totalRevenue.toFixed(2)}`, icon: DollarSign, color: "text-emerald-600", bg: "bg-emerald-50" },
+          { label: "Net Revenue", value: `$${stats.revenue.toFixed(2)}`, icon: DollarSign, color: "text-emerald-600", bg: "bg-emerald-50" },
           { label: "Platform Fees (10%)", value: `$${platformFees.toFixed(2)}`, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Refunded", value: `$${totalRefunded.toFixed(2)}`, icon: RotateCcw, color: "text-orange-600", bg: "bg-orange-50" },
-          { label: "Pending", value: `$${pendingAmt.toFixed(2)}`, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
+          { label: "Total Tickets", value: stats.total, icon: RotateCcw, color: "text-orange-600", bg: "bg-orange-50" },
+          { label: "Awaiting Gate Entry", value: stats.valid, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
         ].map(k => (
           <Card key={k.label} className="border-0 shadow-sm">
             <CardContent className="p-4 flex items-center gap-3">
@@ -148,35 +135,16 @@ export default function TransactionsPage() {
         ))}
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search reference, buyer, event…" value={search} onChange={e => setSearch(e.target.value)} className="pl-9" />
+          <Input placeholder="Search reference, buyer, email, event…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
         </div>
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="paid">Paid</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="failed">Failed</SelectItem>
-            <SelectItem value="refunded">Refunded</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={filterProvider} onValueChange={setFilterProvider}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Provider" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Providers</SelectItem>
-            {providers.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Button variant="ghost" size="icon" onClick={() => setTxs(buildTransactions())} title="Refresh">
+        <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
 
-      {/* Table */}
       <Card className="border-0 shadow-sm overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -194,18 +162,20 @@ export default function TransactionsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {filtered.length === 0 && (
+                {loading && (
+                  <tr><td colSpan={8} className="text-center py-12"><RefreshCw className="h-5 w-5 animate-spin mx-auto text-muted-foreground" /></td></tr>
+                )}
+                {!loading && txs.length === 0 && (
                   <tr><td colSpan={8} className="text-center py-12 text-muted-foreground">No transactions found</td></tr>
                 )}
-                {filtered.map(tx => {
-                  const isRefunded = refundedIds.has(tx.id);
-                  const effectiveStatus = isRefunded ? "refunded" : tx.status;
-                  const cfg = STATUS_CONFIG[effectiveStatus] || STATUS_CONFIG.pending;
+                {!loading && txs.map(tx => {
+                  const cfg = STATUS_CONFIG[tx.status] || STATUS_CONFIG.pending;
                   return (
                     <tr key={tx.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-5 py-3.5 font-mono text-xs text-muted-foreground">{tx.reference.slice(0, 12)}…</td>
+                      <td className="px-5 py-3.5 font-mono text-xs text-muted-foreground">{tx.id.slice(0, 12)}…</td>
                       <td className="px-5 py-3.5">
                         <p className="font-medium text-sm">{tx.buyerName}</p>
+                        <p className="text-xs text-muted-foreground">{tx.buyerEmail}</p>
                       </td>
                       <td className="px-5 py-3.5 hidden md:table-cell">
                         <p className="text-sm truncate max-w-[180px]">{tx.eventTitle}</p>
@@ -226,13 +196,13 @@ export default function TransactionsPage() {
                         {new Date(tx.createdAt).toLocaleDateString("en-ZW", { day: "numeric", month: "short", year: "2-digit" })}
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        {!isRefunded && tx.status === "paid" && (
+                        {tx.status === "completed" && (
                           <Button size="sm" variant="outline" className="text-xs gap-1 text-orange-600 border-orange-200 hover:bg-orange-50"
                             onClick={() => setConfirmRefund(tx)}>
                             <RotateCcw className="h-3 w-3" /> Refund
                           </Button>
                         )}
-                        {isRefunded && <span className="text-xs text-muted-foreground">Refunded</span>}
+                        {tx.status === "refunded" && <span className="text-xs text-muted-foreground">Refunded</span>}
                       </td>
                     </tr>
                   );
@@ -240,10 +210,22 @@ export default function TransactionsPage() {
               </tbody>
             </table>
           </div>
+          {!loading && txs.length > 0 && (
+            <div className="px-6 py-3 border-t bg-muted/20 flex items-center justify-between text-xs text-muted-foreground">
+              <span>Page {page} of {pages} · {stats.total} total tickets</span>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" className="h-7 px-2" disabled={page <= 1} onClick={() => setPage(p => p - 1)}>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="outline" size="sm" className="h-7 px-2" disabled={page >= pages} onClick={() => setPage(p => p + 1)}>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      {/* Confirm Refund */}
       <Dialog open={!!confirmRefund} onOpenChange={() => setConfirmRefund(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -263,9 +245,9 @@ export default function TransactionsPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmRefund(null)}>Cancel</Button>
-            <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => confirmRefund && handleRefund(confirmRefund)}>
-              Process Refund
+            <Button variant="outline" onClick={() => setConfirmRefund(null)} disabled={refunding}>Cancel</Button>
+            <Button className="bg-orange-500 hover:bg-orange-600" onClick={() => confirmRefund && handleRefund(confirmRefund)} disabled={refunding}>
+              {refunding ? "Processing…" : "Process Refund"}
             </Button>
           </DialogFooter>
         </DialogContent>
