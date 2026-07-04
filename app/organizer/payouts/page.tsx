@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,27 +37,64 @@ import {
   Wallet,
   ArrowUpRight,
 } from "lucide-react";
-import { mockPayoutRequests } from "@/lib/mock-data";
-import { PayoutRequest, MINIMUM_PAYOUT, PAYOUT_TRANSACTION_COST_PERCENTAGE, PAYOUT_METHODS, PayoutField } from "@/lib/types";
+import { PayoutRequest, MINIMUM_PAYOUT, PAYOUT_TRANSACTION_COST_PERCENTAGE, PAYOUT_METHODS } from "@/lib/types";
+
+function mapPayout(r: Record<string, unknown>): PayoutRequest {
+  return {
+    id: r.id as string,
+    organizerId: r.organizer_id as string,
+    organizerName: r.organizer_name as string,
+    amount: Number(r.amount),
+    currency: "USD",
+    status: r.status as PayoutRequest["status"],
+    requestedAt: r.requested_at as string,
+    processedAt: r.processed_at as string | undefined,
+    processedBy: r.processed_by as string | undefined,
+    declineReason: r.decline_reason as string | undefined,
+    paymentMethod: r.payment_method as string,
+    paymentDetails: r.payment_details as string,
+    transactionCost: Number(r.transaction_cost),
+  };
+}
 
 export default function OrganizerPayoutsPage() {
-  const [payouts, setPayouts] = useState<PayoutRequest[]>(mockPayoutRequests);
+  const [organizerPayouts, setOrganizerPayouts] = useState<PayoutRequest[]>([]);
+  const [availableBalance, setAvailableBalance] = useState(0);
+  const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [requestError, setRequestError] = useState("");
   const [formData, setFormData] = useState({
     amount: "",
     paymentMethod: "ecocash",
     fieldValues: {} as Record<string, string>,
   });
 
-  const organizerPayouts = payouts.filter((p) => p.organizerId === "org-001");
-  const availableBalance = 2500; // Mock balance
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/organizer/payouts");
+      const json = await res.json();
+      if (res.ok) {
+        setOrganizerPayouts(((json.payouts ?? []) as Record<string, unknown>[]).map(mapPayout));
+        setAvailableBalance(json.availableBalance ?? 0);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
   const pendingPayouts = organizerPayouts
     .filter((p) => p.status === "pending" || p.status === "processing")
     .reduce((sum, p) => sum + p.amount, 0);
 
-  const handleRequestPayout = () => {
+  const handleRequestPayout = async () => {
+    setRequestError("");
     const amount = parseFloat(formData.amount);
     if (isNaN(amount) || amount < MINIMUM_PAYOUT) {
+      setRequestError(`Minimum payout is $${MINIMUM_PAYOUT}`);
       return;
     }
 
@@ -66,22 +103,25 @@ export default function OrganizerPayoutsPage() {
       .map(f => `${f.label}: ${formData.fieldValues[f.label] || ''}`)
       .join(' | ') || '';
 
-    const newPayout: PayoutRequest = {
-      id: `payout-${Date.now()}`,
-      organizerId: "org-001",
-      organizerName: "Ghettocracy Entertainment",
-      amount,
-      currency: "USD",
-      status: "pending",
-      requestedAt: new Date().toISOString(),
-      paymentMethod: selectedMethod?.label || formData.paymentMethod,
-      paymentDetails,
-      transactionCost: (parseFloat(formData.amount || "0") * PAYOUT_TRANSACTION_COST_PERCENTAGE) / 100,
-    };
-
-    setPayouts((prev) => [newPayout, ...prev]);
-    setDialogOpen(false);
-    setFormData({ amount: "", paymentMethod: "ecocash", fieldValues: {} });
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/organizer/payouts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount,
+          paymentMethod: selectedMethod?.label || formData.paymentMethod,
+          paymentDetails,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setRequestError(json.error ?? "Failed to request payout"); return; }
+      setDialogOpen(false);
+      setFormData({ amount: "", paymentMethod: "ecocash", fieldValues: {} });
+      reload();
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const getStatusIcon = (status: string) => {
@@ -206,7 +246,13 @@ export default function OrganizerPayoutsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {organizerPayouts.map((payout) => (
+              {loading && (
+                <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">Loading…</TableCell></TableRow>
+              )}
+              {!loading && organizerPayouts.length === 0 && (
+                <TableRow><TableCell colSpan={5} className="text-center py-10 text-muted-foreground">No payout requests yet</TableCell></TableRow>
+              )}
+              {!loading && organizerPayouts.map((payout) => (
                 <TableRow key={payout.id}>
                   <TableCell>
                     {new Date(payout.requestedAt).toLocaleDateString()}
@@ -328,13 +374,18 @@ export default function OrganizerPayoutsPage() {
                 Cash Pick-Up requires manual approval. Processing may take 3-5 business days.
               </p>
             )}
+            {requestError && (
+              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{requestError}</p>
+            )}
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button onClick={handleRequestPayout}>Request Payout</Button>
+            <Button onClick={handleRequestPayout} disabled={submitting}>
+              {submitting ? "Requesting…" : "Request Payout"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

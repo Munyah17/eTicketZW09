@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,43 +18,78 @@ import {
   DollarSign,
   CheckCircle2,
   XCircle,
-  ArrowRight,
   Mail,
   Phone,
+  RefreshCw,
 } from "lucide-react";
-import { mockOrganizers, mockEvents } from "@/lib/mock-data";
+
+interface OrganizerRow {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  company: string | null;
+  organizer_category: string | null;
+  organizer_subtype: string | null;
+  verified: boolean;
+  event_count: number;
+  computed_revenue: number;
+  computed_pending_payout: number;
+}
 
 export default function AdminOrganizersPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [organizers, setOrganizers] = useState<OrganizerRow[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredOrganizers = mockOrganizers.filter(
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/organizers");
+      const json = await res.json();
+      setOrganizers(json.organizers ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+
+  const filteredOrganizers = organizers.filter(
     (org) =>
       org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       org.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getOrganizerEvents = (organizerId: string) => {
-    return mockEvents.filter((e) => e.organizerId === organizerId);
+  const toggleVerified = async (org: OrganizerRow) => {
+    await fetch("/api/admin/organizers", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ organizerId: org.id, verified: !org.verified }),
+    });
+    reload();
   };
 
-  const totalRevenue = mockOrganizers.reduce((s, o) => s + o.totalRevenue, 0);
-  const totalPendingPayout = mockOrganizers.reduce((s, o) => s + o.pendingPayout, 0);
+  const totalRevenue = organizers.reduce((s, o) => s + o.computed_revenue, 0);
+  const totalPendingPayout = organizers.reduce((s, o) => s + o.computed_pending_payout, 0);
 
   return (
     <div className="space-y-8">
-
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Organizers</h1>
-        <p className="text-muted-foreground mt-1">Manage event organizers on the platform</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Organizers</h1>
+          <p className="text-muted-foreground mt-1">Manage event organizers on the platform</p>
+        </div>
+        <Button variant="outline" size="icon" onClick={reload} title="Refresh">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
       </div>
 
-      {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { title: "Total Organizers", value: mockOrganizers.length, icon: Users, accent: "bg-blue-500", light: "bg-blue-50 text-blue-600" },
-          { title: "Verified",         value: mockOrganizers.filter(o => o.verified).length, icon: CheckCircle2, accent: "bg-emerald-500", light: "bg-emerald-50 text-emerald-600" },
-          { title: "Pending Verify",   value: mockOrganizers.filter(o => !o.verified).length, icon: XCircle, accent: "bg-amber-500", light: "bg-amber-50 text-amber-600" },
+          { title: "Total Organizers", value: organizers.length, icon: Users, accent: "bg-blue-500", light: "bg-blue-50 text-blue-600" },
+          { title: "Verified", value: organizers.filter(o => o.verified).length, icon: CheckCircle2, accent: "bg-emerald-500", light: "bg-emerald-50 text-emerald-600" },
+          { title: "Pending Verify", value: organizers.filter(o => !o.verified).length, icon: XCircle, accent: "bg-amber-500", light: "bg-amber-50 text-amber-600" },
           { title: "Platform Revenue", value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign, accent: "bg-violet-500", light: "bg-violet-50 text-violet-600" },
         ].map(s => (
           <Card key={s.title} className="border-0 shadow-sm relative overflow-hidden">
@@ -74,7 +109,6 @@ export default function AdminOrganizersPage() {
         ))}
       </div>
 
-      {/* Table card */}
       <Card className="border-0 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between border-b pb-4">
           <div className="flex items-center gap-2">
@@ -108,7 +142,13 @@ export default function AdminOrganizersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredOrganizers.length === 0 ? (
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-16">
+                    <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                  </TableCell>
+                </TableRow>
+              ) : filteredOrganizers.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
                     <Search className="h-8 w-8 mx-auto mb-3 opacity-30" />
@@ -117,84 +157,85 @@ export default function AdminOrganizersPage() {
                   </TableCell>
                 </TableRow>
               ) : (
-                filteredOrganizers.map((org) => {
-                  const events = getOrganizerEvents(org.id);
-                  return (
-                    <TableRow key={org.id} className="hover:bg-muted/30 transition-colors">
-                      <TableCell className="pl-6">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm">
-                            {org.name.charAt(0)}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-sm">{org.name}</p>
-                            <p className="text-xs text-muted-foreground">{org.company}</p>
-                          </div>
+                filteredOrganizers.map((org) => (
+                  <TableRow key={org.id} className="hover:bg-muted/30 transition-colors">
+                    <TableCell className="pl-6">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary font-bold text-sm">
+                          {org.name.charAt(0)}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        {org.organizerCategory ? (
-                          <div className="space-y-1">
-                            <p className="text-xs font-medium">{org.organizerCategory}</p>
-                            {org.organizerSubtype && (
-                              <p className="text-[10px] text-muted-foreground">{org.organizerSubtype}</p>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">—</p>
-                        )}
-                      </TableCell>
-                      <TableCell>
+                        <div>
+                          <p className="font-semibold text-sm">{org.name}</p>
+                          <p className="text-xs text-muted-foreground">{org.company}</p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {org.organizer_category ? (
                         <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Mail className="h-3 w-3 shrink-0" />
-                            <span className="truncate max-w-36">{org.email}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <Phone className="h-3 w-3 shrink-0" />
-                            {org.phone}
-                          </div>
+                          <p className="text-xs font-medium">{org.organizer_category}</p>
+                          {org.organizer_subtype && (
+                            <p className="text-[10px] text-muted-foreground">{org.organizer_subtype}</p>
+                          )}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        {org.verified ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border bg-emerald-100 text-emerald-700 border-emerald-200 font-medium">
-                            <CheckCircle2 className="h-3 w-3" /> Verified
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border bg-amber-100 text-amber-700 border-amber-200 font-medium">
-                            <XCircle className="h-3 w-3" /> Pending
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-semibold text-sm">{events.length}</span>
-                          <span className="text-xs text-muted-foreground">event{events.length !== 1 ? "s" : ""}</span>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">—</p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <span className="truncate max-w-36">{org.email}</span>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-bold text-sm text-emerald-700">${org.totalRevenue.toLocaleString()}</p>
-                      </TableCell>
-                      <TableCell>
-                        {org.pendingPayout > 0 ? (
-                          <p className="font-semibold text-sm text-amber-600">${org.pendingPayout.toLocaleString()}</p>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">—</p>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right pr-6">
-                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1 hover:bg-primary/5 hover:text-primary">
-                          View <ArrowRight className="h-3 w-3" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3 shrink-0" />
+                          {org.phone}
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      {org.verified ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border bg-emerald-100 text-emerald-700 border-emerald-200 font-medium">
+                          <CheckCircle2 className="h-3 w-3" /> Verified
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border bg-amber-100 text-amber-700 border-amber-200 font-medium">
+                          <XCircle className="h-3 w-3" /> Pending
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{org.event_count}</span>
+                        <span className="text-xs text-muted-foreground">event{org.event_count !== 1 ? "s" : ""}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-bold text-sm text-emerald-700">${org.computed_revenue.toLocaleString()}</p>
+                    </TableCell>
+                    <TableCell>
+                      {org.computed_pending_payout > 0 ? (
+                        <p className="font-semibold text-sm text-amber-600">${org.computed_pending_payout.toLocaleString()}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">—</p>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right pr-6">
+                      <Button
+                        variant="ghost" size="sm"
+                        className={`h-7 text-xs gap-1 ${org.verified ? "text-amber-600 hover:text-amber-700" : "text-emerald-600 hover:text-emerald-700"}`}
+                        onClick={() => toggleVerified(org)}
+                      >
+                        {org.verified ? "Unverify" : "Verify"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
               )}
             </TableBody>
           </Table>
-          {filteredOrganizers.length > 0 && (
+          {!loading && filteredOrganizers.length > 0 && (
             <div className="px-6 py-3 border-t bg-muted/20 flex items-center justify-between text-xs text-muted-foreground">
               <span>{filteredOrganizers.length} organizer{filteredOrganizers.length !== 1 ? "s" : ""} shown</span>
               <span>Total pending payouts: <strong className="text-amber-600">${totalPendingPayout.toLocaleString()}</strong></span>

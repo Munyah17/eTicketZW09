@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,57 +29,74 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DollarSign, Clock, CheckCircle2, XCircle, AlertCircle, Banknote, Filter } from "lucide-react";
-import { mockPayoutRequests } from "@/lib/mock-data";
+import { DollarSign, Clock, CheckCircle2, XCircle, AlertCircle, Banknote, Filter, RefreshCw } from "lucide-react";
 import { PayoutRequest } from "@/lib/types";
 
+function mapPayout(r: Record<string, unknown>): PayoutRequest {
+  return {
+    id: r.id as string,
+    organizerId: r.organizer_id as string,
+    organizerName: r.organizer_name as string,
+    amount: Number(r.amount),
+    currency: "USD",
+    status: r.status as PayoutRequest["status"],
+    requestedAt: r.requested_at as string,
+    processedAt: r.processed_at as string | undefined,
+    processedBy: r.processed_by as string | undefined,
+    declineReason: r.decline_reason as string | undefined,
+    paymentMethod: r.payment_method as string,
+    paymentDetails: r.payment_details as string,
+    transactionCost: Number(r.transaction_cost),
+  };
+}
+
 export default function AdminPayoutsPage() {
-  const [payouts, setPayouts] = useState<PayoutRequest[]>(mockPayoutRequests);
+  const [payouts, setPayouts] = useState<PayoutRequest[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedPayout, setSelectedPayout] = useState<PayoutRequest | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [action, setAction] = useState<"approve" | "decline" | "process">("approve");
   const [declineReason, setDeclineReason] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [submitting, setSubmitting] = useState(false);
+
+  const reload = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/admin/payouts");
+      const json = await res.json();
+      setPayouts(((json.payouts ?? []) as Record<string, unknown>[]).map(mapPayout));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
 
   const filteredPayouts = payouts.filter(
     (p) => statusFilter === "all" || p.status === statusFilter
   );
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!selectedPayout) return;
+    const status = action === "approve" ? "approved" : action === "decline" ? "declined" : "processing";
 
-    setPayouts((prev) =>
-      prev.map((p) => {
-        if (p.id !== selectedPayout.id) return p;
-
-        if (action === "approve") {
-          return {
-            ...p,
-            status: "approved" as const,
-            processedAt: new Date().toISOString(),
-            processedBy: "admin",
-          };
-        } else if (action === "decline") {
-          return {
-            ...p,
-            status: "declined" as const,
-            processedAt: new Date().toISOString(),
-            processedBy: "admin",
-            declineReason,
-          };
-        } else if (action === "process") {
-          return {
-            ...p,
-            status: "processing" as const,
-          };
-        }
-        return p;
-      })
-    );
-
-    setDialogOpen(false);
-    setSelectedPayout(null);
-    setDeclineReason("");
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/payouts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payoutId: selectedPayout.id, status, declineReason }),
+      });
+      if (res.ok) {
+        setDialogOpen(false);
+        setSelectedPayout(null);
+        setDeclineReason("");
+        reload();
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const statusConfig = {
@@ -105,12 +122,17 @@ export default function AdminPayoutsPage() {
             Review and process organizer payout requests manually
           </p>
         </div>
-        {pendingCount > 0 && (
-          <Badge className="gap-1.5 bg-amber-100 text-amber-700 border-amber-200 px-3 py-1.5 text-sm">
-            <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-            {pendingCount} awaiting action
-          </Badge>
-        )}
+        <div className="flex items-center gap-3">
+          {pendingCount > 0 && (
+            <Badge className="gap-1.5 bg-amber-100 text-amber-700 border-amber-200 px-3 py-1.5 text-sm">
+              <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+              {pendingCount} awaiting action
+            </Badge>
+          )}
+          <Button variant="outline" size="icon" onClick={reload} title="Refresh">
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
 
       {/* Pipeline stat cards */}
@@ -182,7 +204,21 @@ export default function AdminPayoutsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPayouts.map((payout) => {
+              {loading && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-16">
+                    <RefreshCw className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading && filteredPayouts.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-16 text-muted-foreground">
+                    No payout requests
+                  </TableCell>
+                </TableRow>
+              )}
+              {!loading && filteredPayouts.map((payout) => {
                 const cfg = statusConfig[payout.status as keyof typeof statusConfig] ?? statusConfig.pending;
                 const StatusIcon = cfg.icon;
                 const isActionable = payout.status === "pending" || payout.status === "processing";
@@ -304,14 +340,14 @@ export default function AdminPayoutsPage() {
           )}
 
           <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={submitting}>Cancel</Button>
             <Button
               onClick={handleAction}
-              disabled={action === "decline" && !declineReason.trim()}
+              disabled={submitting || (action === "decline" && !declineReason.trim())}
               className={action === "approve" ? "bg-emerald-600 hover:bg-emerald-700" : ""}
               variant={action === "decline" ? "destructive" : "default"}
             >
-              {action === "approve" ? "Confirm & Approve" : action === "decline" ? "Decline Payout" : "Mark Processing"}
+              {submitting ? "Saving…" : action === "approve" ? "Confirm & Approve" : action === "decline" ? "Decline Payout" : "Mark Processing"}
             </Button>
           </DialogFooter>
         </DialogContent>

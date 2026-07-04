@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Image,
@@ -28,7 +28,6 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
-import { mockPayoutRequests } from "@/lib/mock-data";
 
 const superAdminLinks = [
   // ── Operations ──────────────────────────────
@@ -67,7 +66,19 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [pendingPayouts, setPendingPayouts] = useState(0);
   const { isSuperAdmin, canAccessAdmin, isLoggedIn, user, logout } = useAuth();
+
+  useEffect(() => {
+    if (!isLoggedIn || !canAccessAdmin) return;
+    fetch("/api/admin/payouts")
+      .then((res) => res.json())
+      .then((data) => {
+        const payouts = (data.payouts ?? []) as { status: string }[];
+        setPendingPayouts(payouts.filter((p) => p.status === "pending").length);
+      })
+      .catch(() => {});
+  }, [isLoggedIn, canAccessAdmin]);
 
   if (!isLoggedIn) {
     return (
@@ -105,7 +116,6 @@ export default function AdminLayout({
   const sidebarLinks = isSuperAdmin ? superAdminLinks : adminLinks;
   const panelLabel = isSuperAdmin ? "Super Admin" : "Admin Panel";
   const PanelIcon = isSuperAdmin ? Crown : Briefcase;
-  const pendingPayouts = mockPayoutRequests.filter(p => p.status === "pending").length;
 
   const NavLinks = ({ onNav }: { onNav?: () => void }) => {
     const groups = sidebarLinks.reduce<Record<string, typeof sidebarLinks>>((acc, link) => {
