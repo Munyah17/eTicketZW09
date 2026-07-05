@@ -14,8 +14,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Upload, X, Image as ImageIcon, Link as LinkIcon, LayoutTemplate, Layers, DollarSign, CheckCircle2, RefreshCw } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Link as LinkIcon, LayoutTemplate, Layers, DollarSign, CheckCircle2, RefreshCw, Eye } from "lucide-react";
 import { Banner } from "@/lib/types";
+import { formatCompactNumber } from "@/lib/utils";
 
 export default function BannerManagementPage() {
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -44,6 +45,7 @@ export default function BannerManagementPage() {
         title: (r.title as string) || undefined,
         pricePerDay: Number(r.price_per_day),
         status: r.status as Banner["status"],
+        impressions: Number(r.impressions) || 0,
       })));
     } finally {
       setLoading(false);
@@ -97,6 +99,7 @@ export default function BannerManagementPage() {
   const activeCount = banners.filter(b => b.status === "active").length;
   const availableCount = banners.filter(b => b.status === "available").length;
   const totalDailyRevenue = banners.filter(b => b.status === "active").reduce((s, b) => s + b.pricePerDay, 0);
+  const totalImpressions = banners.reduce((s, b) => s + (b.impressions ?? 0), 0);
 
   const statusCfg = {
     active: { cls: "bg-emerald-100 text-emerald-700 border-emerald-200", label: "Active" },
@@ -132,9 +135,15 @@ export default function BannerManagementPage() {
               <p className="font-semibold text-sm">
                 {banner.type === "hero" ? "Hero Slide" : "Section"} #{banner.position}
               </p>
-              <div className="flex items-center gap-1 mt-0.5 text-emerald-700">
-                <DollarSign className="h-3 w-3" />
-                <span className="text-xs font-medium">{banner.pricePerDay}/day</span>
+              <div className="flex items-center gap-3 mt-0.5">
+                <div className="flex items-center gap-1 text-emerald-700">
+                  <DollarSign className="h-3 w-3" />
+                  <span className="text-xs font-medium">{banner.pricePerDay}/day</span>
+                </div>
+                <div className="flex items-center gap-1 text-muted-foreground">
+                  <Eye className="h-3 w-3" />
+                  <span className="text-xs font-medium">{formatCompactNumber(banner.impressions ?? 0)} views</span>
+                </div>
               </div>
             </div>
             <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium ${cfg.cls}`}>
@@ -178,10 +187,11 @@ export default function BannerManagementPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Active Banners" value={activeCount} icon={CheckCircle2} iconClassName="bg-emerald-50 text-emerald-600" />
         <StatCard label="Open Slots" value={availableCount} icon={Layers} iconClassName="bg-amber-50 text-amber-600" />
         <StatCard label="Daily Revenue" value={`$${totalDailyRevenue}`} icon={DollarSign} iconClassName="bg-violet-50 text-violet-600" />
+        <StatCard label="Total Impressions" value={formatCompactNumber(totalImpressions)} icon={Eye} iconClassName="bg-blue-50 text-blue-600" />
       </div>
 
       {loading ? (

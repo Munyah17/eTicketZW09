@@ -22,12 +22,15 @@ type HomeSections = {
   workshop: Event[];
   festival: Event[];
   theater: Event[];
+  exhibition: Event[];
+  other: Event[];
 };
 
 const EMPTY: HomeSections = {
   featured: [], newest: [], upcoming: [],
   comedy: [], music: [], sports: [], marathon: [],
   conference: [], workshop: [], festival: [], theater: [],
+  exhibition: [], other: [],
 };
 
 export function EventSections() {
@@ -89,8 +92,11 @@ export function EventSections() {
       <CategorySection category="festival" events={sections.festival} />
       <CategorySection category="theater" events={sections.theater} />
       <SectionBanner position={5} />
-      <UpcomingSection events={sections.upcoming} />
+      <CategorySection category="exhibition" events={sections.exhibition} />
+      <CategorySection category="other" events={sections.other} />
       <SectionBanner position={6} />
+      <UpcomingSection events={sections.upcoming} />
+      <SectionBanner position={7} />
     </>
   );
 }

@@ -53,9 +53,15 @@ export function EventCarouselRow({
   }, []);
 
   const cardsPerView = cardsPerViewForWidth(viewportWidth);
-  const slots = cardsPerView + 1;
+  const isMobile = cardsPerView === 1;
+  // At sm/lg breakpoints we intentionally show a half-card "peek" of the next
+  // slide as a scroll affordance. On mobile that peek reads as a second
+  // column, so mobile gets exactly one full-width card per view instead.
+  const slots = isMobile ? cardsPerView : cardsPerView + 1;
   const cardWidth = viewportWidth > 0
-    ? (viewportWidth - (cardsPerView * GAP)) / slots
+    ? isMobile
+      ? viewportWidth
+      : (viewportWidth - (cardsPerView * GAP)) / slots
     : 0;
   const step = cardWidth + GAP;
 
@@ -63,7 +69,7 @@ export function EventCarouselRow({
   const maxOffset = Math.max(0, trackWidth - viewportWidth);
   const maxIndex = Math.max(0, events.length - cardsPerView);
 
-  const rawOffset = (index - 0.5) * step;
+  const rawOffset = isMobile ? index * step : (index - 0.5) * step;
   const offset = Math.min(Math.max(rawOffset, 0), maxOffset);
 
   const canScrollPrev = index > 0;
@@ -147,7 +153,7 @@ export function EventCarouselRow({
           {events.map((event) => (
             <div
               key={event.id}
-              className="w-1/2 shrink-0 grow-0 sm:w-1/3 lg:w-1/5"
+              className="w-full shrink-0 grow-0 sm:w-1/3 lg:w-1/5"
               style={viewportWidth > 0 ? { width: cardWidth, flexBasis: cardWidth } : undefined}
             >
               <EventCard event={event} variant={cardVariant} />

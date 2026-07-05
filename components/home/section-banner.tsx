@@ -1,24 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { ArrowRight, Megaphone } from "lucide-react";
+import { ArrowRight, Eye, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatCompactNumber } from "@/lib/utils";
+import { recordBannerImpression } from "@/lib/banner-impressions";
 
 interface SectionBannerProps {
   position?: number;
 }
 
 interface BannerData {
+  id: string;
   position: number;
   image?: string;
   link?: string;
   title?: string;
+  impressions: number;
 }
 
 export function SectionBanner({ position = 1 }: SectionBannerProps) {
   const [banner, setBanner] = useState<BannerData | null>(null);
+  const rootRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     fetch("/api/banners?type=section")
@@ -28,15 +33,35 @@ export function SectionBanner({ position = 1 }: SectionBannerProps) {
         const match = banners.find((b) => b.position === position);
         if (match) {
           setBanner({
+            id: match.id as string,
             position: match.position as number,
             image: match.image as string | undefined,
             link: match.link as string | undefined,
             title: match.title as string | undefined,
+            impressions: Number(match.impressions) || 0,
           });
         }
       })
       .catch(() => {});
   }, [position]);
+
+  // Only counts as a marketing impression once the banner actually scrolls
+  // into view, not just when it's fetched.
+  useEffect(() => {
+    if (!banner?.image || !rootRef.current) return;
+    const el = rootRef.current;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          recordBannerImpression(banner.id);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [banner?.id, banner?.image]);
 
   if (!banner || !banner.image) {
     return (
@@ -58,15 +83,22 @@ export function SectionBanner({ position = 1 }: SectionBannerProps) {
   }
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
+    <section ref={rootRef} className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
       <Link href={banner.link || "#"}>
-        <div className="relative h-24 overflow-hidden rounded-xl bg-gradient-to-r from-primary/20 via-primary/10 to-accent md:h-32">
+        <div className="relative h-24 overflow-hidden rounded-xl bg-gradient-to-r from-primary/20 via-primary/10 to-accent shadow-sm ring-1 ring-border transition-shadow hover:shadow-md md:h-32">
           <Image
             src={banner.image}
             alt={banner.title || "Advertisement"}
             fill
             className="object-cover"
           />
+          <span className="absolute left-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/90 backdrop-blur">
+            Sponsored
+          </span>
+          <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-full bg-black/50 px-2 py-0.5 text-[11px] font-medium text-white/90 backdrop-blur">
+            <Eye className="h-3 w-3" />
+            {formatCompactNumber(banner.impressions)}
+          </span>
         </div>
       </Link>
     </section>

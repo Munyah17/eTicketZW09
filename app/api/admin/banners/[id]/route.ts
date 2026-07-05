@@ -23,7 +23,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (clear) {
     const { error } = await supabase
       .from("banners")
-      .update({ image: null, link: null, title: null, status: "available" })
+      .update({ image: null, link: null, title: null, status: "available", impressions: 0 })
       .eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

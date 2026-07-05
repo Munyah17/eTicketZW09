@@ -106,6 +106,7 @@ export interface Banner {
   endDate?: string;
   pricePerDay: number;
   status: "active" | "available" | "pending" | "expired";
+  impressions?: number;
 }
 
 export interface Organizer {

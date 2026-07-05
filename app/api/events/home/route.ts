@@ -96,5 +96,7 @@ export async function GET() {
     workshop: byCategory("workshop"),
     festival: byCategory("festival"),
     theater: byCategory("theater"),
+    exhibition: byCategory("exhibition"),
+    other: byCategory("other"),
   });
 }

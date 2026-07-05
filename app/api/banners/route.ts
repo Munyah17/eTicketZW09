@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("banners")
-    .select("id, type, position, image, link, title")
+    .select("id, type, position, image, link, title, impressions")
     .eq("type", type)
     .eq("status", "active")
     .order("position", { ascending: true });
