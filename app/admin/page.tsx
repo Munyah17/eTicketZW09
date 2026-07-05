@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -165,23 +166,7 @@ export default function AdminDashboard() {
       {/* KPI Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {kpis.map((kpi) => (
-          <Card key={kpi.title} className="relative overflow-hidden border-0 shadow-sm bg-card">
-            <div className={`absolute top-0 left-0 w-1 h-full ${kpi.accent}`} />
-            <CardContent className="p-5 pl-6">
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold font-mono uppercase tracking-widest text-muted-foreground mb-1">
-                    {kpi.title}
-                  </p>
-                  <p className="text-3xl font-mono font-bold tracking-tight">{kpi.value}</p>
-                  <p className="text-xs text-muted-foreground mt-1 truncate">{kpi.sub}</p>
-                </div>
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${kpi.light} ml-3`}>
-                  <kpi.icon className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard key={kpi.title} label={kpi.title} value={kpi.value} sub={kpi.sub} icon={kpi.icon} iconClassName={kpi.light} />
         ))}
       </div>
 

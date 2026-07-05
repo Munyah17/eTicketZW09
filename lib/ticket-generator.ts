@@ -21,6 +21,7 @@ export interface TicketGenerationData {
   paymentMethod: string;
   quantity?: number;
   displayName?: string;
+  idNumber?: string;
 }
 
 export interface GeneratedTicket {
@@ -96,6 +97,7 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     buyer_display_name: ticket.buyerDisplayName,
     buyer_email: ticket.buyerEmail,
     buyer_user_id: data.buyerUserId || null,
+    id_number: data.idNumber || "",
     price: ticket.price,
     markup: ticket.markup,
     total_paid: ticket.totalPaid,

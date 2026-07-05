@@ -37,6 +37,9 @@ export function EventCarouselRow({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [index, setIndex] = useState(0);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const [dragDelta, setDragDelta] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -65,6 +68,33 @@ export function EventCarouselRow({
 
   const canScrollPrev = index > 0;
   const canScrollNext = index < maxIndex;
+
+  const SWIPE_THRESHOLD = 40;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    setIsDragging(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartRef.current) return;
+    const dx = e.touches[0].clientX - touchStartRef.current.x;
+    const dy = e.touches[0].clientY - touchStartRef.current.y;
+    // Only hijack horizontal swipes — vertical page scroll passes through untouched.
+    if (Math.abs(dx) > Math.abs(dy)) {
+      setDragDelta(dx);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (Math.abs(dragDelta) > SWIPE_THRESHOLD) {
+      if (dragDelta < 0) setIndex((i) => Math.min(maxIndex, i + 1));
+      else setIndex((i) => Math.max(0, i - 1));
+    }
+    setDragDelta(0);
+    setIsDragging(false);
+    touchStartRef.current = null;
+  };
 
   if (events.length === 0) return null;
 
@@ -103,10 +133,16 @@ export function EventCarouselRow({
         </div>
       </div>
 
-      <div ref={viewportRef} className="relative mt-6 overflow-hidden">
+      <div
+        ref={viewportRef}
+        className="relative mt-6 overflow-hidden touch-pan-y"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <div
-          className="flex transition-transform duration-300 ease-out"
-          style={{ gap: GAP, transform: `translateX(-${offset}px)` }}
+          className={isDragging ? "flex" : "flex transition-transform duration-300 ease-out"}
+          style={{ gap: GAP, transform: `translateX(-${offset - dragDelta}px)` }}
         >
           {events.map((event) => (
             <div

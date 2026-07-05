@@ -9,10 +9,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Shield, Search, Download, RefreshCw,
+  Shield, Search, RefreshCw,
   User, DollarSign, Settings2, Ticket, Users, HeadphonesIcon, Image as ImageIcon,
 } from "lucide-react";
 import { ACTION_LABELS, getAuditCategory, AuditAction } from "@/lib/audit-logger";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { DateRangeFilter, inDateRange } from "@/components/ui/date-range-filter";
+import type { ExportColumn } from "@/lib/export-utils";
 
 interface AuditRow {
   id: string;
@@ -55,6 +58,8 @@ export default function AuditPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -77,20 +82,18 @@ export default function AuditPage() {
       e.action.toLowerCase().includes(s);
     const cat = getAuditCategory(e.action);
     const matchCat = filterCat === "all" || cat === filterCat;
-    return matchSearch && matchCat;
+    const matchDate = inDateRange(e.created_at, dateFrom, dateTo);
+    return matchSearch && matchCat && matchDate;
   });
 
-  const exportCSV = () => {
-    const rows = [
-      ["Timestamp", "Actor", "Email", "Action", "Details", "Resource"],
-      ...filtered.map(e => [e.created_at, e.actor_name, e.actor_email ?? "", e.action, JSON.stringify(e.details ?? {}), e.resource_id ?? ""]),
-    ];
-    const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "audit-log.csv"; a.click();
-    URL.revokeObjectURL(url);
-  };
+  const exportColumns: ExportColumn<AuditRow>[] = [
+    { header: "Timestamp", accessor: (e) => e.created_at },
+    { header: "Actor", accessor: (e) => e.actor_name },
+    { header: "Email", accessor: (e) => e.actor_email ?? "" },
+    { header: "Action", accessor: (e) => e.action },
+    { header: "Details", accessor: (e) => JSON.stringify(e.details ?? {}) },
+    { header: "Resource", accessor: (e) => e.resource_id ?? "" },
+  ];
 
   const categories = ["all", ...Object.keys(CATEGORY_CONFIG).filter((c) => c !== "Other")];
 
@@ -104,9 +107,7 @@ export default function AuditPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="gap-2" onClick={exportCSV} disabled={filtered.length === 0}>
-            <Download className="h-4 w-4" /> Export
-          </Button>
+          <ExportMenu rows={filtered} columns={exportColumns} filename="audit-log" title="Audit Log" />
           <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
             <RefreshCw className="h-4 w-4" />
           </Button>
@@ -144,60 +145,63 @@ export default function AuditPage() {
             {categories.map(c => <SelectItem key={c} value={c} className="capitalize">{c === "all" ? "All Categories" : c}</SelectItem>)}
           </SelectContent>
         </Select>
+        <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
       </div>
 
-      <Card className="border-0 shadow-sm overflow-hidden">
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="flex items-center justify-center py-16">
-              <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : log.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <Shield className="h-12 w-12 text-muted-foreground/30 mb-3" />
-              <p className="font-medium">No audit entries yet</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Actions taken on this admin panel will appear here automatically.
-              </p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Search className="h-8 w-8 text-muted-foreground/30 mb-3" />
-              <p className="font-medium text-sm">No matching entries</p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {filtered.map(entry => {
-                const cat = getAuditCategory(entry.action);
-                const cfg = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.Other;
-                return (
-                  <div key={entry.id} className="flex items-start gap-4 px-5 py-3.5 hover:bg-muted/30 transition-colors">
-                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg mt-0.5 ${cfg.color}`}>
+      {loading ? (
+        <div className="flex items-center justify-center py-16">
+          <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : log.length === 0 ? (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <Shield className="h-12 w-12 text-muted-foreground/30 mb-3" />
+            <p className="font-medium">No audit entries yet</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Actions taken on this admin panel will appear here automatically.
+            </p>
+          </CardContent>
+        </Card>
+      ) : filtered.length === 0 ? (
+        <Card className="border-0 shadow-sm">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+            <Search className="h-8 w-8 text-muted-foreground/30 mb-3" />
+            <p className="font-medium text-sm">No matching entries</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+          {filtered.map(entry => {
+            const cat = getAuditCategory(entry.action);
+            const cfg = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.Other;
+            return (
+              <Card key={entry.id} className="border-0 shadow-sm">
+                <CardContent className="flex h-full flex-col p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${cfg.color}`}>
                       <cfg.icon className="h-4 w-4" />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium">{ACTION_LABELS[entry.action as AuditAction] || entry.action}</p>
-                        <Badge className={`text-[10px] px-1.5 border-0 ${cfg.color}`}>{cat}</Badge>
-                      </div>
-                      {entry.details && Object.keys(entry.details).length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{JSON.stringify(entry.details)}</p>
-                      )}
-                      {entry.resource_id && (
-                        <p className="text-xs text-muted-foreground font-mono">target: {entry.resource_id.slice(0, 20)}…</p>
-                      )}
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-xs font-medium">{entry.actor_name}</p>
-                      <p className="text-xs text-muted-foreground">{timeAgo(entry.created_at)}</p>
-                    </div>
+                    <Badge className={`text-[10px] px-1.5 border-0 shrink-0 ${cfg.color}`}>{cat}</Badge>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <p className="mt-3 text-sm font-medium line-clamp-2">
+                    {ACTION_LABELS[entry.action as AuditAction] || entry.action}
+                  </p>
+                  {entry.details && Object.keys(entry.details).length > 0 && (
+                    <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{JSON.stringify(entry.details)}</p>
+                  )}
+                  {entry.resource_id && (
+                    <p className="mt-1 text-xs text-muted-foreground font-mono truncate">target: {entry.resource_id.slice(0, 16)}…</p>
+                  )}
+                  <div className="mt-auto flex items-center justify-between gap-2 border-t pt-3">
+                    <p className="text-xs font-medium truncate">{entry.actor_name}</p>
+                    <p className="text-xs text-muted-foreground shrink-0">{timeAgo(entry.created_at)}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

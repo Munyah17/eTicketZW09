@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useMemo, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { EventCard } from "@/components/events/event-card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -18,6 +17,7 @@ import {
 import { Search, Filter, X, Calendar, MapPin, LayoutGrid, List } from "lucide-react";
 import { EVENT_CATEGORIES, EventCategory, type Event } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { SuggestInput } from "@/components/ui/suggest-input";
 
 const COLUMNS = 5;
 const ROWS_PER_PAGE = 5;
@@ -34,6 +34,7 @@ const sortOptions = [
 ];
 
 function EventsPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get("category") as EventCategory | null;
   const initialSort = searchParams.get("sort");
@@ -147,15 +148,34 @@ function EventsPageContent() {
 
             {/* Search Bar */}
             <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-center">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search events, venues, organizers..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+              <SuggestInput
+                className="relative flex-1"
+                value={searchQuery}
+                onChange={setSearchQuery}
+                suggestions={
+                  searchQuery.trim()
+                    ? allEvents
+                        .filter((e) => e.status === "published")
+                        .filter((e) =>
+                          [e.title, e.venue, e.organizerName].some((f) =>
+                            f?.toLowerCase().includes(searchQuery.trim().toLowerCase())
+                          )
+                        )
+                    : []
+                }
+                getKey={(e) => e.id}
+                getLabel={(e) => e.title}
+                onSelect={(e) => router.push(`/events/${e.id}`)}
+                placeholder="Search events, venues, organizers..."
+                inputClassName="pl-10"
+                icon={<Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none z-10" />}
+                renderSuggestion={(e) => (
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate font-medium">{e.title}</span>
+                    <span className="truncate text-xs text-muted-foreground">{e.venue}, {e.city}</span>
+                  </span>
+                )}
+              />
               <div className="flex gap-2">
                 <Button
                   variant="outline"

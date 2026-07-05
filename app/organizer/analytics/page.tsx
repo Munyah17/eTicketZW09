@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { BarChart3, Ticket, DollarSign, TrendingUp, RefreshCw } from "lucide-react";
 import { ProgressBar } from "@/components/ui/progress-bar";
 
@@ -73,19 +74,7 @@ export default function OrganizerAnalyticsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{stat.title}</p>
-                  <p className="mt-1 text-2xl font-bold">{stat.value}</p>
-                </div>
-                <div className="rounded-lg bg-secondary p-3">
-                  <stat.icon className="h-5 w-5 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard key={stat.title} label={stat.title} value={stat.value} icon={stat.icon} />
         ))}
       </div>
 

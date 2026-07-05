@@ -14,7 +14,9 @@ import {
 import {
   Settings2, Percent, Zap, CreditCard, Megaphone, ShieldCheck,
   Save, RotateCcw, CheckCircle2, AlertTriangle, XCircle, RefreshCw,
+  Upload, X, DollarSign,
 } from "lucide-react";
+import { ANNOUNCEMENT_AD_PRICE_PER_2_WEEKS } from "@/lib/types";
 
 interface PlatformConfig {
   service_fee_percent: number;
@@ -26,7 +28,9 @@ interface PlatformConfig {
   paynow_enabled: boolean;
   announcement_active: boolean;
   announcement_message: string;
-  announcement_type: "info" | "warning" | "error";
+  announcement_type: "info" | "warning" | "error" | "ad";
+  announcement_image?: string | null;
+  announcement_link?: string | null;
 }
 
 export default function PlatformPage() {
@@ -36,6 +40,9 @@ export default function PlatformPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [feeInput, setFeeInput] = useState("10");
+  const [adFile, setAdFile] = useState<File | null>(null);
+  const [adPreview, setAdPreview] = useState<string | null>(null);
+  const [uploadingAd, setUploadingAd] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -82,6 +89,7 @@ export default function PlatformPage() {
           announcement_active: config.announcement_active,
           announcement_message: config.announcement_message,
           announcement_type: config.announcement_type,
+          announcement_link: config.announcement_link ?? "",
         }),
       });
       const json = await res.json();
@@ -93,6 +101,43 @@ export default function PlatformPage() {
       }
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAdFileSelect = (file: File | null) => {
+    setAdFile(file);
+    setAdPreview(file ? URL.createObjectURL(file) : null);
+  };
+
+  const handleAdUpload = async () => {
+    if (!adFile) return;
+    setUploadingAd(true);
+    try {
+      const form = new FormData();
+      form.set("image", adFile);
+      const res = await fetch("/api/admin/platform/announcement-image", { method: "POST", body: form });
+      const json = await res.json();
+      if (res.ok) {
+        setConfig(json.config);
+        setOriginal(json.config);
+        setAdFile(null);
+        setAdPreview(null);
+      }
+    } finally {
+      setUploadingAd(false);
+    }
+  };
+
+  const handleAdClear = async () => {
+    setUploadingAd(true);
+    try {
+      const form = new FormData();
+      form.set("clear", "true");
+      await fetch("/api/admin/platform/announcement-image", { method: "POST", body: form });
+      setFeature("announcement_image", null);
+      setOriginal(prev => prev ? { ...prev, announcement_image: null } : prev);
+    } finally {
+      setUploadingAd(false);
     }
   };
 
@@ -259,23 +304,16 @@ export default function PlatformPage() {
             </div>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
-            <p className="text-sm text-muted-foreground">Shows a dismissible banner to all site visitors. Use for maintenance notices, promotions, or important updates.</p>
+            <p className="text-sm text-muted-foreground">
+              Shows a dismissible banner to all site visitors — an internal notice (maintenance, promotions,
+              updates) or a paid sponsored ad slot at ${ANNOUNCEMENT_AD_PRICE_PER_2_WEEKS}/2 weeks.
+            </p>
             <div className="flex items-center justify-between">
               <Label htmlFor="ann-active">Show Announcement</Label>
               <Switch
                 id="ann-active"
                 checked={config.announcement_active}
                 onCheckedChange={v => setFeature("announcement_active", v)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Message</Label>
-              <Textarea
-                value={config.announcement_message}
-                onChange={e => setFeature("announcement_message", e.target.value)}
-                placeholder="e.g. We are currently experiencing intermittent issues with Paynow payments. We are working to resolve this."
-                rows={3}
-                disabled={!config.announcement_active}
               />
             </div>
             <div className="space-y-1.5">
@@ -290,10 +328,73 @@ export default function PlatformPage() {
                   <SelectItem value="info">Info (Blue)</SelectItem>
                   <SelectItem value="warning">Warning (Amber)</SelectItem>
                   <SelectItem value="error">Critical (Red)</SelectItem>
+                  <SelectItem value="ad">Sponsored Ad (${ANNOUNCEMENT_AD_PRICE_PER_2_WEEKS}/2wk)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            {config.announcement_active && config.announcement_message && (
+
+            {config.announcement_type === "ad" ? (
+              <div className="space-y-3 rounded-lg border p-3">
+                <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <DollarSign className="h-3.5 w-3.5" />
+                  Sponsored ad — ${ANNOUNCEMENT_AD_PRICE_PER_2_WEEKS} per 2-week run
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Banner Image</Label>
+                  {config.announcement_image && !adPreview && (
+                    <div className="relative overflow-hidden rounded-lg border">
+                      <img src={config.announcement_image} alt="Announcement ad" className="h-20 w-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={handleAdClear}
+                        disabled={uploadingAd}
+                        className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/80"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                  {adPreview && (
+                    <img src={adPreview} alt="Preview" className="h-20 w-full rounded-lg border object-cover" />
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={e => handleAdFileSelect(e.target.files?.[0] ?? null)}
+                      className="text-xs"
+                    />
+                    {adFile && (
+                      <Button size="sm" onClick={handleAdUpload} disabled={uploadingAd} className="gap-1.5 shrink-0">
+                        <Upload className="h-3.5 w-3.5" />
+                        {uploadingAd ? "Uploading…" : "Upload"}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Destination Link</Label>
+                  <Input
+                    value={config.announcement_link ?? ""}
+                    onChange={e => setFeature("announcement_link", e.target.value)}
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>Message</Label>
+                <Textarea
+                  value={config.announcement_message}
+                  onChange={e => setFeature("announcement_message", e.target.value)}
+                  placeholder="e.g. We are currently experiencing intermittent issues with Paynow payments. We are working to resolve this."
+                  rows={3}
+                  disabled={!config.announcement_active}
+                />
+              </div>
+            )}
+
+            {config.announcement_active && config.announcement_type !== "ad" && config.announcement_message && (
               <div className={`rounded-lg p-3 text-sm flex items-start gap-2 ${
                 config.announcement_type === "error" ? "bg-red-50 text-red-800 border border-red-200" :
                 config.announcement_type === "warning" ? "bg-amber-50 text-amber-800 border border-amber-200" :
@@ -301,6 +402,16 @@ export default function PlatformPage() {
               }`}>
                 <Megaphone className="h-4 w-4 shrink-0 mt-0.5" />
                 <p>{config.announcement_message}</p>
+              </div>
+            )}
+            {config.announcement_active && config.announcement_type === "ad" && config.announcement_image && (
+              <div className="overflow-hidden rounded-lg border">
+                <div className="relative">
+                  <img src={config.announcement_image} alt="Ad preview" className="h-16 w-full object-cover" />
+                  <span className="absolute left-2 top-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-mono uppercase tracking-widest text-white">
+                    Sponsored
+                  </span>
+                </div>
               </div>
             )}
           </CardContent>

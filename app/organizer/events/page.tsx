@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -27,12 +28,17 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { getOrganizerEvents } from "@/lib/events-store";
 import { Event } from "@/lib/types";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { DateRangeFilter, inDateRange } from "@/components/ui/date-range-filter";
+import type { ExportColumn } from "@/lib/export-utils";
 
 export default function OrganizerEventsPage() {
   const { user } = useAuth();
   const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const loadEvents = useCallback(async () => {
     if (!user) return;
@@ -54,9 +60,21 @@ export default function OrganizerEventsPage() {
 
   const filteredEvents = organizerEvents.filter(
     (event) =>
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.venue.toLowerCase().includes(searchQuery.toLowerCase())
+      (event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.venue.toLowerCase().includes(searchQuery.toLowerCase())) &&
+      inDateRange(event.date, dateFrom, dateTo)
   );
+
+  const exportColumns: ExportColumn<Event>[] = [
+    { header: "Title", accessor: (e) => e.title },
+    { header: "Category", accessor: (e) => e.category },
+    { header: "Date", accessor: (e) => e.date },
+    { header: "Venue", accessor: (e) => e.venue },
+    { header: "City", accessor: (e) => e.city },
+    { header: "Status", accessor: (e) => e.status },
+    { header: "Total Tickets", accessor: (e) => e.totalTickets },
+    { header: "Sold Tickets", accessor: (e) => e.soldTickets },
+  ];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -116,19 +134,7 @@ export default function OrganizerEventsPage() {
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{stat.title}</p>
-                  <p className="mt-1 text-2xl font-bold">{stat.value}</p>
-                </div>
-                <div className="rounded-lg bg-secondary p-3">
-                  <stat.icon className="h-5 w-5 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard key={stat.title} label={stat.title} value={stat.value} icon={stat.icon} />
         ))}
       </div>
 
@@ -138,14 +144,18 @@ export default function OrganizerEventsPage() {
           <CardTitle>Event List</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search events..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search events..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+            <ExportMenu rows={filteredEvents} columns={exportColumns} filename="events" title="My Events" />
           </div>
 
           <div className="rounded-md border">

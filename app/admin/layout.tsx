@@ -23,10 +23,21 @@ import {
   HeadphonesIcon,
   Shield,
   ShieldAlert,
+  Megaphone,
+  User,
+  Bell,
+  ChevronsUpDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth-context";
 
 const superAdminLinks = [
@@ -39,6 +50,7 @@ const superAdminLinks = [
   { href: "/admin/banners", label: "Banner Management", icon: Image, group: "Operations" },
   { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign, group: "Operations" },
   { href: "/admin/users", label: "User Management", icon: UserCog, group: "Operations" },
+  { href: "/admin/marketing", label: "Marketing", icon: Megaphone, group: "Operations" },
   { href: "/admin/settings", label: "My Account", icon: Settings, group: "Operations" },
   // ── Super Admin ──────────────────────────────
   { href: "/admin/staff", label: "Staff Management", icon: Crown, group: "Super Admin" },
@@ -57,6 +69,7 @@ const adminLinks = [
   { href: "/admin/banners", label: "Banner Management", icon: Image, group: "Operations" },
   { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign, group: "Operations" },
   { href: "/admin/users", label: "User Management", icon: UserCog, group: "Operations" },
+  { href: "/admin/marketing", label: "Marketing", icon: Megaphone, group: "Operations" },
   { href: "/admin/settings", label: "My Account", icon: Settings, group: "Operations" },
 ];
 
@@ -129,7 +142,7 @@ export default function AdminLayout({
     return (
       <>
         {Object.entries(groups).map(([group, links]) => (
-          <div key={group} className="mb-3">
+          <div key={group} className="mb-2">
             <p className="px-3 text-[10px] font-semibold font-mono uppercase tracking-widest text-slate-500 mb-1">{group}</p>
             {links.map((link) => {
               const isActive = pathname === link.href ||
@@ -165,35 +178,45 @@ export default function AdminLayout({
   };
 
   const UserFooter = () => (
-    <div className="space-y-2">
-      {user && (
-        <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/5">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="flex w-full items-center gap-3 px-3 py-2.5 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary font-bold text-sm">
-            {user.name.charAt(0)}
+            {user?.name.charAt(0)}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-white truncate">{user.name}</p>
-            <div className="flex items-center gap-1 mt-0.5">
-              <PanelIcon className="h-3 w-3 text-slate-400" />
-              <p className="text-xs text-slate-400 capitalize">{user.role.replace("_", " ")}</p>
-            </div>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-sm font-medium text-white truncate">{user?.name}</p>
+            <p className="text-xs text-slate-400 capitalize">{user?.role.replace("_", " ")}</p>
           </div>
-        </div>
-      )}
-      <Link href="/">
-        <button className="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-colors">
-          <ChevronLeft className="h-4 w-4" />
-          Back to Site
+          <ChevronsUpDown className="h-3.5 w-3.5 text-slate-500 shrink-0" />
         </button>
-      </Link>
-      <button
-        onClick={logout}
-        className="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-      >
-        <LogOut className="h-4 w-4" />
-        Sign Out
-      </button>
-    </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" side="top" className="w-56">
+        <DropdownMenuItem asChild>
+          <Link href="/profile" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            Profile
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/notifications" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            Notifications
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/admin/settings" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            Settings
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={logout} className="text-destructive cursor-pointer">
+          <LogOut className="h-4 w-4" />
+          Sign Out
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
   return (
@@ -215,12 +238,12 @@ export default function AdminLayout({
           </div>
 
           {/* Nav */}
-          <nav className="flex-1 px-3 py-5 overflow-y-auto">
+          <nav className="flex-1 px-3 py-3">
             <NavLinks />
           </nav>
 
           {/* Footer */}
-          <div className="px-3 pb-4 border-t border-white/10 pt-4">
+          <div className="px-3 pb-3 border-t border-white/10 pt-3">
             <UserFooter />
           </div>
         </div>
@@ -292,6 +315,12 @@ export default function AdminLayout({
             </span>
           </div>
           <div className="flex items-center gap-3">
+            <Link href="/">
+              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground">
+                <ChevronLeft className="h-4 w-4" />
+                Back to Site
+              </Button>
+            </Link>
             {pendingPayouts > 0 && (
               <Link href="/admin/payouts">
                 <Badge className="gap-1.5 bg-amber-100 text-amber-700 border-amber-200 cursor-pointer hover:bg-amber-200 transition-colors">

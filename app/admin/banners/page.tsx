@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -178,26 +179,9 @@ export default function BannerManagementPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        {[
-          { label: "Active Banners", value: activeCount, icon: CheckCircle2, accent: "bg-emerald-500", light: "bg-emerald-50 text-emerald-600" },
-          { label: "Open Slots", value: availableCount, icon: Layers, accent: "bg-amber-500", light: "bg-amber-50 text-amber-600" },
-          { label: "Daily Revenue", value: `$${totalDailyRevenue}`, icon: DollarSign, accent: "bg-violet-500", light: "bg-violet-50 text-violet-600" },
-        ].map(s => (
-          <Card key={s.label} className="border-0 shadow-sm relative overflow-hidden">
-            <div className={`absolute top-0 left-0 w-1 h-full ${s.accent}`} />
-            <CardContent className="p-5 pl-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold font-mono uppercase tracking-widest text-muted-foreground">{s.label}</p>
-                  <p className="text-2xl font-bold mt-1">{s.value}</p>
-                </div>
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${s.light}`}>
-                  <s.icon className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        <StatCard label="Active Banners" value={activeCount} icon={CheckCircle2} iconClassName="bg-emerald-50 text-emerald-600" />
+        <StatCard label="Open Slots" value={availableCount} icon={Layers} iconClassName="bg-amber-50 text-amber-600" />
+        <StatCard label="Daily Revenue" value={`$${totalDailyRevenue}`} icon={DollarSign} iconClassName="bg-violet-50 text-violet-600" />
       </div>
 
       {loading ? (

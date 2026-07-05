@@ -75,20 +75,22 @@ export function EventSections() {
   return (
     <>
       <FeaturedSection events={sections.featured} />
-      <SectionBanner position={1} />
       <NewestEventsSection events={sections.newest} />
-      <SectionBanner position={2} />
+      <SectionBanner position={1} />
       <CategorySection category="comedy" events={sections.comedy} />
       <CategorySection category="music" events={sections.music} />
+      <SectionBanner position={2} />
       <CategorySection category="sports" events={sections.sports} />
       <CategorySection category="marathon" events={sections.marathon} />
       <SectionBanner position={3} />
       <CategorySection category="conference" events={sections.conference} />
       <CategorySection category="workshop" events={sections.workshop} />
+      <SectionBanner position={4} />
       <CategorySection category="festival" events={sections.festival} />
       <CategorySection category="theater" events={sections.theater} />
-      <SectionBanner position={4} />
+      <SectionBanner position={5} />
       <UpcomingSection events={sections.upcoming} />
+      <SectionBanner position={6} />
     </>
   );
 }

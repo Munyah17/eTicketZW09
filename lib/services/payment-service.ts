@@ -5,6 +5,7 @@ import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateTicket } from "@/lib/ticket-generator";
 import { sendTicketEmail } from "@/lib/email/send-ticket-email";
+import { sendSaleNotificationEmails } from "@/lib/email/send-sale-notification-emails";
 import { logError } from "@/lib/error-logger";
 
 export type PaymentProvider = "paynow" | "stripe";
@@ -123,12 +124,14 @@ export class PaymentService {
       buyerPhone: (m.buyerPhone as string) || "",
       buyerUserId: payment.userId,
       displayName: m.displayName as string | undefined,
+      idNumber: m.idNumber as string | undefined,
       quantity: m.quantity as number | undefined,
       amount: opts.amount ?? payment.amount,
       currency: (opts.currency ?? payment.currency).toUpperCase(),
       paymentMethod: opts.paymentMethod,
     });
     await sendTicketEmail(ticket);
+    await sendSaleNotificationEmails(ticket);
   }
 
   // Shared "this payment did not succeed" path. Idempotent like confirmPaid.

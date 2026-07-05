@@ -14,6 +14,7 @@ const ALLOWED_FIELDS = new Set([
   "announcement_active",
   "announcement_message",
   "announcement_type",
+  "announcement_link",
 ]);
 
 export async function PATCH(req: NextRequest) {

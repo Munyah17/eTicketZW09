@@ -150,6 +150,12 @@
   html {
     overflow-x: hidden;
     overscroll-behavior-x: none;
+    scroll-behavior: smooth;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
   }
   * {
     @apply border-border outline-ring/50;
@@ -171,4 +177,19 @@
     transition-duration: 150ms;
     transition-timing-function: ease-out;
   }
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-12px, 8px); }
+}
+
+@keyframes float-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, 24px) scale(1.08); }
+}
+
+@keyframes float-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-24px, -16px) scale(1.05); }
 }

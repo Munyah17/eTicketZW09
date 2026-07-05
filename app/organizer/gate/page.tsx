@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,6 +84,14 @@ export default function GateManagementPage() {
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const scannerRef = useRef<{ stop: () => void } | null>(null);
+  const manualCodeRef = useRef<HTMLInputElement>(null);
+
+  // Keep focus in the manual-code field between scans so an external
+  // USB/Bluetooth barcode scanner (keyboard-wedge input) can fire repeatedly
+  // without staff needing to click back into the field each time.
+  useEffect(() => {
+    if (!isScanning && !dialogOpen) manualCodeRef.current?.focus();
+  }, [isScanning, dialogOpen]);
 
   useEffect(() => {
     if (user) getOrganizerEvents(user.id).then((events) => setOrganizerEvents(events.filter((e) => e.status === "published")));
@@ -214,45 +223,9 @@ export default function GateManagementPage() {
       {selectedEvent && !loading && (
         <>
           <div className="grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-primary/10 rounded-lg">
-                    <Ticket className="h-6 w-6 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Total Tickets</p>
-                    <p className="text-2xl font-mono font-bold">{tickets.length}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-green-100 rounded-lg">
-                    <UserCheck className="h-6 w-6 text-green-700" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Admitted</p>
-                    <p className="text-2xl font-mono font-bold">{admittedCount}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-amber-100 rounded-lg">
-                    <Ticket className="h-6 w-6 text-amber-700" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Pending Entry</p>
-                    <p className="text-2xl font-mono font-bold">{validCount}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <StatCard label="Total Tickets" value={tickets.length} icon={Ticket} iconClassName="bg-primary/10 text-primary" />
+            <StatCard label="Admitted" value={admittedCount} icon={UserCheck} iconClassName="bg-green-100 text-green-700" />
+            <StatCard label="Pending Entry" value={validCount} icon={Ticket} iconClassName="bg-amber-100 text-amber-700" />
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
@@ -301,9 +274,11 @@ export default function GateManagementPage() {
                   <div className="flex gap-2 mt-2">
                     <Input
                       id="ticket-code"
+                      ref={manualCodeRef}
+                      autoFocus
                       value={manualCode}
                       onChange={(e) => setManualCode(e.target.value)}
-                      placeholder="Enter ticket code..."
+                      placeholder="Ready to scan — external scanner or type manually"
                       onKeyDown={(e) => e.key === "Enter" && handleManualSearch()}
                     />
                     <Button onClick={handleManualSearch}>
@@ -369,8 +344,14 @@ export default function GateManagementPage() {
 
             {scanResult?.ticket && (
               <div className="bg-muted p-4 rounded-lg space-y-2">
-                <p><strong>Name:</strong> {scanResult.ticket.buyer_display_name as string}</p>
+                <p>
+                  <strong>Name:</strong> {scanResult.ticket.buyer_display_name as string}
+                  {scanResult.ticket.buyer_display_name !== scanResult.ticket.buyer_name && (
+                    <span className="text-muted-foreground"> ({scanResult.ticket.buyer_name as string})</span>
+                  )}
+                </p>
                 <p><strong>Contact:</strong> {scanResult.ticket.buyer_contact as string}</p>
+                <p><strong>ID Number:</strong> {(scanResult.ticket.id_number as string) || "Not provided"}</p>
                 <p><strong>Ticket Type:</strong> {scanResult.ticket.ticket_type_name as string}</p>
                 <p><strong>Amount Paid:</strong> ${scanResult.ticket.total_paid as number} {scanResult.ticket.currency as string}</p>
                 <p><strong>Payment Method:</strong> {(scanResult.ticket.payment_method as string)?.toUpperCase()}</p>

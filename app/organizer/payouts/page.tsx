@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
+import { ExportMenu } from "@/components/ui/export-menu";
+import type { ExportColumn } from "@/lib/export-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,6 +93,15 @@ export default function OrganizerPayoutsPage() {
     .filter((p) => p.status === "pending" || p.status === "processing")
     .reduce((sum, p) => sum + p.amount, 0);
 
+  const exportColumns: ExportColumn<PayoutRequest>[] = [
+    { header: "Amount", accessor: (p) => p.amount },
+    { header: "Currency", accessor: (p) => p.currency },
+    { header: "Status", accessor: (p) => p.status },
+    { header: "Method", accessor: (p) => p.paymentMethod },
+    { header: "Requested", accessor: (p) => p.requestedAt },
+    { header: "Processed", accessor: (p) => p.processedAt ?? "" },
+  ];
+
   const handleRequestPayout = async () => {
     setRequestError("");
     const amount = parseFloat(formData.amount);
@@ -164,51 +176,14 @@ export default function OrganizerPayoutsPage() {
 
       {/* Balance Cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Wallet className="h-6 w-6 text-green-700" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Available Balance</p>
-                <p className="text-2xl font-mono font-bold">${availableBalance.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-amber-100 rounded-lg">
-                <Clock className="h-6 w-6 text-amber-700" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pending Payouts</p>
-                <p className="text-2xl font-mono font-bold">${pendingPayouts.toLocaleString()}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <DollarSign className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Total Withdrawn</p>
-                <p className="text-2xl font-mono font-bold">
-                  $
-                  {organizerPayouts
-                    .filter((p) => p.status === "approved")
-                    .reduce((sum, p) => sum + p.amount, 0)
-                    .toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <StatCard label="Available Balance" value={`$${availableBalance.toLocaleString()}`} icon={Wallet} iconClassName="bg-green-100 text-green-700" />
+        <StatCard label="Pending Payouts" value={`$${pendingPayouts.toLocaleString()}`} icon={Clock} iconClassName="bg-amber-100 text-amber-700" />
+        <StatCard
+          label="Total Withdrawn"
+          value={`$${organizerPayouts.filter((p) => p.status === "approved").reduce((sum, p) => sum + p.amount, 0).toLocaleString()}`}
+          icon={DollarSign}
+          iconClassName="bg-primary/10 text-primary"
+        />
       </div>
 
       {/* Info Card */}
@@ -231,8 +206,9 @@ export default function OrganizerPayoutsPage() {
 
       {/* Payout History */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Payout History</CardTitle>
+          <ExportMenu rows={organizerPayouts} columns={exportColumns} filename="my-payouts" title="Payout History" />
         </CardHeader>
         <CardContent>
           <Table>

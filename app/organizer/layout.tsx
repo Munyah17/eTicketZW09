@@ -50,12 +50,15 @@ export default function OrganizerLayout({
           <p className="mt-2 text-muted-foreground">
             Please sign in to access the organizer dashboard.
           </p>
-          <div className="mt-6 flex gap-3 justify-center">
+          <div className="mt-6 flex flex-wrap gap-3 justify-center">
             <Link href="/login">
               <Button>Sign In</Button>
             </Link>
             <Link href="/register">
               <Button variant="outline">Register</Button>
+            </Link>
+            <Link href="/">
+              <Button variant="ghost">Back to Home</Button>
             </Link>
           </div>
         </div>

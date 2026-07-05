@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,9 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { DateRangeFilter, inDateRange } from "@/components/ui/date-range-filter";
+import type { ExportColumn } from "@/lib/export-utils";
 import {
   Select,
   SelectContent,
@@ -58,6 +62,8 @@ export default function AdminPayoutsPage() {
   const [action, setAction] = useState<"approve" | "decline" | "process">("approve");
   const [declineReason, setDeclineReason] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   const reload = useCallback(async () => {
@@ -74,8 +80,19 @@ export default function AdminPayoutsPage() {
   useEffect(() => { reload(); }, [reload]);
 
   const filteredPayouts = payouts.filter(
-    (p) => statusFilter === "all" || p.status === statusFilter
+    (p) => (statusFilter === "all" || p.status === statusFilter) && inDateRange(p.requestedAt, dateFrom, dateTo)
   );
+
+  const exportColumns: ExportColumn<PayoutRequest>[] = [
+    { header: "Organizer", accessor: (p) => p.organizerName },
+    { header: "Amount", accessor: (p) => p.amount },
+    { header: "Currency", accessor: (p) => p.currency },
+    { header: "Status", accessor: (p) => p.status },
+    { header: "Method", accessor: (p) => p.paymentMethod },
+    { header: "Details", accessor: (p) => p.paymentDetails },
+    { header: "Requested", accessor: (p) => p.requestedAt },
+    { header: "Processed", accessor: (p) => p.processedAt ?? "" },
+  ];
 
   const handleAction = async () => {
     if (!selectedPayout) return;
@@ -137,33 +154,21 @@ export default function AdminPayoutsPage() {
 
       {/* Pipeline stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: "Pending", count: pendingCount, icon: Clock, color: "amber", dot: pendingCount > 0 },
-          { label: "Processing", count: processingCount, icon: AlertCircle, color: "blue", dot: false },
-          { label: "Approved", count: approvedCount, icon: CheckCircle2, color: "emerald", dot: false },
-          { label: "Awaiting ($)", count: `$${totalPending.toLocaleString()}`, icon: Banknote, color: "violet", dot: false },
-        ].map(item => (
-          <Card key={item.label} className="border-0 shadow-sm relative overflow-hidden">
-            <div className={`absolute top-0 left-0 w-1 h-full bg-${item.color}-500`} />
-            <CardContent className="p-5 pl-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold font-mono uppercase tracking-widest text-muted-foreground">{item.label}</p>
-                  <p className="text-2xl font-mono font-bold mt-1">{item.count}</p>
-                </div>
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl bg-${item.color}-50 text-${item.color}-600`}>
-                  <item.icon className="h-5 w-5" />
-                </div>
-              </div>
-              {item.dot && (
-                <p className="text-xs text-amber-600 mt-2 font-medium flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                  Needs action
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+        <StatCard
+          label="Pending"
+          value={pendingCount}
+          icon={Clock}
+          iconClassName="bg-amber-50 text-amber-600"
+          footer={pendingCount > 0 && (
+            <p className="mt-2 flex items-center gap-1 text-xs font-medium text-amber-600">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              Needs action
+            </p>
+          )}
+        />
+        <StatCard label="Processing" value={processingCount} icon={AlertCircle} iconClassName="bg-blue-50 text-blue-600" />
+        <StatCard label="Approved" value={approvedCount} icon={CheckCircle2} iconClassName="bg-emerald-50 text-emerald-600" />
+        <StatCard label="Awaiting ($)" value={`$${totalPending.toLocaleString()}`} icon={Banknote} iconClassName="bg-violet-50 text-violet-600" />
       </div>
 
       {/* Table card */}
@@ -189,6 +194,8 @@ export default function AdminPayoutsPage() {
                 <SelectItem value="declined">Declined</SelectItem>
               </SelectContent>
             </Select>
+            <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+            <ExportMenu rows={filteredPayouts} columns={exportColumns} filename="payouts" title="Payout Requests" />
           </div>
         </CardHeader>
         <CardContent className="p-0">

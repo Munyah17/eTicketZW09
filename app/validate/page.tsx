@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -24,6 +24,8 @@ import {
   CreditCard,
   RefreshCw,
   ShieldAlert,
+  Camera,
+  IdCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -40,6 +42,7 @@ interface TicketRow {
   buyer_display_name: string;
   buyer_name: string;
   buyer_contact: string;
+  id_number?: string;
   total_paid: number;
   payment_method: string;
   validated_at?: string;
@@ -58,9 +61,18 @@ export default function ValidatePage() {
   const [ticketCode, setTicketCode] = useState("");
   const [validationResult, setValidationResult] = useState<ValidationResult>({ status: "idle" });
   const [isValidating, setIsValidating] = useState(false);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const codeInputRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<{ stop: () => void } | null>(null);
 
-  const handleValidate = async () => {
-    if (!ticketCode.trim()) return;
+  // Re-focus the code field after every scan/reset so an external USB/Bluetooth
+  // barcode-scanner "gun" (which just types + Enter) always has somewhere to type.
+  useEffect(() => {
+    if (!isCameraOpen) codeInputRef.current?.focus();
+  }, [validationResult.status, isCameraOpen]);
+
+  const runLookup = useCallback(async (code: string) => {
+    if (!code.trim()) return;
     setIsValidating(true);
     setValidationResult({ status: "scanning" });
 
@@ -68,7 +80,7 @@ export default function ValidatePage() {
       const res = await fetch("/api/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "lookup", code: ticketCode.trim() }),
+        body: JSON.stringify({ action: "lookup", code: code.trim() }),
       });
       const json = await res.json();
       setValidationResult({
@@ -79,7 +91,9 @@ export default function ValidatePage() {
     } finally {
       setIsValidating(false);
     }
-  };
+  }, []);
+
+  const handleValidate = () => runLookup(ticketCode);
 
   const handleReset = () => {
     setTicketCode("");
@@ -96,6 +110,40 @@ export default function ValidatePage() {
     const json = await res.json();
     setValidationResult({ status: "used", ticket: json.ticket, message: json.message });
   };
+
+  const stopCamera = useCallback(() => {
+    cameraRef.current?.stop();
+    cameraRef.current = null;
+    setIsCameraOpen(false);
+  }, []);
+
+  const startCamera = async () => {
+    try {
+      const { Html5Qrcode } = await import("html5-qrcode");
+      const scanner = new Html5Qrcode("validate-qr-reader");
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        (decodedText) => {
+          scanner.stop();
+          cameraRef.current = null;
+          setIsCameraOpen(false);
+          setTicketCode(decodedText);
+          runLookup(decodedText);
+        },
+        () => {}
+      );
+      cameraRef.current = { stop: () => scanner.stop() };
+      setIsCameraOpen(true);
+    } catch (err) {
+      console.error("Failed to start camera:", err);
+      alert("Failed to access camera. Please check permissions, or enter the code manually.");
+    }
+  };
+
+  useEffect(() => {
+    return () => { cameraRef.current?.stop(); };
+  }, []);
 
   const getPaymentMethodLabel = (method: string) => {
     const methods: Record<string, string> = {
@@ -162,18 +210,35 @@ export default function ValidatePage() {
             <CardHeader>
               <CardTitle>Enter Ticket Code</CardTitle>
               <CardDescription>
-                Type the ticket ID or scan the QR code
+                Type the ticket ID, scan with a phone camera, or use a handheld/external scanner — it types
+                into the field below automatically
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {isCameraOpen ? (
+                <div className="space-y-3">
+                  <div id="validate-qr-reader" className="mx-auto w-full max-w-sm aspect-square overflow-hidden rounded-lg bg-muted" />
+                  <Button variant="outline" className="w-full" onClick={stopCamera}>
+                    Cancel Camera Scan
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="outline" className="w-full gap-2" onClick={startCamera}>
+                  <Camera className="h-4 w-4" />
+                  Scan with Phone Camera
+                </Button>
+              )}
+
               <div>
                 <Label htmlFor="ticketCode">Ticket Code</Label>
                 <div className="mt-1.5 flex gap-2">
                   <Input
                     id="ticketCode"
+                    ref={codeInputRef}
+                    autoFocus
                     value={ticketCode}
                     onChange={(e) => setTicketCode(e.target.value)}
-                    placeholder="Enter ticket ID or QR code"
+                    placeholder="Ready to scan — or type the ticket ID"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") handleValidate();
                     }}
@@ -277,6 +342,10 @@ export default function ValidatePage() {
                       <div className="flex items-center gap-2">
                         <Phone className="h-4 w-4 text-muted-foreground" />
                         <span>{validationResult.ticket.buyer_contact}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <IdCard className="h-4 w-4 text-muted-foreground" />
+                        <span>ID Number: {validationResult.ticket.id_number || "Not provided"}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <CreditCard className="h-4 w-4 text-muted-foreground" />

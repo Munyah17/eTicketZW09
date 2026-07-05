@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -50,28 +51,28 @@ export default function OrganizerDashboard() {
       value: organizerEvents.length,
       icon: Calendar,
       sub: organizerEvents.length === 0 ? "Create your first event" : `${organizerEvents.filter(e => e.status === "published").length} published`,
-      color: "text-primary",
+      iconClassName: "bg-primary/10 text-primary",
     },
     {
       title: "Tickets Sold",
       value: totalTicketsSold.toLocaleString(),
       icon: Ticket,
       sub: totalTicketsSold === 0 ? "No tickets sold yet" : "Across all events",
-      color: "text-success",
+      iconClassName: "bg-success/10 text-success",
     },
     {
       title: "Gross Revenue",
       value: `$${totalRevenue.toFixed(2)}`,
       icon: DollarSign,
       sub: totalRevenue > 0 ? `Platform fee: $${platformFees.toFixed(2)}` : "No revenue yet",
-      color: "text-warning",
+      iconClassName: "bg-warning/10 text-warning",
     },
     {
       title: "Net Earnings",
       value: `$${netRevenue.toFixed(2)}`,
       icon: TrendingUp,
       sub: netRevenue > 0 ? "Available for payout" : "No earnings yet",
-      color: "text-primary",
+      iconClassName: "bg-primary/10 text-primary",
     },
   ];
 
@@ -98,20 +99,7 @@ export default function OrganizerDashboard() {
       {/* Stats Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{stat.title}</p>
-                  <p className="mt-1 text-2xl font-mono font-bold">{stat.value}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{stat.sub}</p>
-                </div>
-                <div className={`rounded-lg bg-secondary p-3 ${stat.color}`}>
-                  <stat.icon className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard key={stat.title} label={stat.title} value={stat.value} sub={stat.sub} icon={stat.icon} iconClassName={stat.iconClassName} />
         ))}
       </div>
 

@@ -32,6 +32,7 @@ export function TicketPurchaseForm({
   const [buyerContact, setBuyerContact] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [idNumber, setIdNumber] = useState("");
   const [useAnonymous, setUseAnonymous] = useState(false);
   const [step, setStep] = useState<"details" | "provider" | "processing" | "redirect">("details");
   const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>(null);
@@ -110,6 +111,7 @@ export function TicketPurchaseForm({
             buyerEmail,
             buyerPhone: buyerContact,
             displayName: useAnonymous ? "Anonymous" : displayName || buyerName,
+            idNumber,
           },
         }),
       });
@@ -331,6 +333,20 @@ export function TicketPurchaseForm({
                     Show as &quot;Anonymous&quot; on ticket
                   </Label>
                 </div>
+              </div>
+              <div>
+                <Label htmlFor="idNumber">ID Number</Label>
+                <Input
+                  id="idNumber"
+                  value={idNumber}
+                  onChange={(e) => setIdNumber(e.target.value)}
+                  placeholder="National ID or passport number"
+                  className="mt-1.5"
+                />
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Optional, but recommended — if your ticket is lost, stolen, or forgotten, this lets us verify
+                  and admit you at the gate using just your ID.
+                </p>
               </div>
             </div>
 

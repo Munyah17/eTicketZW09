@@ -10,6 +10,8 @@ import {
 import {
   CheckCircle2, XCircle, Clock, CreditCard, RefreshCw, ShieldAlert, Ticket,
 } from "lucide-react";
+import { ExportMenu } from "@/components/ui/export-menu";
+import type { ExportColumn } from "@/lib/export-utils";
 
 // Grace period before we offer a manual override — gives a real webhook
 // (or the customer's own confirmation-page visit, which re-checks Stripe
@@ -81,6 +83,17 @@ export default function AdminPaymentsPage() {
 
   const pendingCount = payments.filter((p) => p.status === "pending").length;
 
+  const exportColumns: ExportColumn<AdminPayment>[] = [
+    { header: "Reference", accessor: (p) => p.reference },
+    { header: "Provider", accessor: (p) => p.provider },
+    { header: "Amount", accessor: (p) => p.amount },
+    { header: "Currency", accessor: (p) => p.currency },
+    { header: "Status", accessor: (p) => p.status },
+    { header: "Error", accessor: (p) => p.error_message ?? "" },
+    { header: "Created", accessor: (p) => p.created_at },
+    { header: "Updated", accessor: (p) => p.updated_at },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-start justify-between">
@@ -91,9 +104,12 @@ export default function AdminPaymentsPage() {
             check the Stripe/Paynow dashboard for the real outcome before approving.
           </p>
         </div>
-        <Button variant="outline" className="gap-2" onClick={load}>
-          <RefreshCw className="h-4 w-4" /> Refresh
-        </Button>
+        <div className="flex gap-2">
+          <ExportMenu rows={payments} columns={exportColumns} filename="payments" title="Payment Verification" />
+          <Button variant="outline" className="gap-2" onClick={load}>
+            <RefreshCw className="h-4 w-4" /> Refresh
+          </Button>
+        </div>
       </div>
 
       {pendingCount > 0 && (

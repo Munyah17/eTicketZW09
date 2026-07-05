@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,6 +23,8 @@ import {
   Phone,
   RefreshCw,
 } from "lucide-react";
+import { ExportMenu } from "@/components/ui/export-menu";
+import type { ExportColumn } from "@/lib/export-utils";
 
 interface OrganizerRow {
   id: string;
@@ -61,6 +64,18 @@ export default function AdminOrganizersPage() {
       org.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const exportColumns: ExportColumn<OrganizerRow>[] = [
+    { header: "Name", accessor: (o) => o.name },
+    { header: "Email", accessor: (o) => o.email },
+    { header: "Phone", accessor: (o) => o.phone },
+    { header: "Company", accessor: (o) => o.company ?? "" },
+    { header: "Category", accessor: (o) => o.organizer_category ?? "" },
+    { header: "Verified", accessor: (o) => (o.verified ? "Yes" : "No") },
+    { header: "Events", accessor: (o) => o.event_count },
+    { header: "Revenue", accessor: (o) => o.computed_revenue },
+    { header: "Pending Payout", accessor: (o) => o.computed_pending_payout },
+  ];
+
   const toggleVerified = async (org: OrganizerRow) => {
     await fetch("/api/admin/organizers", {
       method: "PATCH",
@@ -86,27 +101,10 @@ export default function AdminOrganizersPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { title: "Total Organizers", value: organizers.length, icon: Users, accent: "bg-blue-500", light: "bg-blue-50 text-blue-600" },
-          { title: "Verified", value: organizers.filter(o => o.verified).length, icon: CheckCircle2, accent: "bg-emerald-500", light: "bg-emerald-50 text-emerald-600" },
-          { title: "Pending Verify", value: organizers.filter(o => !o.verified).length, icon: XCircle, accent: "bg-amber-500", light: "bg-amber-50 text-amber-600" },
-          { title: "Platform Revenue", value: `$${totalRevenue.toLocaleString()}`, icon: DollarSign, accent: "bg-violet-500", light: "bg-violet-50 text-violet-600" },
-        ].map(s => (
-          <Card key={s.title} className="border-0 shadow-sm relative overflow-hidden">
-            <div className={`absolute top-0 left-0 w-1 h-full ${s.accent}`} />
-            <CardContent className="p-5 pl-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold font-mono uppercase tracking-widest text-muted-foreground">{s.title}</p>
-                  <p className="text-2xl font-bold mt-1">{s.value}</p>
-                </div>
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${s.light}`}>
-                  <s.icon className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        <StatCard label="Total Organizers" value={organizers.length} icon={Users} iconClassName="bg-blue-50 text-blue-600" />
+        <StatCard label="Verified" value={organizers.filter(o => o.verified).length} icon={CheckCircle2} iconClassName="bg-emerald-50 text-emerald-600" />
+        <StatCard label="Pending Verify" value={organizers.filter(o => !o.verified).length} icon={XCircle} iconClassName="bg-amber-50 text-amber-600" />
+        <StatCard label="Platform Revenue" value={`$${totalRevenue.toLocaleString()}`} icon={DollarSign} iconClassName="bg-violet-50 text-violet-600" />
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -117,14 +115,17 @@ export default function AdminOrganizersPage() {
             </div>
             <CardTitle className="text-base">Organizer List</CardTitle>
           </div>
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search name or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-8 text-xs"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-8 text-xs"
+              />
+            </div>
+            <ExportMenu rows={filteredOrganizers} columns={exportColumns} filename="organizers" title="Organizers" />
           </div>
         </CardHeader>
         <CardContent className="p-0">

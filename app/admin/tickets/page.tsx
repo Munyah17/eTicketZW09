@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
+import { ExportMenu } from "@/components/ui/export-menu";
+import type { ExportColumn } from "@/lib/export-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -169,6 +172,21 @@ export default function AdminTicketsPage() {
   const onlineCount = tickets.filter((t) => t.sale_type === "online").length;
   const gateCount = tickets.filter((t) => t.sale_type === "gate").length;
 
+  const exportColumns: ExportColumn<TicketRow>[] = [
+    { header: "Ticket ID", accessor: (t) => t.id },
+    { header: "Event", accessor: (t) => t.event_title },
+    { header: "Event Date", accessor: (t) => t.event_date },
+    { header: "Ticket Type", accessor: (t) => t.ticket_type_name },
+    { header: "Buyer", accessor: (t) => t.buyer_display_name || t.buyer_name },
+    { header: "Contact", accessor: (t) => t.buyer_contact },
+    { header: "Amount", accessor: (t) => t.total_paid },
+    { header: "Currency", accessor: (t) => t.currency },
+    { header: "Status", accessor: (t) => t.payment_status },
+    { header: "Validated", accessor: (t) => (t.validated ? "Yes" : "No") },
+    { header: "Channel", accessor: (t) => t.sale_type },
+    { header: "Purchased", accessor: (t) => t.purchased_at },
+  ];
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -188,24 +206,7 @@ export default function AdminTicketsPage() {
       {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((s) => (
-          <Card key={s.title} className="border-0 shadow-sm relative overflow-hidden">
-            <div className={`absolute top-0 left-0 w-1 h-full ${s.accent}`} />
-            <CardContent className="p-5 pl-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold font-mono uppercase tracking-widest text-muted-foreground">
-                    {s.title}
-                  </p>
-                  <p className="text-2xl font-mono font-bold mt-1">
-                    {loading ? "—" : s.value}
-                  </p>
-                </div>
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${s.light}`}>
-                  <s.icon className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard key={s.title} label={s.title} value={loading ? "—" : s.value} icon={s.icon} iconClassName={s.light} />
         ))}
       </div>
 
@@ -218,14 +219,17 @@ export default function AdminTicketsPage() {
             </div>
             <CardTitle className="text-base">Ticket List</CardTitle>
           </div>
-          <div className="relative w-72">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search event, buyer, or ticket ID…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-8 text-xs"
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search event, buyer, or ticket ID…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-8 text-xs"
+              />
+            </div>
+            <ExportMenu rows={tickets} columns={exportColumns} filename="tickets" title="All Tickets (current page)" />
           </div>
         </CardHeader>
         <CardContent className="p-0">

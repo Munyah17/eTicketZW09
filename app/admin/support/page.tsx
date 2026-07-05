@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +17,8 @@ import {
 } from "lucide-react";
 import { isSuperAdminAccount } from "@/lib/auth-context";
 import { User as UserType, UserRole } from "@/lib/types";
+import { ExportMenu } from "@/components/ui/export-menu";
+import type { ExportColumn } from "@/lib/export-utils";
 
 interface SupportTicket {
   id: string;
@@ -148,6 +151,16 @@ export default function SupportPage() {
     ? tickets
     : tickets.filter(t => t.status === filterType || t.type === filterType);
 
+  const exportColumns: ExportColumn<SupportTicket>[] = [
+    { header: "Name", accessor: (t) => t.name },
+    { header: "Email", accessor: (t) => t.email },
+    { header: "Type", accessor: (t) => t.type },
+    { header: "Priority", accessor: (t) => t.priority },
+    { header: "Status", accessor: (t) => t.status },
+    { header: "Subject", accessor: (t) => t.subject },
+    { header: "Created", accessor: (t) => t.created_at },
+  ];
+
   const openCount = tickets.filter(t => t.status === "open").length;
   const highCount = tickets.filter(t => t.priority === "high" && t.status !== "resolved").length;
   const resolvedCount = tickets.filter(t => t.status === "resolved").length;
@@ -160,23 +173,9 @@ export default function SupportPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        {[
-          { label: "Open Tickets", value: openCount, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "High Priority", value: highCount, color: "text-red-600", bg: "bg-red-50" },
-          { label: "Resolved", value: resolvedCount, color: "text-emerald-600", bg: "bg-emerald-50" },
-        ].map(s => (
-          <Card key={s.label} className="border-0 shadow-sm">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${s.bg}`}>
-                <HeadphonesIcon className={`h-5 w-5 ${s.color}`} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">{s.label}</p>
-                <p className={`text-2xl font-mono font-bold ${s.color}`}>{s.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        <StatCard label="Open Tickets" value={openCount} icon={HeadphonesIcon} iconClassName="bg-blue-50 text-blue-600" valueClassName="text-blue-600" />
+        <StatCard label="High Priority" value={highCount} icon={HeadphonesIcon} iconClassName="bg-red-50 text-red-600" valueClassName="text-red-600" />
+        <StatCard label="Resolved" value={resolvedCount} icon={HeadphonesIcon} iconClassName="bg-emerald-50 text-emerald-600" valueClassName="text-emerald-600" />
       </div>
 
       <Card className="border-0 shadow-sm">
@@ -258,14 +257,17 @@ export default function SupportPage() {
                 <Badge className="bg-red-100 text-red-700 border-0">{openCount} open</Badge>
               )}
             </div>
-            <div className="flex gap-1">
-              {["all", "open", "in_progress", "resolved", "payment", "refund"].map(f => (
-                <button key={f} onClick={() => setFilterType(f)}
-                  className={`text-xs px-2.5 py-1 rounded-full capitalize transition-colors
-                    ${filterType === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-                  {f.replace("_", " ")}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                {["all", "open", "in_progress", "resolved", "payment", "refund"].map(f => (
+                  <button key={f} onClick={() => setFilterType(f)}
+                    className={`text-xs px-2.5 py-1 rounded-full capitalize transition-colors
+                      ${filterType === f ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
+                    {f.replace("_", " ")}
+                  </button>
+                ))}
+              </div>
+              <ExportMenu rows={filteredTickets} columns={exportColumns} filename="support-tickets" title="Support Queue" />
             </div>
           </div>
         </CardHeader>

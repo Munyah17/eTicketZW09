@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,9 +12,12 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
 import {
-  DollarSign, Search, RefreshCw, Download, RotateCcw, AlertTriangle,
+  DollarSign, Search, RefreshCw, RotateCcw, AlertTriangle,
   CheckCircle2, XCircle, Clock, CreditCard, TrendingUp, ChevronLeft, ChevronRight,
 } from "lucide-react";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { DateRangeFilter, inDateRange } from "@/components/ui/date-range-filter";
+import type { ExportColumn } from "@/lib/export-utils";
 
 interface TxRecord {
   id: string;
@@ -57,6 +61,8 @@ export default function TransactionsPage() {
   const [pages, setPages] = useState(1);
   const [confirmRefund, setConfirmRefund] = useState<TxRecord | null>(null);
   const [refunding, setRefunding] = useState(false);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -88,17 +94,17 @@ export default function TransactionsPage() {
     }
   };
 
-  const exportCSV = () => {
-    const rows = [
-      ["Reference", "Buyer", "Event", "Amount", "Currency", "Provider", "Status", "Date"],
-      ...txs.map(t => [t.id, t.buyerName, t.eventTitle, t.amount, t.currency, t.provider, t.status, t.createdAt]),
-    ];
-    const csv = rows.map(r => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "transactions.csv"; a.click();
-    URL.revokeObjectURL(url);
-  };
+  const exportableTxs = txs.filter(t => inDateRange(t.createdAt, dateFrom, dateTo));
+  const exportColumns: ExportColumn<TxRecord>[] = [
+    { header: "Reference", accessor: (t) => t.id },
+    { header: "Buyer", accessor: (t) => t.buyerName },
+    { header: "Event", accessor: (t) => t.eventTitle },
+    { header: "Amount", accessor: (t) => t.amount },
+    { header: "Currency", accessor: (t) => t.currency },
+    { header: "Provider", accessor: (t) => t.provider },
+    { header: "Status", accessor: (t) => t.status },
+    { header: "Date", accessor: (t) => t.createdAt },
+  ];
 
   const platformFees = stats.revenue * 0.1;
 
@@ -109,30 +115,14 @@ export default function TransactionsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Transactions</h1>
           <p className="text-muted-foreground mt-1">Full payment ledger with manual refund controls.</p>
         </div>
-        <Button variant="outline" className="gap-2" onClick={exportCSV}>
-          <Download className="h-4 w-4" /> Export CSV (this page)
-        </Button>
+        <ExportMenu rows={exportableTxs} columns={exportColumns} filename="transactions" title="Transactions (current page)" />
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: "Net Revenue", value: `$${stats.revenue.toFixed(2)}`, icon: DollarSign, color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "Platform Fees (10%)", value: `$${platformFees.toFixed(2)}`, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Total Tickets", value: stats.total, icon: RotateCcw, color: "text-orange-600", bg: "bg-orange-50" },
-          { label: "Awaiting Gate Entry", value: stats.valid, icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-        ].map(k => (
-          <Card key={k.label} className="border-0 shadow-sm">
-            <CardContent className="p-4 flex items-center gap-3">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${k.bg}`}>
-                <k.icon className={`h-5 w-5 ${k.color}`} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">{k.label}</p>
-                <p className={`text-xl font-bold ${k.color}`}>{k.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+        <StatCard label="Net Revenue" value={`$${stats.revenue.toFixed(2)}`} icon={DollarSign} iconClassName="bg-emerald-50 text-emerald-600" valueClassName="text-emerald-600" />
+        <StatCard label="Platform Fees (10%)" value={`$${platformFees.toFixed(2)}`} icon={TrendingUp} iconClassName="bg-blue-50 text-blue-600" valueClassName="text-blue-600" />
+        <StatCard label="Total Tickets" value={stats.total} icon={RotateCcw} iconClassName="bg-orange-50 text-orange-600" valueClassName="text-orange-600" />
+        <StatCard label="Awaiting Gate Entry" value={stats.valid} icon={Clock} iconClassName="bg-amber-50 text-amber-600" valueClassName="text-amber-600" />
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -140,6 +130,7 @@ export default function TransactionsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search reference, buyer, email, event…" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} className="pl-9" />
         </div>
+        <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
         <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
           <RefreshCw className="h-4 w-4" />
         </Button>

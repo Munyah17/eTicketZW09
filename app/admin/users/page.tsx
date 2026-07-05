@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import {
   User, Search, Plus, Trash2, UserX, UserCheck,
-  RefreshCw, Users, AlertTriangle,
+  RefreshCw, Users, AlertTriangle, Briefcase,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { User as UserType, UserRole } from "@/lib/types";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { DateRangeFilter, inDateRange } from "@/components/ui/date-range-filter";
+import type { ExportColumn } from "@/lib/export-utils";
 
 const ROLE_COLORS: Record<string, string> = {
   organizer: "bg-purple-100 text-purple-800 border-purple-200",
@@ -29,6 +33,8 @@ export default function UsersPage() {
   const { user: adminUser } = useAuth();
   const [search, setSearch] = useState("");
   const [filterRole, setFilterRole] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [users, setUsers] = useState<UserType[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
@@ -76,8 +82,18 @@ export default function UsersPage() {
       filterRole === "all" ? true :
       filterRole === "suspended" ? u.isSuspended :
       u.role === filterRole;
-    return matchSearch && matchRole;
+    return matchSearch && matchRole && inDateRange(u.createdAt, dateFrom, dateTo);
   });
+
+  const exportColumns: ExportColumn<UserType>[] = [
+    { header: "Name", accessor: (u) => u.name },
+    { header: "Email", accessor: (u) => u.email },
+    { header: "Phone", accessor: (u) => u.phone },
+    { header: "Role", accessor: (u) => u.role },
+    { header: "Verified", accessor: (u) => (u.verified ? "Yes" : "No") },
+    { header: "Suspended", accessor: (u) => (u.isSuspended ? "Yes" : "No") },
+    { header: "Joined", accessor: (u) => u.createdAt },
+  ];
 
   const handleSuspend = async (u: UserType) => {
     await fetch("/api/admin/users", {
@@ -154,19 +170,10 @@ export default function UsersPage() {
 
       {/* Stats */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { label: "Total Users", value: counts.total, color: "text-foreground" },
-          { label: "Organizers", value: counts.organizers, color: "text-purple-600" },
-          { label: "Customers", value: counts.customers, color: "text-gray-600" },
-          { label: "Suspended", value: counts.suspended, color: "text-red-600" },
-        ].map(s => (
-          <Card key={s.label} className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">{s.label}</p>
-              <p className={`text-2xl font-bold mt-1 ${s.color}`}>{s.value}</p>
-            </CardContent>
-          </Card>
-        ))}
+        <StatCard label="Total Users" value={counts.total} icon={Users} iconClassName="bg-primary/10 text-primary" />
+        <StatCard label="Organizers" value={counts.organizers} icon={Briefcase} iconClassName="bg-purple-50 text-purple-600" valueClassName="text-purple-600" />
+        <StatCard label="Customers" value={counts.customers} icon={User} iconClassName="bg-gray-100 text-gray-600" valueClassName="text-gray-600" />
+        <StatCard label="Suspended" value={counts.suspended} icon={UserX} iconClassName="bg-red-50 text-red-600" valueClassName="text-red-600" />
       </div>
 
       {/* Filters */}
@@ -187,6 +194,8 @@ export default function UsersPage() {
             <SelectItem value="suspended">Suspended</SelectItem>
           </SelectContent>
         </Select>
+        <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
+        <ExportMenu rows={filtered} columns={exportColumns} filename="users" title="Users" />
         <Button variant="ghost" size="icon" onClick={reload} title="Refresh">
           <RefreshCw className="h-4 w-4" />
         </Button>

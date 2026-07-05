@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/ui/stat-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +20,11 @@ import {
   DollarSign,
   TrendingUp,
   Users,
-  Download,
   RefreshCw,
 } from "lucide-react";
+import { ExportMenu } from "@/components/ui/export-menu";
+import { DateRangeFilter, inDateRange } from "@/components/ui/date-range-filter";
+import type { ExportColumn } from "@/lib/export-utils";
 
 interface SaleRow {
   id: string;
@@ -55,6 +58,8 @@ export default function OrganizerSalesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [sales, setSales] = useState<SaleRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     fetch("/api/organizer/sales")
@@ -67,9 +72,10 @@ export default function OrganizerSalesPage() {
 
   const filteredSales = sales.filter(
     (sale) =>
-      sale.buyerDisplayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sale.eventTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      sale.id.toLowerCase().includes(searchQuery.toLowerCase())
+      (sale.buyerDisplayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sale.eventTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sale.id.toLowerCase().includes(searchQuery.toLowerCase())) &&
+      inDateRange(sale.purchasedAt, dateFrom, dateTo)
   );
 
   const totalRevenue = sales.reduce((sum, t) => sum + t.totalPaid, 0);
@@ -84,18 +90,16 @@ export default function OrganizerSalesPage() {
     { title: "Gate Sales", value: gateSales, icon: Users },
   ];
 
-  const exportCSV = () => {
-    const rows = [
-      ["Ticket ID", "Event", "Buyer", "Type", "Amount", "Method", "Status", "Date"],
-      ...filteredSales.map((s) => [s.id, s.eventTitle, s.buyerDisplayName, s.ticketTypeName, s.totalPaid.toFixed(2), s.paymentMethod, s.paymentStatus, s.purchasedAt]),
-    ];
-    const csv = rows.map((r) => r.join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "sales.csv"; a.click();
-    URL.revokeObjectURL(url);
-  };
+  const exportColumns: ExportColumn<SaleRow>[] = [
+    { header: "Ticket ID", accessor: (s) => s.id },
+    { header: "Event", accessor: (s) => s.eventTitle },
+    { header: "Buyer", accessor: (s) => s.buyerDisplayName },
+    { header: "Type", accessor: (s) => s.ticketTypeName },
+    { header: "Amount", accessor: (s) => s.totalPaid.toFixed(2) },
+    { header: "Method", accessor: (s) => s.paymentMethod },
+    { header: "Status", accessor: (s) => s.paymentStatus },
+    { header: "Date", accessor: (s) => s.purchasedAt },
+  ];
 
   return (
     <div className="space-y-6">
@@ -106,27 +110,12 @@ export default function OrganizerSalesPage() {
             Track all ticket sales across your events
           </p>
         </div>
-        <Button variant="outline" className="gap-2" onClick={exportCSV}>
-          <Download className="h-4 w-4" />
-          Export CSV
-        </Button>
+        <ExportMenu rows={filteredSales} columns={exportColumns} filename="sales" title="Ticket Sales" />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
-          <Card key={stat.title}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">{stat.title}</p>
-                  <p className="mt-1 text-2xl font-bold">{stat.value}</p>
-                </div>
-                <div className="rounded-lg bg-secondary p-3">
-                  <stat.icon className="h-5 w-5 text-primary" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard key={stat.title} label={stat.title} value={stat.value} icon={stat.icon} />
         ))}
       </div>
 
@@ -135,14 +124,17 @@ export default function OrganizerSalesPage() {
           <CardTitle>Sales History</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search by buyer, event, or ticket ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Search by buyer, event, or ticket ID..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
           </div>
 
           <div className="rounded-md border">
