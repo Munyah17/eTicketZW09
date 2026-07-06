@@ -26,6 +26,7 @@ import {
   Megaphone,
   Bell,
   ChevronsUpDown,
+  Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -57,6 +58,7 @@ const superAdminLinks = [
   { href: "/admin/platform", label: "Platform Config", icon: Settings2, group: "Super Admin" },
   { href: "/admin/support", label: "Support & Ops", icon: HeadphonesIcon, group: "Super Admin" },
   { href: "/admin/audit", label: "Audit Log", icon: Shield, group: "Super Admin" },
+  { href: "/admin/ai-insights", label: "AI Data Analytics", icon: Sparkles, group: "Super Admin" },
 ];
 
 const adminLinks = [
