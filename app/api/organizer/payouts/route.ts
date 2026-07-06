@@ -1,7 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { MINIMUM_PAYOUT, PAYOUT_TRANSACTION_COST_PERCENTAGE } from "@/lib/types";
 import { calculatePayoutTransactionCost } from "@/lib/pricing";
+
+// The admin-configurable floor (Platform Configuration > Payouts) overrides
+// the MINIMUM_PAYOUT constant when set; the constant remains the fallback.
+async function getMinPayout(): Promise<number> {
+  const { data } = await createAdminClient()
+    .from("platform_config")
+    .select("min_payout_amount")
+    .eq("id", 1)
+    .single();
+  const min = Number(data?.min_payout_amount);
+  return Number.isFinite(min) && min >= 0 ? min : MINIMUM_PAYOUT;
+}
 
 // Available balance = total ticket revenue across the organizer's own events,
 // minus every payout request that isn't declined (pending/processing count
@@ -38,9 +51,10 @@ export async function GET() {
   const { data: organizer } = await supabase.from("organizers").select("id, name").eq("user_id", user.id).single();
   if (!organizer) return NextResponse.json({ error: "No organizer profile found for this account" }, { status: 404 });
 
-  const [availableBalance, { data: payouts }] = await Promise.all([
+  const [availableBalance, { data: payouts }, minPayout] = await Promise.all([
     computeBalance(supabase, user.id, organizer.id),
     supabase.from("payout_requests").select("*").eq("organizer_id", organizer.id).order("requested_at", { ascending: false }),
+    getMinPayout(),
   ]);
 
   return NextResponse.json({
@@ -48,6 +62,7 @@ export async function GET() {
     organizerName: organizer.name,
     availableBalance,
     payouts: payouts ?? [],
+    minPayout,
   });
 }
 
@@ -63,8 +78,9 @@ export async function POST(req: NextRequest) {
   const amount = Number(body.amount);
   const { paymentMethod, paymentDetails } = body;
 
-  if (!amount || amount < MINIMUM_PAYOUT) {
-    return NextResponse.json({ error: `Minimum payout is $${MINIMUM_PAYOUT}` }, { status: 400 });
+  const minPayout = await getMinPayout();
+  if (!amount || amount < minPayout) {
+    return NextResponse.json({ error: `Minimum payout is $${minPayout}` }, { status: 400 });
   }
   if (!paymentMethod || !paymentDetails) {
     return NextResponse.json({ error: "Payment method and details are required" }, { status: 400 });

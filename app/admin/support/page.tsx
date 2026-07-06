@@ -172,7 +172,7 @@ export default function SupportPage() {
         <p className="text-muted-foreground mt-1">User lookup, manual overrides, and support ticket management.</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <StatCard label="Open Tickets" value={openCount} icon={HeadphonesIcon} iconClassName="bg-blue-50 text-blue-600" valueClassName="text-blue-600" />
         <StatCard label="High Priority" value={highCount} icon={HeadphonesIcon} iconClassName="bg-red-50 text-red-600" valueClassName="text-red-600" />
         <StatCard label="Resolved" value={resolvedCount} icon={HeadphonesIcon} iconClassName="bg-emerald-50 text-emerald-600" valueClassName="text-emerald-600" />

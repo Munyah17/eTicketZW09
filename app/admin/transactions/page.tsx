@@ -118,7 +118,7 @@ export default function TransactionsPage() {
         <ExportMenu rows={exportableTxs} columns={exportColumns} filename="transactions" title="Transactions (current page)" />
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Net Revenue" value={`$${stats.revenue.toFixed(2)}`} icon={DollarSign} iconClassName="bg-emerald-50 text-emerald-600" valueClassName="text-emerald-600" />
         <StatCard label="Platform Fees (10%)" value={`$${platformFees.toFixed(2)}`} icon={TrendingUp} iconClassName="bg-blue-50 text-blue-600" valueClassName="text-blue-600" />
         <StatCard label="Total Tickets" value={stats.total} icon={RotateCcw} iconClassName="bg-orange-50 text-orange-600" valueClassName="text-orange-600" />

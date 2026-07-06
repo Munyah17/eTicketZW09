@@ -7,7 +7,7 @@ const COLS = [
   "id", "title", "date", "time", "end_date", "end_time",
   "venue", "city", "image", "category", "status",
   "organizer_id", "organizer_name", "organizer_category",
-  "sold_tickets", "total_tickets", "platform_markup",
+  "sold_tickets", "total_tickets", "platform_markup", "sold_out_at",
   "platform_negotiated", "promo_video", "created_at", "updated_at",
   "ticket_types(id,name,price,currency,quantity,sold,markup)",
 ].join(",");
@@ -43,6 +43,7 @@ function toEvent(r: Record<string, unknown>): Event {
     totalTickets: Number(r.total_tickets) || 0,
     soldTickets: Number(r.sold_tickets) || 0,
     status: r.status as Event["status"],
+    soldOutAt: r.sold_out_at as string | undefined,
     platformMarkup: Number(r.platform_markup) || 0,
     platformNegotiated: r.platform_negotiated as Event["platformNegotiated"],
     promoVideo: r.promo_video as Event["promoVideo"],
@@ -51,9 +52,15 @@ function toEvent(r: Record<string, unknown>): Event {
   };
 }
 
+const SIX_WEEKS_MS = 42 * 24 * 60 * 60 * 1000;
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
 export async function GET() {
   const supabase = await createClient();
-  const today = new Date().toISOString().split("T")[0];
+  const now = Date.now();
+  const today = new Date(now).toISOString().split("T")[0];
+  const comingSoonFrom = new Date(now + SIX_WEEKS_MS).toISOString().split("T")[0];
+  const soldOutCutoff = new Date(now - SEVEN_DAYS_MS).toISOString();
 
   // Two parallel queries cover every section:
   // 1. "featured" — top sellers, may include older events, needs its own sort
@@ -80,11 +87,31 @@ export async function GET() {
 
   const featured = (featuredRows ?? []) as unknown as Record<string, unknown>[];
 
+  // Best Selling: ranked by sell-through rate, not raw volume, so fast-moving
+  // events surface even if smaller than Featured's top sellers. A sold-out
+  // event stays in this row (with a Sold Out ribbon) for 7 days post-sellout.
+  const bestSelling = recent
+    .filter((e) => {
+      const total = Number(e.total_tickets) || 0;
+      if (total <= 0) return false;
+      const onSale = (e.date as string) >= today;
+      const soldOut = e.sold_out_at as string | null;
+      const recentlySoldOut = !!soldOut && soldOut >= soldOutCutoff;
+      return onSale || recentlySoldOut;
+    })
+    .sort((a, b) => {
+      const pctA = (Number(a.sold_tickets) || 0) / (Number(a.total_tickets) || 1);
+      const pctB = (Number(b.sold_tickets) || 0) / (Number(b.total_tickets) || 1);
+      return pctB - pctA || (Number(b.sold_tickets) || 0) - (Number(a.sold_tickets) || 0);
+    })
+    .slice(0, 12)
+    .map(toEvent);
+
   return NextResponse.json({
     featured: featured.map(toEvent),
-    newest: recent.slice(0, 12).map(toEvent),
-    upcoming: recent
-      .filter((e) => (e.date as string) >= today)
+    bestSelling,
+    comingSoon: recent
+      .filter((e) => (e.date as string) >= comingSoonFrom)
       .sort((a, b) => (a.date as string).localeCompare(b.date as string))
       .slice(0, 20)
       .map(toEvent),

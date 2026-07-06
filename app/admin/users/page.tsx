@@ -169,7 +169,7 @@ export default function UsersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Users" value={counts.total} icon={Users} iconClassName="bg-primary/10 text-primary" />
         <StatCard label="Organizers" value={counts.organizers} icon={Briefcase} iconClassName="bg-purple-50 text-purple-600" valueClassName="text-purple-600" />
         <StatCard label="Customers" value={counts.customers} icon={User} iconClassName="bg-gray-100 text-gray-600" valueClassName="text-gray-600" />

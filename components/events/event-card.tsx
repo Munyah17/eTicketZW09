@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Calendar, MapPin, Ticket } from "lucide-react";
+import { Calendar, MapPin, Ticket, Flame } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -11,9 +11,10 @@ import { Event, EVENT_CATEGORIES } from "@/lib/types";
 interface EventCardProps {
   event: Event;
   variant?: "default" | "compact";
+  fastSelling?: boolean;
 }
 
-export function EventCard({ event, variant = "default" }: EventCardProps) {
+export function EventCard({ event, variant = "default", fastSelling = false }: EventCardProps) {
   const lowestPrice = event.ticketTypes.length > 0 ? Math.min(...event.ticketTypes.map((t) => t.price)) : 0;
   const availableTickets = event.totalTickets - event.soldTickets;
   const categoryLabel = EVENT_CATEGORIES.find((c) => c.value === event.category)?.label || event.category;
@@ -96,6 +97,12 @@ export function EventCard({ event, variant = "default" }: EventCardProps) {
             <Badge className="absolute right-3 top-3 bg-destructive text-destructive-foreground">
               Sold Out
             </Badge>
+          )}
+          {fastSelling && availableTickets > 0 && (
+            <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2 py-1 text-white shadow-md">
+              <Flame className="h-3.5 w-3.5" />
+              <span className="text-[10px] font-bold uppercase tracking-wide">Selling Fast</span>
+            </div>
           )}
         </div>
 

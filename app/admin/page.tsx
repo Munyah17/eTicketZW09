@@ -164,14 +164,14 @@ export default function AdminDashboard() {
       </div>
 
       {/* KPI Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {kpis.map((kpi) => (
           <StatCard key={kpi.title} label={kpi.title} value={kpi.value} sub={kpi.sub} icon={kpi.icon} iconClassName={kpi.light} />
         ))}
       </div>
 
       {/* Content grid */}
-      <div className="grid gap-6 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
         {/* Recent Events */}
         <Card className="lg:col-span-3 border-0 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-4 border-b">

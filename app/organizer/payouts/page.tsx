@@ -63,6 +63,7 @@ function mapPayout(r: Record<string, unknown>): PayoutRequest {
 export default function OrganizerPayoutsPage() {
   const [organizerPayouts, setOrganizerPayouts] = useState<PayoutRequest[]>([]);
   const [availableBalance, setAvailableBalance] = useState(0);
+  const [minPayout, setMinPayout] = useState(MINIMUM_PAYOUT);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -81,6 +82,7 @@ export default function OrganizerPayoutsPage() {
       if (res.ok) {
         setOrganizerPayouts(((json.payouts ?? []) as Record<string, unknown>[]).map(mapPayout));
         setAvailableBalance(json.availableBalance ?? 0);
+        if (typeof json.minPayout === "number") setMinPayout(json.minPayout);
       }
     } finally {
       setLoading(false);
@@ -105,8 +107,8 @@ export default function OrganizerPayoutsPage() {
   const handleRequestPayout = async () => {
     setRequestError("");
     const amount = parseFloat(formData.amount);
-    if (isNaN(amount) || amount < MINIMUM_PAYOUT) {
-      setRequestError(`Minimum payout is $${MINIMUM_PAYOUT}`);
+    if (isNaN(amount) || amount < minPayout) {
+      setRequestError(`Minimum payout is $${minPayout}`);
       return;
     }
 
@@ -175,7 +177,7 @@ export default function OrganizerPayoutsPage() {
       </div>
 
       {/* Balance Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard label="Available Balance" value={`$${availableBalance.toLocaleString()}`} icon={Wallet} iconClassName="bg-green-100 text-green-700" />
         <StatCard label="Pending Payouts" value={`$${pendingPayouts.toLocaleString()}`} icon={Clock} iconClassName="bg-amber-100 text-amber-700" />
         <StatCard
@@ -194,7 +196,7 @@ export default function OrganizerPayoutsPage() {
             <div>
               <p className="font-medium">Payout Information</p>
               <ul className="text-sm text-muted-foreground mt-2 space-y-1">
-                <li>Minimum withdrawal amount: ${MINIMUM_PAYOUT}</li>
+                <li>Minimum withdrawal amount: ${minPayout}</li>
                 <li>Transaction cost: {PAYOUT_TRANSACTION_COST_PERCENTAGE}% per withdrawal</li>
                 <li>Processing time: 1-3 business days</li>
                 <li>All payouts are manually reviewed for security</li>
@@ -274,7 +276,7 @@ export default function OrganizerPayoutsPage() {
             <DialogTitle>Request Payout</DialogTitle>
             <DialogDescription>
               Request a withdrawal from your available balance. Minimum amount is $
-              {MINIMUM_PAYOUT}.
+              {minPayout}.
             </DialogDescription>
           </DialogHeader>
 
@@ -289,13 +291,13 @@ export default function OrganizerPayoutsPage() {
               <Input
                 id="amount"
                 type="number"
-                min={MINIMUM_PAYOUT}
+                min={minPayout}
                 max={availableBalance}
                 value={formData.amount}
                 onChange={(e) =>
                   setFormData((prev) => ({ ...prev, amount: e.target.value }))
                 }
-                placeholder={`Min $${MINIMUM_PAYOUT}`}
+                placeholder={`Min $${minPayout}`}
               />
             </div>
 

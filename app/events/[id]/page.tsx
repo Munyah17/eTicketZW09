@@ -1,4 +1,6 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
@@ -45,14 +47,8 @@ function toEvent(r: Record<string, unknown>): Event {
   };
 }
 
-export default async function EventDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+const getEvent = cache(async (id: string) => {
   const supabase = createAdminClient();
-
   const { data, error } = await supabase
     .from("events")
     .select("*, ticket_types(*)")
@@ -60,11 +56,53 @@ export default async function EventDetailPage({
     .eq("status", "published")
     .single();
 
-  if (error || !data) {
+  if (error || !data) return null;
+  return toEvent(data as Record<string, unknown>);
+});
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const event = await getEvent(id);
+  if (!event) return {};
+
+  const formattedDate = new Date(event.date).toLocaleDateString("en-ZW", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+  const description = `${formattedDate} at ${event.venue}, ${event.city}. Book your tickets on E-TicketsZW.`;
+
+  return {
+    title: event.title,
+    description,
+    openGraph: {
+      title: event.title,
+      description,
+      type: "website",
+      ...(event.image ? { images: [{ url: event.image, width: 1200, height: 630, alt: event.title }] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: event.title,
+      description,
+      ...(event.image ? { images: [event.image] } : {}),
+    },
+  };
+}
+
+export default async function EventDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const event = await getEvent(id);
+
+  if (!event) {
     notFound();
   }
-
-  const event = toEvent(data as Record<string, unknown>);
 
   return (
     <div className="flex min-h-screen flex-col">

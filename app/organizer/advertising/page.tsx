@@ -23,16 +23,31 @@ import {
   Image as ImageIcon,
   Eye,
   TrendingUp,
+  BarChart3,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getOrganizerEvents } from "@/lib/events-store";
 import { Event, HERO_BANNER_PRICE_PER_DAY, SECTION_BANNER_PRICE_PER_DAY } from "@/lib/types";
+import { formatCompactNumber } from "@/lib/utils";
 
 type BannerType = "hero" | "section";
+
+interface MyBanner {
+  id: string;
+  type: BannerType;
+  position: number;
+  title?: string;
+  status: "active" | "available" | "pending" | "expired";
+  startDate?: string;
+  endDate?: string;
+  pricePerDay: number;
+  impressions: number;
+}
 
 export default function OrganizerAdvertisingPage() {
   const { user } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
+  const [myBanners, setMyBanners] = useState<MyBanner[]>([]);
   const [selectedEvent, setSelectedEvent] = useState("");
   const [bannerType, setBannerType] = useState<BannerType>("hero");
   const [startDate, setStartDate] = useState("");
@@ -41,8 +56,29 @@ export default function OrganizerAdvertisingPage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState("");
 
+  const loadMyBanners = () => {
+    fetch("/api/organizer/advertising")
+      .then((res) => res.json())
+      .then((data) => {
+        const rows = (data.myBanners ?? []) as Record<string, unknown>[];
+        setMyBanners(rows.map((r) => ({
+          id: r.id as string,
+          type: r.type as BannerType,
+          position: r.position as number,
+          title: (r.title as string) || undefined,
+          status: r.status as MyBanner["status"],
+          startDate: (r.start_date as string) || undefined,
+          endDate: (r.end_date as string) || undefined,
+          pricePerDay: Number(r.price_per_day),
+          impressions: Number(r.impressions) || 0,
+        })));
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     if (user) getOrganizerEvents(user.id).then(setEvents);
+    loadMyBanners();
   }, [user]);
 
   const calculateDays = () => {
@@ -78,6 +114,7 @@ export default function OrganizerAdvertisingPage() {
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Failed to book banner"); return; }
       setIsSuccess(true);
+      loadMyBanners();
     } finally {
       setIsSubmitting(false);
     }
@@ -135,7 +172,7 @@ export default function OrganizerAdvertisingPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-4 p-4">
             <div className="rounded-lg bg-primary/10 p-3">
@@ -171,7 +208,50 @@ export default function OrganizerAdvertisingPage() {
         </Card>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      {myBanners.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <BarChart3 className="h-5 w-5" />
+              My Banner Campaigns
+            </CardTitle>
+            <CardDescription>Views are counted each time your banner is actually shown on the homepage</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {myBanners.map((b) => {
+              const statusCfg = {
+                active: { cls: "bg-emerald-100 text-emerald-700 border-emerald-200", label: "Active" },
+                pending: { cls: "bg-blue-100 text-blue-700 border-blue-200", label: "Pending Review" },
+                available: { cls: "bg-gray-100 text-gray-700 border-gray-200", label: "Available" },
+                expired: { cls: "bg-gray-100 text-gray-700 border-gray-200", label: "Expired" },
+              }[b.status];
+              return (
+                <div key={b.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium truncate">{b.title || `${b.type === "hero" ? "Hero Slide" : "Section Banner"} #${b.position}`}</p>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full border font-medium shrink-0 ${statusCfg.cls}`}>
+                        {statusCfg.label}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {b.type === "hero" ? "Hero Slider" : "Section Banner"}
+                      {b.startDate && b.endDate ? ` · ${b.startDate} to ${b.endDate}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-muted-foreground shrink-0">
+                    <Eye className="h-4 w-4" />
+                    <span className="font-mono font-semibold text-foreground">{formatCompactNumber(b.impressions)}</span>
+                    <span className="text-xs">views</span>
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <CardHeader>
@@ -216,7 +296,7 @@ export default function OrganizerAdvertisingPage() {
               <RadioGroup
                 value={bannerType}
                 onValueChange={(value) => setBannerType(value as BannerType)}
-                className="grid gap-4 sm:grid-cols-2"
+                className="grid grid-cols-1 gap-4 sm:grid-cols-2"
               >
                 <Label
                   htmlFor="hero"
@@ -271,7 +351,7 @@ export default function OrganizerAdvertisingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                   <Label htmlFor="startDate">Start Date</Label>
                   <Input

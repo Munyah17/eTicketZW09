@@ -14,15 +14,26 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("banners")
-    .select("id, type, position, price_per_day, status")
-    .eq("status", "available")
-    .order("type", { ascending: true })
-    .order("position", { ascending: true });
+  const { data: organizer } = await supabase.from("organizers").select("id").eq("user_id", user.id).single();
+
+  const [{ data: availableSlots, error }, myBannersResult] = await Promise.all([
+    admin
+      .from("banners")
+      .select("id, type, position, price_per_day, status")
+      .eq("status", "available")
+      .order("type", { ascending: true })
+      .order("position", { ascending: true }),
+    organizer
+      ? admin
+          .from("banners")
+          .select("id, type, position, title, link, image, status, start_date, end_date, price_per_day, impressions")
+          .eq("organizer_id", organizer.id)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: [] as unknown[] }),
+  ]);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ availableSlots: data ?? [] });
+  return NextResponse.json({ availableSlots: availableSlots ?? [], myBanners: myBannersResult.data ?? [] });
 }
 
 export async function POST(req: NextRequest) {

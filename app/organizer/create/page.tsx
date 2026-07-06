@@ -136,6 +136,10 @@ export default function CreateEventPage() {
     setIsSubmitting(true);
     try {
       const now = new Date().toISOString();
+      const autoApprove = await fetch("/api/platform-config")
+        .then((res) => res.json())
+        .then((data) => data.config?.auto_approve_events !== false)
+        .catch(() => true);
       const newEvent: Event = {
         id: "", // will be assigned by DB
         title,
@@ -162,13 +166,13 @@ export default function CreateEventPage() {
         })),
         totalTickets: ticketTypes.reduce((sum, t) => sum + parseInt(t.quantity || "0"), 0),
         soldTickets: 0,
-        status: "published",
+        status: autoApprove ? "published" : "pending_review",
         createdAt: now,
         updatedAt: now,
       };
 
       await saveEvent(newEvent);
-      router.push("/organizer?created=true");
+      router.push(autoApprove ? "/organizer?created=true" : "/organizer?pendingReview=true");
     } catch (err) {
       console.error("Create event failed:", err);
       alert("Failed to create event. Please try again.");
@@ -270,7 +274,7 @@ export default function CreateEventPage() {
               </Select>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="date">Date *</Label>
                 <Input
@@ -293,7 +297,7 @@ export default function CreateEventPage() {
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label htmlFor="venue">Venue *</Label>
                 <Input
@@ -333,7 +337,7 @@ export default function CreateEventPage() {
               </p>
 
               {!promoVideoType ? (
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <Card
                     className="cursor-pointer hover:border-primary transition-colors"
                     onClick={() => setPromoVideoType("video")}
@@ -514,7 +518,7 @@ export default function CreateEventPage() {
                     )}
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <Label>Name *</Label>
                       <Input
@@ -539,7 +543,7 @@ export default function CreateEventPage() {
                     </div>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
                       <Label>Price (USD) *</Label>
                       <div className="relative mt-1.5">

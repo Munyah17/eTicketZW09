@@ -24,7 +24,6 @@ import {
   Shield,
   ShieldAlert,
   Megaphone,
-  User,
   Bell,
   ChevronsUpDown,
 } from "lucide-react";
@@ -193,12 +192,6 @@ export default function AdminLayout({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" side="top" className="w-56">
         <DropdownMenuItem asChild>
-          <Link href="/profile" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Profile
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
           <Link href="/notifications" className="flex items-center gap-2">
             <Bell className="h-4 w-4" />
             Notifications
@@ -306,7 +299,7 @@ export default function AdminLayout({
       </div>
 
       {/* Main content area */}
-      <main className="flex-1 lg:pl-64 pt-14 lg:pt-0 bg-slate-50 dark:bg-background min-h-screen">
+      <main className="flex-1 lg:pl-64 pt-14 lg:pt-0 bg-slate-50 dark:bg-background min-h-screen overflow-x-hidden">
         {/* Top bar */}
         <div className="hidden lg:flex h-14 items-center justify-between px-8 bg-white dark:bg-card border-b sticky top-0 z-30">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

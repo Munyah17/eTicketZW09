@@ -187,7 +187,7 @@ export default function BannerManagementPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Active Banners" value={activeCount} icon={CheckCircle2} iconClassName="bg-emerald-50 text-emerald-600" />
         <StatCard label="Open Slots" value={availableCount} icon={Layers} iconClassName="bg-amber-50 text-amber-600" />
         <StatCard label="Daily Revenue" value={`$${totalDailyRevenue}`} icon={DollarSign} iconClassName="bg-violet-50 text-violet-600" />
@@ -212,7 +212,7 @@ export default function BannerManagementPage() {
               <Badge variant="outline" className="text-xs">{heroBanners.filter(b => b.status === "active").length}/{heroBanners.length} active</Badge>
             </CardHeader>
             <CardContent className="pt-5">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {heroBanners.map(b => <BannerCard key={b.id} banner={b} />)}
               </div>
             </CardContent>
@@ -230,7 +230,7 @@ export default function BannerManagementPage() {
               <Badge variant="outline" className="text-xs">{sectionBanners.filter(b => b.status === "active").length}/{sectionBanners.length} active</Badge>
             </CardHeader>
             <CardContent className="pt-5">
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {sectionBanners.map(b => <BannerCard key={b.id} banner={b} />)}
               </div>
             </CardContent>

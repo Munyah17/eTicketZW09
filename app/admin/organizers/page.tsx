@@ -100,7 +100,7 @@ export default function AdminOrganizersPage() {
         </Button>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Total Organizers" value={organizers.length} icon={Users} iconClassName="bg-blue-50 text-blue-600" />
         <StatCard label="Verified" value={organizers.filter(o => o.verified).length} icon={CheckCircle2} iconClassName="bg-emerald-50 text-emerald-600" />
         <StatCard label="Pending Verify" value={organizers.filter(o => !o.verified).length} icon={XCircle} iconClassName="bg-amber-50 text-amber-600" />

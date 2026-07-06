@@ -82,6 +82,8 @@ export default function OrganizerEventsPage() {
         return <Badge variant="default" className="bg-success text-success-foreground">Published</Badge>;
       case "draft":
         return <Badge variant="secondary">Draft</Badge>;
+      case "pending_review":
+        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Pending Review</Badge>;
       case "cancelled":
         return <Badge variant="destructive">Cancelled</Badge>;
       case "completed":
@@ -132,7 +134,7 @@ export default function OrganizerEventsPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <StatCard key={stat.title} label={stat.title} value={stat.value} icon={stat.icon} />
         ))}

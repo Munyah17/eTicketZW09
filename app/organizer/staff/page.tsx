@@ -172,7 +172,7 @@ export default function StaffManagementPage() {
       ) : staff.length === 0 ? (
         <Card><CardContent className="py-16 text-center text-muted-foreground">No staff members yet. Add your first gate manager or ticket seller.</CardContent></Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {staff.map((member) => (
             <Card key={member.id} className={!member.isActive ? "opacity-60" : ""}>
               <CardContent className="pt-6">

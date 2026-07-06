@@ -72,7 +72,7 @@ export default function OrganizerAnalyticsPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <StatCard key={stat.title} label={stat.title} value={stat.value} icon={stat.icon} />
         ))}
@@ -111,7 +111,7 @@ export default function OrganizerAnalyticsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Sales by Category</CardTitle>

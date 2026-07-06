@@ -14,6 +14,7 @@ interface EventCarouselRowProps {
   viewAllLabel?: string;
   events: Event[];
   cardVariant?: "default" | "compact";
+  fastSellingBadge?: boolean;
 }
 
 const GAP = 16;
@@ -33,6 +34,7 @@ export function EventCarouselRow({
   viewAllLabel = "View All",
   events,
   cardVariant = "default",
+  fastSellingBadge = false,
 }: EventCarouselRowProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
@@ -156,7 +158,7 @@ export function EventCarouselRow({
               className="w-full shrink-0 grow-0 sm:w-1/3 lg:w-1/5"
               style={viewportWidth > 0 ? { width: cardWidth, flexBasis: cardWidth } : undefined}
             >
-              <EventCard event={event} variant={cardVariant} />
+              <EventCard event={event} variant={cardVariant} fastSelling={fastSellingBadge} />
             </div>
           ))}
         </div>

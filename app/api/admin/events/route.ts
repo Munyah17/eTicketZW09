@@ -92,22 +92,34 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  let body: { eventId?: string; platformMarkup?: number | null };
+  let body: { eventId?: string; platformMarkup?: number | null; status?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { eventId, platformMarkup } = body;
+  const { eventId, platformMarkup, status } = body;
   if (!eventId) {
     return NextResponse.json({ error: "Missing eventId" }, { status: 400 });
+  }
+
+  const updates: Record<string, unknown> = {};
+  if (platformMarkup !== undefined) updates.platform_markup = platformMarkup ?? 0;
+  if (status !== undefined) {
+    if (status !== "published" && status !== "cancelled") {
+      return NextResponse.json({ error: "status must be 'published' or 'cancelled'" }, { status: 400 });
+    }
+    updates.status = status;
+  }
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "No valid fields to update" }, { status: 400 });
   }
 
   const supabase = createAdminClient();
   const { error } = await supabase
     .from("events")
-    .update({ platform_markup: platformMarkup ?? 0 })
+    .update(updates)
     .eq("id", eventId);
 
   if (error) {

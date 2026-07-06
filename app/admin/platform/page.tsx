@@ -14,7 +14,7 @@ import {
 import {
   Settings2, Percent, Zap, CreditCard, Megaphone, ShieldCheck,
   Save, RotateCcw, CheckCircle2, AlertTriangle, XCircle, RefreshCw,
-  Upload, X, DollarSign,
+  Upload, X, DollarSign, Building2, Wallet,
 } from "lucide-react";
 import { ANNOUNCEMENT_AD_PRICE_PER_2_WEEKS } from "@/lib/types";
 
@@ -31,6 +31,11 @@ interface PlatformConfig {
   announcement_type: "info" | "warning" | "error" | "ad";
   announcement_image?: string | null;
   announcement_link?: string | null;
+  site_name: string;
+  support_email: string;
+  support_phone: string;
+  auto_approve_events: boolean;
+  min_payout_amount: number;
 }
 
 export default function PlatformPage() {
@@ -90,6 +95,11 @@ export default function PlatformPage() {
           announcement_message: config.announcement_message,
           announcement_type: config.announcement_type,
           announcement_link: config.announcement_link ?? "",
+          site_name: config.site_name,
+          support_email: config.support_email,
+          support_phone: config.support_phone,
+          auto_approve_events: config.auto_approve_events,
+          min_payout_amount: config.min_payout_amount,
         }),
       });
       const json = await res.json();
@@ -171,7 +181,7 @@ export default function PlatformPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="border-0 shadow-sm">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center gap-2">
@@ -225,6 +235,7 @@ export default function PlatformPage() {
               { key: "online_payments" as const, label: "Online Payments", desc: "Master switch for all payment processing" },
               { key: "stripe_enabled" as const, label: "Stripe Gateway", desc: "Card payments via Stripe" },
               { key: "paynow_enabled" as const, label: "Paynow Gateway", desc: "Zimbabwe payments via Paynow" },
+              { key: "auto_approve_events" as const, label: "Auto-Approve Events", desc: "New events go live immediately; disable to hold them for admin review first" },
             ] as const).map(f => (
               <div key={f.key} className="flex items-center justify-between py-3 gap-4">
                 <div className="flex-1 min-w-0">
@@ -417,6 +428,61 @@ export default function PlatformPage() {
           </CardContent>
         </Card>
 
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3 border-b">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-50">
+                <Building2 className="h-4 w-4 text-cyan-600" />
+              </div>
+              <CardTitle className="text-base">General & Contact</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">Shown on the Contact page and used as the platform's public identity.</p>
+            <div className="space-y-1.5">
+              <Label htmlFor="site-name">Site Name</Label>
+              <Input id="site-name" value={config.site_name} onChange={e => setFeature("site_name", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="support-email">Support Email</Label>
+              <Input id="support-email" type="email" value={config.support_email} onChange={e => setFeature("support_email", e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="support-phone">Support Phone</Label>
+              <Input id="support-phone" value={config.support_phone} onChange={e => setFeature("support_phone", e.target.value)} />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3 border-b">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50">
+                <Wallet className="h-4 w-4 text-indigo-600" />
+              </div>
+              <CardTitle className="text-base">Payouts</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">Enforced server-side on every organizer payout request, not just this form.</p>
+            <div className="space-y-1.5">
+              <Label htmlFor="min-payout">Minimum Payout Amount</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                <Input
+                  id="min-payout"
+                  type="number"
+                  min="0"
+                  step="1"
+                  className="pl-6"
+                  value={config.min_payout_amount}
+                  onChange={e => setFeature("min_payout_amount", parseFloat(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card className="border-0 shadow-sm lg:col-span-2">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center gap-2">
@@ -427,7 +493,7 @@ export default function PlatformPage() {
             </div>
           </CardHeader>
           <CardContent className="pt-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 { label: "API Keys", value: "Env-managed", ok: true, note: "Stored in Vercel env vars" },
                 { label: "Webhook Signing", value: "Stripe only", ok: true, note: "STRIPE_WEBHOOK_SECRET must be set" },

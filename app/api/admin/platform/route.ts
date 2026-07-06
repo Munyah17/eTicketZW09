@@ -15,6 +15,11 @@ const ALLOWED_FIELDS = new Set([
   "announcement_message",
   "announcement_type",
   "announcement_link",
+  "site_name",
+  "support_email",
+  "support_phone",
+  "auto_approve_events",
+  "min_payout_amount",
 ]);
 
 export async function PATCH(req: NextRequest) {
@@ -32,6 +37,10 @@ export async function PATCH(req: NextRequest) {
   if ("service_fee_percent" in updates) {
     const fee = Number(updates.service_fee_percent);
     updates.service_fee_percent = isNaN(fee) ? 10 : Math.min(Math.max(fee, 0), 50);
+  }
+  if ("min_payout_amount" in updates) {
+    const min = Number(updates.min_payout_amount);
+    updates.min_payout_amount = isNaN(min) ? 10 : Math.max(min, 0);
   }
 
   const supabase = createAdminClient();

@@ -97,7 +97,7 @@ export default function OrganizerDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <StatCard key={stat.title} label={stat.title} value={stat.value} sub={stat.sub} icon={stat.icon} iconClassName={stat.iconClassName} />
         ))}
@@ -201,7 +201,7 @@ export default function OrganizerDashboard() {
       </Card>
 
       {/* Quick Actions */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="cursor-pointer transition-all hover:shadow-md">
           <Link href="/organizer/create">
             <CardContent className="flex items-center gap-4 p-6">

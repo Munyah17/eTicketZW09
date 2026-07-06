@@ -30,14 +30,14 @@ export function FeaturedSection({ events, title = "Featured Events" }: { events:
   );
 }
 
-export function NewestEventsSection({ events }: { events: Event[] }) {
+export function BestSellingSection({ events }: { events: Event[] }) {
   return (
     <EventCarouselRow
-      title="Newest Events"
-      subtitle="The latest events added to the platform"
-      viewAllHref="/events?sort=newest"
-      viewAllLabel="View Latest"
+      title="Best Selling Events"
+      subtitle="Fast-selling events you don't want to miss"
+      viewAllHref="/events"
       events={events}
+      fastSellingBadge
     />
   );
 }

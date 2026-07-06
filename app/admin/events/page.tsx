@@ -20,7 +20,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Search, Tag, Percent, RefreshCw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Search, Tag, Percent, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
 import type { Event } from "@/lib/types";
 
 export default function AdminEventsPage() {
@@ -81,6 +82,32 @@ export default function AdminEventsPage() {
     fetchEvents();
   };
 
+  const handleModerate = async (eventId: string, status: "published" | "cancelled") => {
+    await fetch("/api/admin/events", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventId, status }),
+    });
+    fetchEvents();
+  };
+
+  const statusBadge = (status: Event["status"]) => {
+    switch (status) {
+      case "published":
+        return <Badge className="bg-success text-success-foreground">Published</Badge>;
+      case "pending_review":
+        return <Badge className="bg-amber-100 text-amber-800 border-amber-200">Pending Review</Badge>;
+      case "draft":
+        return <Badge variant="secondary">Draft</Badge>;
+      case "cancelled":
+        return <Badge variant="destructive">Cancelled</Badge>;
+      case "completed":
+        return <Badge variant="outline">Completed</Badge>;
+      default:
+        return <Badge variant="secondary">{status}</Badge>;
+    }
+  };
+
   return (
     <div className="space-y-8">
       <div>
@@ -124,6 +151,7 @@ export default function AdminEventsPage() {
                   <TableHead>Event</TableHead>
                   <TableHead>Organizer</TableHead>
                   <TableHead>Category</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead>Tickets Sold</TableHead>
                   <TableHead>Platform Markup</TableHead>
@@ -133,7 +161,7 @@ export default function AdminEventsPage() {
               <TableBody>
                 {events.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       No events found
                     </TableCell>
                   </TableRow>
@@ -143,6 +171,7 @@ export default function AdminEventsPage() {
                       <TableCell className="font-medium">{event.title}</TableCell>
                       <TableCell>{event.organizerName}</TableCell>
                       <TableCell className="capitalize">{event.category}</TableCell>
+                      <TableCell>{statusBadge(event.status)}</TableCell>
                       <TableCell>{new Date(event.date).toLocaleDateString()}</TableCell>
                       <TableCell>{event.soldTickets} / {event.totalTickets}</TableCell>
                       <TableCell>
@@ -157,6 +186,27 @@ export default function AdminEventsPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-2">
+                          {event.status === "pending_review" && (
+                            <>
+                              <Button
+                                size="sm"
+                                className="gap-1.5 bg-success text-success-foreground hover:bg-success/90"
+                                onClick={() => handleModerate(event.id, "published")}
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                className="gap-1.5"
+                                onClick={() => handleModerate(event.id, "cancelled")}
+                              >
+                                <XCircle className="h-3.5 w-3.5" />
+                                Reject
+                              </Button>
+                            </>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"

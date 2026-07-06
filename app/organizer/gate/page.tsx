@@ -222,13 +222,13 @@ export default function GateManagementPage() {
 
       {selectedEvent && !loading && (
         <>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <StatCard label="Total Tickets" value={tickets.length} icon={Ticket} iconClassName="bg-primary/10 text-primary" />
             <StatCard label="Admitted" value={admittedCount} icon={UserCheck} iconClassName="bg-green-100 text-green-700" />
             <StatCard label="Pending Entry" value={validCount} icon={Ticket} iconClassName="bg-amber-100 text-amber-700" />
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">

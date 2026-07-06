@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Header } from "@/components/layout/header";
 import { Footer } from "@/components/layout/footer";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,18 @@ export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [supportEmail, setSupportEmail] = useState("support@eticket.co.zw");
+  const [supportPhone, setSupportPhone] = useState("+263 773 909 307");
+
+  useEffect(() => {
+    fetch("/api/platform-config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.config?.support_email) setSupportEmail(data.config.support_email);
+        if (data.config?.support_phone) setSupportPhone(data.config.support_phone);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -68,7 +80,7 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-semibold">Phone</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      +263 773 909 307
+                      {supportPhone}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Mon-Fri, 8am-5pm CAT
@@ -85,7 +97,7 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-semibold">Email</h3>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      support@eticket.co.zw
+                      {supportEmail}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       We reply within 24 hours
@@ -132,7 +144,7 @@ export default function ContactPage() {
                     </div>
                   ) : (
                     <form onSubmit={handleSubmit} className="space-y-4">
-                      <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="firstName">First Name</Label>
                           <Input id="firstName" name="firstName" placeholder="John" required />

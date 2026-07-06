@@ -18,7 +18,8 @@ export interface Event {
   ticketTypes: TicketType[];
   totalTickets: number;
   soldTickets: number;
-  status: "draft" | "published" | "cancelled" | "completed";
+  status: "draft" | "pending_review" | "published" | "cancelled" | "completed";
+  soldOutAt?: string;
   createdAt: string;
   updatedAt: string;
   platformMarkup?: number; // Admin can add markup percentage

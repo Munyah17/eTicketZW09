@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import type { Event } from "@/lib/types";
+import { Fragment, useState, useEffect, useCallback } from "react";
+import type { Event, EventCategory } from "@/lib/types";
 import {
   FeaturedSection,
-  NewestEventsSection,
+  BestSellingSection,
   CategorySection,
   UpcomingSection,
 } from "@/components/home/category-section";
@@ -12,8 +12,8 @@ import { SectionBanner } from "@/components/home/section-banner";
 
 type HomeSections = {
   featured: Event[];
-  newest: Event[];
-  upcoming: Event[];
+  bestSelling: Event[];
+  comingSoon: Event[];
   comedy: Event[];
   music: Event[];
   sports: Event[];
@@ -27,11 +27,18 @@ type HomeSections = {
 };
 
 const EMPTY: HomeSections = {
-  featured: [], newest: [], upcoming: [],
+  featured: [], bestSelling: [], comingSoon: [],
   comedy: [], music: [], sports: [], marathon: [],
   conference: [], workshop: [], festival: [], theater: [],
   exhibition: [], other: [],
 };
+
+// Homepage order: Featured, Best Selling, then every category, then Coming
+// Soon last — a banner slot follows every single section (13 total).
+const CATEGORY_ORDER: EventCategory[] = [
+  "comedy", "music", "sports", "marathon", "conference",
+  "workshop", "festival", "theater", "exhibition", "other",
+];
 
 export function EventSections() {
   const [sections, setSections] = useState<HomeSections>(EMPTY);
@@ -62,7 +69,7 @@ export function EventSections() {
     );
   }
 
-  const hasEvents = sections.featured.length > 0 || sections.newest.length > 0;
+  const hasEvents = sections.featured.length > 0 || sections.bestSelling.length > 0;
 
   if (!hasEvents) {
     return (
@@ -78,25 +85,17 @@ export function EventSections() {
   return (
     <>
       <FeaturedSection events={sections.featured} />
-      <NewestEventsSection events={sections.newest} />
       <SectionBanner position={1} />
-      <CategorySection category="comedy" events={sections.comedy} />
-      <CategorySection category="music" events={sections.music} />
+      <BestSellingSection events={sections.bestSelling} />
       <SectionBanner position={2} />
-      <CategorySection category="sports" events={sections.sports} />
-      <CategorySection category="marathon" events={sections.marathon} />
-      <SectionBanner position={3} />
-      <CategorySection category="conference" events={sections.conference} />
-      <CategorySection category="workshop" events={sections.workshop} />
-      <SectionBanner position={4} />
-      <CategorySection category="festival" events={sections.festival} />
-      <CategorySection category="theater" events={sections.theater} />
-      <SectionBanner position={5} />
-      <CategorySection category="exhibition" events={sections.exhibition} />
-      <CategorySection category="other" events={sections.other} />
-      <SectionBanner position={6} />
-      <UpcomingSection events={sections.upcoming} />
-      <SectionBanner position={7} />
+      {CATEGORY_ORDER.map((category, i) => (
+        <Fragment key={category}>
+          <CategorySection category={category} events={sections[category]} />
+          <SectionBanner position={i + 3} />
+        </Fragment>
+      ))}
+      <UpcomingSection events={sections.comingSoon} />
+      <SectionBanner position={13} />
     </>
   );
 }
