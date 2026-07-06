@@ -28,8 +28,8 @@ interface HouseSlide {
   secondaryLabel: string;
 }
 
-// Always-on platform slides — never purchasable, never empty, so the hero
-// keeps rotating even when no advertiser has an active hero banner.
+// Slide 1 is always this fixed welcome/intro slide — never purchasable.
+// Every other slide comes exclusively from admin-uploaded hero banners.
 const HOUSE_SLIDES: HouseSlide[] = [
   {
     id: "house-platform",
@@ -41,41 +41,11 @@ const HOUSE_SLIDES: HouseSlide[] = [
     secondaryHref: "/organizer/create",
     secondaryLabel: "List Your Event",
   },
-  {
-    id: "house-music-comedy",
-    badge: "Live & Loud",
-    heading: "Never Miss a Beat — Music & Comedy Nights",
-    body: "From stand-up specials to live concerts, find the shows everyone's talking about.",
-    primaryHref: "/events?category=music",
-    primaryLabel: "Browse Music",
-    secondaryHref: "/events?category=comedy",
-    secondaryLabel: "Browse Comedy",
-  },
-  {
-    id: "house-sports-festival",
-    badge: "Get Moving",
-    heading: "From Marathons to Festivals",
-    body: "Race day, game day, or festival weekend — find it and get your ticket before it sells out.",
-    primaryHref: "/events?category=sports",
-    primaryLabel: "Browse Sports",
-    secondaryHref: "/events?category=festival",
-    secondaryLabel: "Browse Festivals",
-  },
-  {
-    id: "house-organizer",
-    badge: "For Organizers",
-    heading: "Got an Event? Sell Tickets in Minutes",
-    body: "List your event for free and start selling — plus premium banner placement to reach more buyers.",
-    primaryHref: "/organizer/create",
-    primaryLabel: "List Your Event",
-    secondaryHref: "/advertise",
-    secondaryLabel: "Advertise With Us",
-  },
 ];
 
 function HouseSlideContent({ slide }: { slide: HouseSlide }) {
   return (
-    <div className="relative flex min-h-[300px] items-center justify-center overflow-hidden bg-gradient-to-br from-primary/10 via-primary/5 to-background sm:min-h-[380px] md:min-h-[500px] lg:min-h-[550px]">
+    <div className="relative flex min-h-[360px] items-center justify-center overflow-hidden bg-gradient-to-br from-primary/10 via-primary/5 to-background sm:min-h-[380px] md:min-h-[500px] lg:min-h-[550px]">
       <div
         aria-hidden
         className="absolute inset-0 opacity-[0.06] animate-[drift_22s_ease-in-out_infinite] motion-reduce:animate-none [background-size:32px_32px] bg-[radial-gradient(circle_at_1px_1px,_var(--primary)_1px,_transparent_0)]"
@@ -203,7 +173,7 @@ export function HeroSlider() {
           {adSlides.map((slide) => (
             <div key={slide.id} className="relative min-w-0 flex-[0_0_100%]">
               <div
-                className="relative flex min-h-[300px] items-center overflow-hidden bg-foreground/90 sm:min-h-[380px] md:min-h-[500px] lg:min-h-[550px]"
+                className="relative flex min-h-[360px] items-center overflow-hidden bg-foreground/90 sm:min-h-[380px] md:min-h-[500px] lg:min-h-[550px]"
                 style={{
                   backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.65) 0%, rgba(15,23,42,0.55) 40%, rgba(15,23,42,0.85) 100%), url(${slide.image})`,
                   backgroundSize: "cover",

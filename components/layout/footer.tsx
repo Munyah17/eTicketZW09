@@ -142,6 +142,13 @@ export function Footer() {
             <p className="text-sm font-mono text-muted-foreground">
               &copy; {new Date().getFullYear()} E-TicketsZW. All rights reserved.
             </p>
+            <p className="mt-1 text-[11px] text-muted-foreground/70">
+              Location data &copy;{" "}
+              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+                OpenStreetMap
+              </a>{" "}
+              contributors
+            </p>
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 md:justify-start font-mono">
             <Link href="/terms" className="text-xs text-muted-foreground transition-colors hover:text-foreground">

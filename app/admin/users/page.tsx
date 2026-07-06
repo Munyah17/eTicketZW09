@@ -254,7 +254,7 @@ export default function UsersPage() {
                     value={u.role}
                     onValueChange={(role) => setConfirmRole({ user: u, newRole: role as UserRole })}
                   >
-                    <SelectTrigger className="h-8 text-xs w-[120px]">
+                    <SelectTrigger className="data-[size=default]:h-8 text-xs w-[120px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>

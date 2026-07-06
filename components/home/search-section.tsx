@@ -13,8 +13,7 @@ import {
 } from "@/components/ui/select";
 import { SuggestInput } from "@/components/ui/suggest-input";
 import { EVENT_CATEGORIES, type Event } from "@/lib/types";
-
-const cities = ["Harare", "Bulawayo", "Victoria Falls", "Mutare", "Gweru", "Masvingo"];
+import { ZIMBABWE_LOCATIONS } from "@/lib/zimbabwe-locations";
 
 export function SearchSection() {
   const router = useRouter();
@@ -39,9 +38,21 @@ export function SearchSection() {
       )
     : [];
 
-  const citySuggestions = city.trim()
-    ? cities.filter((c) => c.toLowerCase().includes(city.trim().toLowerCase()))
-    : cities;
+  // Prefix matches first (e.g. "Har" -> Harare before Buhera), then
+  // anywhere-in-string matches — both within the size-prioritized dataset
+  // order, so big cities/towns still surface before small villages.
+  const citySuggestions = (() => {
+    const q = city.trim().toLowerCase();
+    if (!q) return ZIMBABWE_LOCATIONS.slice(0, 10);
+    const starts: string[] = [];
+    const contains: string[] = [];
+    for (const loc of ZIMBABWE_LOCATIONS) {
+      const lower = loc.toLowerCase();
+      if (lower.startsWith(q)) starts.push(loc);
+      else if (lower.includes(q)) contains.push(loc);
+    }
+    return [...starts, ...contains];
+  })();
 
   const goToEvents = () => {
     const params = new URLSearchParams();
@@ -89,7 +100,7 @@ export function SearchSection() {
 
             {/* Country */}
             <Select value={country} onValueChange={setCountry}>
-              <SelectTrigger className="h-12">
+              <SelectTrigger className="data-[size=default]:h-12">
                 <div className="flex items-center gap-2">
                   <Globe className="h-4 w-4 text-muted-foreground" />
                   <SelectValue placeholder="Country" />
@@ -102,7 +113,7 @@ export function SearchSection() {
 
             {/* Category Select */}
             <Select value={category} onValueChange={setCategory}>
-              <SelectTrigger className="h-12">
+              <SelectTrigger className="data-[size=default]:h-12">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <SelectValue placeholder="Category" />
