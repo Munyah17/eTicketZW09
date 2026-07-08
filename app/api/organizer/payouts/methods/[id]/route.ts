@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -20,7 +21,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const { data: method } = await supabase
     .from("organizer_payout_methods")
     .select("id")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("organizer_id", organizer.id)
     .single();
 
@@ -35,13 +36,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       payment_method: paymentMethod,
       payment_details: paymentDetails,
     })
-    .eq("id", params.id);
+    .eq("id", id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -53,7 +55,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const { data: method } = await supabase
     .from("organizer_payout_methods")
     .select("id")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("organizer_id", organizer.id)
     .single();
 
@@ -61,7 +63,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: "Method not found" }, { status: 404 });
   }
 
-  const { error } = await supabase.from("organizer_payout_methods").delete().eq("id", params.id);
+  const { error } = await supabase.from("organizer_payout_methods").delete().eq("id", id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
