@@ -137,18 +137,18 @@ export default function OrganizerSalesPage() {
             <DateRangeFilter from={dateFrom} to={dateTo} onFromChange={setDateFrom} onToChange={setDateTo} />
           </div>
 
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="min-w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Ticket ID</TableHead>
-                  <TableHead>Event</TableHead>
-                  <TableHead>Buyer</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Method</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
+                  <TableHead className="whitespace-nowrap">Ticket ID</TableHead>
+                  <TableHead className="whitespace-nowrap">Event</TableHead>
+                  <TableHead className="whitespace-nowrap">Buyer</TableHead>
+                  <TableHead className="whitespace-nowrap">Type</TableHead>
+                  <TableHead className="whitespace-nowrap">Amount</TableHead>
+                  <TableHead className="whitespace-nowrap">Method</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="whitespace-nowrap">Date</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

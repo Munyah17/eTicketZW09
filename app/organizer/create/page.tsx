@@ -43,6 +43,10 @@ export default function CreateEventPage() {
   const [venue, setVenue] = useState("");
   const [city, setCity] = useState("");
 
+  // Featured Image
+  const [featuredImage, setFeaturedImage] = useState<File | null>(null);
+  const [featuredImagePreview, setFeaturedImagePreview] = useState<string | null>(null);
+
   // Promo Video
   const [promoVideoType, setPromoVideoType] = useState<"video" | "slideshow" | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -79,6 +83,19 @@ export default function CreateEventPage() {
     setTicketTypes(
       ticketTypes.map((t) => (t.id === id ? { ...t, [field]: value } : t))
     );
+  };
+
+  const handleFeaturedImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file");
+      return;
+    }
+
+    setFeaturedImage(file);
+    setFeaturedImagePreview(URL.createObjectURL(file));
   };
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,7 +188,22 @@ export default function CreateEventPage() {
         updatedAt: now,
       };
 
-      await saveEvent(newEvent);
+      const savedEventId = await saveEvent(newEvent);
+
+      // Upload featured image if provided
+      if (featuredImage) {
+        const formData = new FormData();
+        formData.append("image", featuredImage);
+        formData.append("eventId", savedEventId);
+        try {
+          await fetch("/api/organizer/events/image", {
+            method: "POST",
+            body: formData,
+          });
+        } catch (err) {
+          console.error("Failed to upload featured image:", err);
+        }
+      }
       router.push(autoApprove ? "/organizer?created=true" : "/organizer?pendingReview=true");
     } catch (err) {
       console.error("Create event failed:", err);
@@ -324,6 +356,50 @@ export default function CreateEventPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+
+            {/* Featured Image Section */}
+            <div className="space-y-4 rounded-lg border p-4 bg-secondary/50">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5 text-primary" />
+                <h3 className="font-semibold">Featured Image (Recommended)</h3>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Upload an attractive cover image for your event that will be displayed on event cards
+              </p>
+              {featuredImagePreview ? (
+                <div className="relative">
+                  <img
+                    src={featuredImagePreview}
+                    alt="Featured preview"
+                    className="w-full h-auto max-h-48 object-cover rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFeaturedImage(null);
+                      setFeaturedImagePreview(null);
+                    }}
+                    className="absolute top-2 right-2 bg-destructive text-destructive-foreground p-2 rounded-lg hover:bg-destructive/90"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 cursor-pointer hover:border-primary transition-colors">
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <div className="text-center">
+                    <p className="font-medium">Click to upload or drag and drop</p>
+                    <p className="text-xs text-muted-foreground">PNG, JPG or WebP (max. 5MB)</p>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFeaturedImageUpload}
+                    className="hidden"
+                  />
+                </label>
+              )}
             </div>
 
             {/* Promo Video Section */}

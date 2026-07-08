@@ -19,6 +19,10 @@ export function EventCard({ event, variant = "default", fastSelling = false }: E
   const availableTickets = event.totalTickets - event.soldTickets;
   const categoryLabel = EVENT_CATEGORIES.find((c) => c.value === event.category)?.label || event.category;
 
+  // Only show "Selling Fast" if: fastSelling is true AND event actually meets selling criteria
+  // Criteria: sold >= 70% of tickets AND sold at least 10 tickets
+  const shouldShowSellFast = fastSelling && event.soldTickets >= 10 && event.totalTickets > 0 && (event.soldTickets / event.totalTickets) >= 0.7;
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-ZW", {
@@ -98,7 +102,7 @@ export function EventCard({ event, variant = "default", fastSelling = false }: E
               Sold Out
             </Badge>
           )}
-          {fastSelling && availableTickets > 0 && (
+          {shouldShowSellFast && (
             <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2 py-1 text-white shadow-md">
               <Flame className="h-3.5 w-3.5" />
               <span className="text-[10px] font-bold uppercase tracking-wide">Selling Fast</span>

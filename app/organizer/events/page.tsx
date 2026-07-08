@@ -160,17 +160,17 @@ export default function OrganizerEventsPage() {
             <ExportMenu rows={filteredEvents} columns={exportColumns} filename="events" title="My Events" />
           </div>
 
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="min-w-full">
               <TableHeader>
                 <TableRow>
                   <TableHead>Event</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Venue</TableHead>
-                  <TableHead>Tickets</TableHead>
-                  <TableHead>Revenue</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="whitespace-nowrap">Date</TableHead>
+                  <TableHead className="whitespace-nowrap">Venue</TableHead>
+                  <TableHead className="whitespace-nowrap">Tickets</TableHead>
+                  <TableHead className="whitespace-nowrap">Revenue</TableHead>
+                  <TableHead className="whitespace-nowrap">Status</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -197,7 +197,7 @@ export default function OrganizerEventsPage() {
                     );
                     return (
                       <TableRow key={event.id}>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <div>
                             <p className="font-medium">{event.title}</p>
                             <p className="text-xs text-muted-foreground">
@@ -205,14 +205,14 @@ export default function OrganizerEventsPage() {
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <div className="text-sm">
                             <p>{new Date(event.date).toLocaleDateString("en-ZW", { day: "numeric", month: "short", year: "numeric" })}</p>
-                            <p className="text-muted-foreground">{event.time}</p>
+                            <p className="text-xs text-muted-foreground">{event.time}</p>
                           </div>
                         </TableCell>
-                        <TableCell>{event.venue}</TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">{event.venue}</TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <div>
                             <p className="font-medium">
                               {event.soldTickets}/{event.totalTickets}
@@ -222,11 +222,11 @@ export default function OrganizerEventsPage() {
                             </p>
                           </div>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="whitespace-nowrap">
                           <span className="font-medium">${revenue.toLocaleString()}</span>
                         </TableCell>
-                        <TableCell>{getStatusBadge(event.status)}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="whitespace-nowrap">{getStatusBadge(event.status)}</TableCell>
+                        <TableCell className="text-right whitespace-nowrap">
                           <div className="flex justify-end gap-2">
                             <Link href={`/events/${event.id}`}>
                               <Button variant="ghost" size="icon">

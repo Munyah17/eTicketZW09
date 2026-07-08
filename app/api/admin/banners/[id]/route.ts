@@ -59,6 +59,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const { data: pub } = supabase.storage.from("banners").getPublicUrl(path);
     updates.image = pub.publicUrl;
+    // Reset impressions when image is replaced
+    updates.impressions = 0;
   }
 
   // A slot is "active" once it has an image; otherwise it's still just available.

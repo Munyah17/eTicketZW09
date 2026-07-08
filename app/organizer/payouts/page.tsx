@@ -39,8 +39,20 @@ import {
   AlertCircle,
   Wallet,
   ArrowUpRight,
+  Plus,
+  Edit2,
+  Trash2,
+  Star,
 } from "lucide-react";
 import { PayoutRequest, MINIMUM_PAYOUT, PAYOUT_TRANSACTION_COST_PERCENTAGE, PAYOUT_METHODS } from "@/lib/types";
+
+interface SavedPayoutMethod {
+  id: string;
+  label: string;
+  paymentMethod: string;
+  paymentDetails: string;
+  isDefault: boolean;
+}
 
 function mapPayout(r: Record<string, unknown>): PayoutRequest {
   return {
@@ -62,14 +74,24 @@ function mapPayout(r: Record<string, unknown>): PayoutRequest {
 
 export default function OrganizerPayoutsPage() {
   const [organizerPayouts, setOrganizerPayouts] = useState<PayoutRequest[]>([]);
+  const [savedMethods, setSavedMethods] = useState<SavedPayoutMethod[]>([]);
   const [availableBalance, setAvailableBalance] = useState(0);
   const [minPayout, setMinPayout] = useState(MINIMUM_PAYOUT);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [methodsDialogOpen, setMethodsDialogOpen] = useState(false);
+  const [editingMethod, setEditingMethod] = useState<SavedPayoutMethod | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [requestError, setRequestError] = useState("");
+  const [methodError, setMethodError] = useState("");
   const [formData, setFormData] = useState({
     amount: "",
+    paymentMethodId: "",
+    paymentMethod: "ecocash",
+    fieldValues: {} as Record<string, string>,
+  });
+  const [methodFormData, setMethodFormData] = useState({
+    label: "",
     paymentMethod: "ecocash",
     fieldValues: {} as Record<string, string>,
   });
@@ -77,12 +99,25 @@ export default function OrganizerPayoutsPage() {
   const reload = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/organizer/payouts");
-      const json = await res.json();
-      if (res.ok) {
-        setOrganizerPayouts(((json.payouts ?? []) as Record<string, unknown>[]).map(mapPayout));
-        setAvailableBalance(json.availableBalance ?? 0);
-        if (typeof json.minPayout === "number") setMinPayout(json.minPayout);
+      const [payoutsRes, methodsRes] = await Promise.all([
+        fetch("/api/organizer/payouts"),
+        fetch("/api/organizer/payouts/methods"),
+      ]);
+      const payoutsJson = await payoutsRes.json();
+      const methodsJson = await methodsRes.json();
+      if (payoutsRes.ok) {
+        setOrganizerPayouts(((payoutsJson.payouts ?? []) as Record<string, unknown>[]).map(mapPayout));
+        setAvailableBalance(payoutsJson.availableBalance ?? 0);
+        if (typeof payoutsJson.minPayout === "number") setMinPayout(payoutsJson.minPayout);
+      }
+      if (methodsRes.ok) {
+        setSavedMethods(((methodsJson.methods ?? []) as Record<string, unknown>[]).map((m) => ({
+          id: m.id as string,
+          label: m.label as string,
+          paymentMethod: m.payment_method as string,
+          paymentDetails: m.payment_details as string,
+          isDefault: (m.is_default as boolean) || false,
+        })));
       }
     } finally {
       setLoading(false);
@@ -104,6 +139,58 @@ export default function OrganizerPayoutsPage() {
     { header: "Processed", accessor: (p) => p.processedAt ?? "" },
   ];
 
+  const handleSavePayoutMethod = async () => {
+    setMethodError("");
+    if (!methodFormData.label.trim()) {
+      setMethodError("Method label is required");
+      return;
+    }
+
+    const selectedMethod = PAYOUT_METHODS.find(m => m.value === methodFormData.paymentMethod);
+    const paymentDetails = selectedMethod?.fields
+      .map(f => `${f.label}: ${methodFormData.fieldValues[f.label] || ''}`)
+      .join(' | ') || '';
+
+    if (!paymentDetails) {
+      setMethodError("Please fill in all required fields");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const method = editingMethod ? "PUT" : "POST";
+      const url = editingMethod ? `/api/organizer/payouts/methods/${editingMethod.id}` : "/api/organizer/payouts/methods";
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          label: methodFormData.label,
+          paymentMethod: selectedMethod?.label || methodFormData.paymentMethod,
+          paymentDetails,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) { setMethodError(json.error ?? "Failed to save method"); return; }
+      setMethodsDialogOpen(false);
+      setEditingMethod(null);
+      setMethodFormData({ label: "", paymentMethod: "ecocash", fieldValues: {} });
+      reload();
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeletePayoutMethod = async (methodId: string) => {
+    if (!confirm("Are you sure you want to delete this payout method?")) return;
+    try {
+      const res = await fetch(`/api/organizer/payouts/methods/${methodId}`, { method: "DELETE" });
+      if (!res.ok) return;
+      reload();
+    } catch (error) {
+      console.error("Error deleting method:", error);
+    }
+  };
+
   const handleRequestPayout = async () => {
     setRequestError("");
     const amount = parseFloat(formData.amount);
@@ -112,10 +199,24 @@ export default function OrganizerPayoutsPage() {
       return;
     }
 
-    const selectedMethod = PAYOUT_METHODS.find(m => m.value === formData.paymentMethod);
-    const paymentDetails = selectedMethod?.fields
-      .map(f => `${f.label}: ${formData.fieldValues[f.label] || ''}`)
-      .join(' | ') || '';
+    let paymentDetails = "";
+    let paymentMethodLabel = "";
+
+    if (formData.paymentMethodId) {
+      const method = savedMethods.find(m => m.id === formData.paymentMethodId);
+      if (!method) {
+        setRequestError("Selected payment method not found");
+        return;
+      }
+      paymentDetails = method.paymentDetails;
+      paymentMethodLabel = method.paymentMethod;
+    } else {
+      const selectedMethod = PAYOUT_METHODS.find(m => m.value === formData.paymentMethod);
+      paymentDetails = selectedMethod?.fields
+        .map(f => `${f.label}: ${formData.fieldValues[f.label] || ''}`)
+        .join(' | ') || '';
+      paymentMethodLabel = selectedMethod?.label || formData.paymentMethod;
+    }
 
     setSubmitting(true);
     try {
@@ -124,14 +225,14 @@ export default function OrganizerPayoutsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount,
-          paymentMethod: selectedMethod?.label || formData.paymentMethod,
+          paymentMethod: paymentMethodLabel,
           paymentDetails,
         }),
       });
       const json = await res.json();
       if (!res.ok) { setRequestError(json.error ?? "Failed to request payout"); return; }
       setDialogOpen(false);
-      setFormData({ amount: "", paymentMethod: "ecocash", fieldValues: {} });
+      setFormData({ amount: "", paymentMethodId: "", paymentMethod: "ecocash", fieldValues: {} });
       reload();
     } finally {
       setSubmitting(false);
@@ -205,6 +306,68 @@ export default function OrganizerPayoutsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Saved Payout Methods */}
+      {savedMethods.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Saved Payout Methods</CardTitle>
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingMethod(null);
+                setMethodFormData({ label: "", paymentMethod: "ecocash", fieldValues: {} });
+                setMethodsDialogOpen(true);
+              }}
+              disabled={savedMethods.length >= 5}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Method
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {savedMethods.map((method) => (
+                <div key={method.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent/50">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium">{method.label}</p>
+                      {method.isDefault && (
+                        <Star className="h-3.5 w-3.5 fill-primary text-primary" />
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{method.paymentMethod}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setEditingMethod(method);
+                        setMethodFormData({
+                          label: method.label,
+                          paymentMethod: PAYOUT_METHODS.find(m => m.label === method.paymentMethod)?.value || "ecocash",
+                          fieldValues: {},
+                        });
+                        setMethodsDialogOpen(true);
+                      }}
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDeletePayoutMethod(method.id)}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Payout History */}
       <Card>
@@ -301,45 +464,72 @@ export default function OrganizerPayoutsPage() {
               />
             </div>
 
-            <div>
-              <Label>Payment Method</Label>
-              <Select
-                value={formData.paymentMethod}
-                onValueChange={(value) =>
-                  setFormData((prev) => ({ ...prev, paymentMethod: value, fieldValues: {} }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PAYOUT_METHODS.map((method) => (
-                    <SelectItem key={method.value} value={method.value}>
-                      {method.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {PAYOUT_METHODS.find(m => m.value === formData.paymentMethod)?.fields.map((field, index) => (
-              <div key={index}>
-                <Label htmlFor={`field-${index}`}>{field.label}</Label>
-                <Input
-                  id={`field-${index}`}
-                  type={field.type || "text"}
-                  value={formData.fieldValues[field.label] || ""}
-                  onChange={(e) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      fieldValues: { ...prev.fieldValues, [field.label]: e.target.value }
-                    }))
+            {savedMethods.length > 0 && (
+              <div>
+                <Label>Use Saved Method</Label>
+                <Select
+                  value={formData.paymentMethodId}
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, paymentMethodId: value }))
                   }
-                  placeholder={field.placeholder}
-                  required={field.required}
-                />
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a saved method or enter new details below" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {savedMethods.map((method) => (
+                      <SelectItem key={method.id} value={method.id}>
+                        {method.label} - {method.paymentMethod}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            ))}
+            )}
+
+            {!formData.paymentMethodId && (
+              <>
+                <div>
+                  <Label>Payment Method</Label>
+                  <Select
+                    value={formData.paymentMethod}
+                    onValueChange={(value) =>
+                      setFormData((prev) => ({ ...prev, paymentMethod: value, fieldValues: {} }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYOUT_METHODS.map((method) => (
+                        <SelectItem key={method.value} value={method.value}>
+                          {method.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {PAYOUT_METHODS.find(m => m.value === formData.paymentMethod)?.fields.map((field, index) => (
+                  <div key={index}>
+                    <Label htmlFor={`field-${index}`}>{field.label}</Label>
+                    <Input
+                      id={`field-${index}`}
+                      type={field.type || "text"}
+                      value={formData.fieldValues[field.label] || ""}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          fieldValues: { ...prev.fieldValues, [field.label]: e.target.value }
+                        }))
+                      }
+                      placeholder={field.placeholder}
+                      required={field.required}
+                    />
+                  </div>
+                ))}
+              </>
+            )}
 
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
               <p className="text-sm">
@@ -363,6 +553,85 @@ export default function OrganizerPayoutsPage() {
             </Button>
             <Button onClick={handleRequestPayout} disabled={submitting}>
               {submitting ? "Requesting…" : "Request Payout"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save Payout Method Dialog */}
+      <Dialog open={methodsDialogOpen} onOpenChange={setMethodsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingMethod ? "Edit Payout Method" : "Add Payout Method"}</DialogTitle>
+            <DialogDescription>
+              Save this payout method for quick use in future payouts. You can save up to 5 methods.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="methodLabel">Method Label</Label>
+              <Input
+                id="methodLabel"
+                placeholder="e.g., My EcoCash, Work Account"
+                value={methodFormData.label}
+                onChange={(e) =>
+                  setMethodFormData((prev) => ({ ...prev, label: e.target.value }))
+                }
+              />
+            </div>
+
+            <div>
+              <Label>Payment Method</Label>
+              <Select
+                value={methodFormData.paymentMethod}
+                onValueChange={(value) =>
+                  setMethodFormData((prev) => ({ ...prev, paymentMethod: value, fieldValues: {} }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAYOUT_METHODS.map((method) => (
+                    <SelectItem key={method.value} value={method.value}>
+                      {method.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {PAYOUT_METHODS.find(m => m.value === methodFormData.paymentMethod)?.fields.map((field, index) => (
+              <div key={index}>
+                <Label htmlFor={`method-field-${index}`}>{field.label}</Label>
+                <Input
+                  id={`method-field-${index}`}
+                  type={field.type || "text"}
+                  value={methodFormData.fieldValues[field.label] || ""}
+                  onChange={(e) =>
+                    setMethodFormData((prev) => ({
+                      ...prev,
+                      fieldValues: { ...prev.fieldValues, [field.label]: e.target.value }
+                    }))
+                  }
+                  placeholder={field.placeholder}
+                  required={field.required}
+                />
+              </div>
+            ))}
+
+            {methodError && (
+              <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-lg">{methodError}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMethodsDialogOpen(false)} disabled={submitting}>
+              Cancel
+            </Button>
+            <Button onClick={handleSavePayoutMethod} disabled={submitting}>
+              {submitting ? "Saving…" : "Save Method"}
             </Button>
           </DialogFooter>
         </DialogContent>

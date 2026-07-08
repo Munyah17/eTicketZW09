@@ -404,13 +404,4 @@ export const PAYOUT_METHODS: { value: string; label: string; fields: PayoutField
       { label: "ID Type", placeholder: "ID type for verification", type: "text", required: true },
     ],
   },
-  {
-    value: "crypto",
-    label: "Cryptocurrency",
-    fields: [
-      { label: "Wallet Address", placeholder: "Your wallet address", type: "text", required: true },
-      { label: "Cryptocurrency", placeholder: "e.g., Bitcoin, Ethereum, USDT", type: "text", required: true },
-      { label: "Network", placeholder: "e.g., TRC20, ERC20, BEP20", type: "text", required: true },
-    ],
-  },
 ];
