@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { generateTicket } from "@/lib/ticket-generator";
 import { sendTicketEmail } from "@/lib/email/send-ticket-email";
 import { sendSaleNotificationEmails } from "@/lib/email/send-sale-notification-emails";
+import { sendTicketWhatsApp } from "@/lib/whatsapp";
 import { logError } from "@/lib/error-logger";
 
 export type PaymentProvider = "paynow" | "stripe";
@@ -166,17 +167,66 @@ export class PaymentService {
 
       console.log("✓ Step 3/7: Ticket generated", ticket.id);
 
-      // Step 4: Send ticket email
-      console.log("Step 4/7: Sending ticket email to", ticket.buyerEmail);
-      await sendTicketEmail(ticket);
-      console.log("✓ Step 5/7: Ticket email sent");
+      // Step 4: Confirm from the backend that the ticket was actually persisted.
+      // Generation returning an object is not proof — the DB row is.
+      const persisted = await PaymentService.getTicketByPaymentReference(reference);
+      if (!persisted || persisted.id !== ticket.id) {
+        throw new Error(`Ticket generation could not be confirmed in database for payment ${reference}`);
+      }
+      console.log("✓ Step 4/7: Ticket confirmed in database", ticket.id);
 
-      // Step 5: Send sale notification emails
-      console.log("Step 6/7: Sending sale notifications...");
+      // Step 5: Push the ticket to the buyer on both channels. Delivery is the
+      // proof of issuance — the ticket is only "issued" once at least one push
+      // has actually landed.
+      const buyerPhone = (m.buyerPhone as string) || ticket.buyerContact || "";
+      console.log("Step 5/7: Pushing ticket to email + WhatsApp...", ticket.buyerEmail, buyerPhone);
+      const [emailResult, whatsappResult] = await Promise.all([
+        sendTicketEmail(ticket),
+        sendTicketWhatsApp(ticket, buyerPhone),
+      ]);
+
+      const issued = emailResult.sent || whatsappResult.sent;
+      const now = new Date().toISOString();
+      const supabase = createAdminClient();
+      // Best-effort delivery bookkeeping — must never fail fulfillment (e.g.
+      // before the delivery-tracking migration has been applied).
+      const { error: deliveryUpdateError } = await supabase
+        .from("tickets")
+        .update({
+          email_delivered_at: emailResult.sent ? now : null,
+          whatsapp_delivered_at: whatsappResult.sent ? now : null,
+          issued_at: issued ? now : null,
+          delivery_log: [
+            { channel: "email", at: now, ...emailResult },
+            { channel: "whatsapp", at: now, ...whatsappResult },
+          ],
+        })
+        .eq("id", ticket.id);
+      if (deliveryUpdateError) {
+        logError("ticket_delivery_tracking_update_failed", deliveryUpdateError, { reference, ticketId: ticket.id });
+      }
+
+      if (!issued) {
+        logError("ticket_generated_but_not_issued", new Error("All delivery channels failed"), {
+          reference,
+          ticketId: ticket.id,
+          emailError: emailResult.error,
+          whatsappError: whatsappResult.error,
+        });
+        console.error("⚠️ Ticket generated but NOT issued — no delivery channel succeeded", ticket.id);
+      } else {
+        console.log(
+          `✓ Step 6/7: Ticket issued — email: ${emailResult.sent ? "delivered" : emailResult.error}, ` +
+          `whatsapp: ${whatsappResult.sent ? "delivered" : whatsappResult.error}`
+        );
+      }
+
+      // Step 6: Send sale notification emails
+      console.log("Step 7/7: Sending sale notifications...");
       await sendSaleNotificationEmails(ticket);
       console.log("✓ Step 7/7: Sale notifications sent");
 
-      console.log("✅ FULFILLMENT COMPLETE:", reference, ticket.id);
+      console.log(issued ? "✅ FULFILLMENT COMPLETE — TICKET ISSUED:" : "⚠️ FULFILLMENT INCOMPLETE — TICKET NOT ISSUED:", reference, ticket.id);
     } catch (error) {
       logError("confirmPaid_workflow_failed", error, { reference, paymentMethod: opts.paymentMethod });
       console.error("❌ FULFILLMENT FAILED for payment", reference, error);

@@ -45,13 +45,20 @@ function buildEmailHtml(ticket: TicketPngData): string {
   `;
 }
 
+export interface TicketEmailResult {
+  sent: boolean;
+  skipped?: boolean;
+  error?: string;
+}
+
 // Fired right after a ticket is generated for a successful payment.
-// Sends downloadable ticket to buyer's email address.
-// Critical: requires RESEND_API_KEY environment variable to be set.
-export async function sendTicketEmail(ticket: TicketPngData): Promise<void> {
+// Sends downloadable ticket to buyer's email address. Never throws — the
+// returned result is recorded by the fulfillment orchestrator as proof of
+// delivery. Critical: requires RESEND_API_KEY environment variable to be set.
+export async function sendTicketEmail(ticket: TicketPngData): Promise<TicketEmailResult> {
   if (!ticket.buyerEmail) {
     console.warn("sendTicketEmail: no buyer email on ticket", ticket.id);
-    return;
+    return { sent: false, skipped: true, error: "No buyer email on ticket" };
   }
 
   const apiKey = process.env.RESEND_API_KEY;
@@ -68,7 +75,7 @@ export async function sendTicketEmail(ticket: TicketPngData): Promise<void> {
       buyerEmail: ticket.buyerEmail,
       reason: "Email service not configured",
     });
-    return;
+    return { sent: false, skipped: true, error: "Email service not configured (RESEND_API_KEY missing)" };
   }
 
   try {
@@ -96,11 +103,14 @@ export async function sendTicketEmail(ticket: TicketPngData): Promise<void> {
         eventTitle: ticket.eventTitle,
       });
       console.error("Failed to send ticket email:", error, "to:", ticket.buyerEmail);
-    } else {
-      console.log("✓ Ticket email sent successfully to:", ticket.buyerEmail, "for ticket:", ticket.id);
+      return { sent: false, error: error.message ?? "Email send failed" };
     }
+
+    console.log("✓ Ticket email sent successfully to:", ticket.buyerEmail, "for ticket:", ticket.id);
+    return { sent: true };
   } catch (err) {
     logError("ticket_email_generation_failed", err, { ticketId: ticket.id, buyerEmail: ticket.buyerEmail });
     console.error("Error generating/sending ticket email:", err);
+    return { sent: false, error: err instanceof Error ? err.message : "Email send failed" };
   }
 }

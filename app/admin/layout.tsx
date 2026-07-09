@@ -27,6 +27,7 @@ import {
   Bell,
   ChevronsUpDown,
   Sparkles,
+  Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,7 @@ const superAdminLinks = [
   { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign, group: "Operations" },
   { href: "/admin/users", label: "User Management", icon: UserCog, group: "Operations" },
   { href: "/admin/marketing", label: "Marketing", icon: Megaphone, group: "Operations" },
+  { href: "/admin/system-health", label: "System Health", icon: Activity, group: "Operations" },
   { href: "/admin/settings", label: "My Account", icon: Settings, group: "Operations" },
   // ── Super Admin ──────────────────────────────
   { href: "/admin/staff", label: "Staff Management", icon: Crown, group: "Super Admin" },
@@ -71,6 +73,7 @@ const adminLinks = [
   { href: "/admin/payouts", label: "Payout Requests", icon: DollarSign, group: "Operations" },
   { href: "/admin/users", label: "User Management", icon: UserCog, group: "Operations" },
   { href: "/admin/marketing", label: "Marketing", icon: Megaphone, group: "Operations" },
+  { href: "/admin/system-health", label: "System Health", icon: Activity, group: "Operations" },
   { href: "/admin/settings", label: "My Account", icon: Settings, group: "Operations" },
 ];
 

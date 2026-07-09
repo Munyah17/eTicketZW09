@@ -3,6 +3,7 @@ import { Space_Grotesk, IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { Providers } from '@/components/providers'
 import { AnnouncementBanner } from '@/components/announcement-banner'
+import { WhatsAppButton } from '@/components/whatsapp-button'
 import './globals.css'
 
 const spaceGrotesk = Space_Grotesk({
@@ -88,6 +89,7 @@ export default function RootLayout({
         <Providers>
           <AnnouncementBanner />
           {children}
+          <WhatsAppButton />
         </Providers>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

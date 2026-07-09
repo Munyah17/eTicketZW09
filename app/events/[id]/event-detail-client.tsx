@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { TicketPurchaseForm } from "@/components/events/ticket-purchase-form";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,9 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
       document.getElementById("ticket-purchase-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
+
+  // Both promo types ("video" and "slideshow") resolve to a single rendered video URL
+  const promoVideoUrl = event.promoVideo?.url;
 
   const categoryLabel = EVENT_CATEGORIES.find((c) => c.value === event.category)?.label || event.category;
   const availableTickets = event.totalTickets - event.soldTickets;
@@ -77,11 +81,23 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
       <section className="border-b">
         <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
           <div className="grid gap-8 lg:grid-cols-3">
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 space-y-6">
+              {/* Featured Image */}
               <div className="relative aspect-video overflow-hidden rounded-xl bg-gradient-to-br from-primary/20 via-primary/10 to-accent">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Ticket className="h-20 w-20 text-primary/30" />
-                </div>
+                {event.image ? (
+                  <Image
+                    src={event.image}
+                    alt={event.title}
+                    fill
+                    sizes="(min-width: 1024px) 66vw, 100vw"
+                    className="object-cover"
+                    priority
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Ticket className="h-20 w-20 text-primary/30" />
+                  </div>
+                )}
                 <Badge className="absolute left-4 top-4 bg-background/90 text-foreground">
                   {categoryLabel}
                 </Badge>
@@ -91,6 +107,19 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                   </Badge>
                 )}
               </div>
+
+              {/* Promo Video */}
+              {promoVideoUrl && (
+                <div className="relative aspect-video overflow-hidden rounded-xl bg-black">
+                  <video
+                    src={promoVideoUrl}
+                    poster={event.promoVideo?.thumbnail}
+                    controls
+                    preload="metadata"
+                    className="absolute inset-0 h-full w-full"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="lg:col-span-1">
