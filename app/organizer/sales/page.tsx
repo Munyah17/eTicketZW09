@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Users,
   RefreshCw,
+  Download,
 } from "lucide-react";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { DateRangeFilter, inDateRange } from "@/components/ui/date-range-filter";
@@ -113,7 +114,7 @@ export default function OrganizerSalesPage() {
         <ExportMenu rows={filteredSales} columns={exportColumns} filename="sales" title="Ticket Sales" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <StatCard key={stat.title} label={stat.title} value={stat.value} icon={stat.icon} />
         ))}
@@ -149,18 +150,19 @@ export default function OrganizerSalesPage() {
                   <TableHead className="whitespace-nowrap">Method</TableHead>
                   <TableHead className="whitespace-nowrap">Status</TableHead>
                   <TableHead className="whitespace-nowrap">Date</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Download</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       <RefreshCw className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 ) : filteredSales.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       No sales found
                     </TableCell>
                   </TableRow>
@@ -194,6 +196,18 @@ export default function OrganizerSalesPage() {
                       </TableCell>
                       <TableCell>
                         {new Date(sale.purchasedAt).toLocaleDateString("en-ZW", { day: "numeric", month: "short" })}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <a
+                          href={`/api/tickets/${sale.id}/download`}
+                          download={`ticket-${sale.id}.png`}
+                          className="inline-block"
+                          title="Download ticket PNG"
+                        >
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </a>
                       </TableCell>
                     </TableRow>
                   ))
