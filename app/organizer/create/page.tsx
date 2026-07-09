@@ -89,8 +89,16 @@ export default function CreateEventPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file type
     if (!file.type.startsWith("image/")) {
-      alert("Please select a valid image file");
+      alert("Please select a valid image file (PNG, JPG, WebP)");
+      return;
+    }
+
+    // Validate file size (max 20MB)
+    const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+    if (file.size > MAX_SIZE) {
+      alert("Image must be 20MB or smaller");
       return;
     }
 
@@ -102,12 +110,21 @@ export default function CreateEventPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate video duration (max 30 seconds)
+    // Validate file size (max 20MB)
+    const MAX_SIZE = 20 * 1024 * 1024; // 20MB
+    if (file.size > MAX_SIZE) {
+      alert("Video must be 20MB or smaller");
+      setVideoFile(null);
+      setVideoPreview(null);
+      return;
+    }
+
+    // Validate video duration (max 10 seconds)
     const video = document.createElement("video");
     video.preload = "metadata";
     video.onloadedmetadata = () => {
-      if (video.duration > 30) {
-        alert("Video must be 30 seconds or less");
+      if (video.duration > 10) {
+        alert("Video must be 10 seconds or less");
         setVideoFile(null);
         setVideoPreview(null);
         return;
@@ -123,7 +140,19 @@ export default function CreateEventPage() {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    const validFiles = files.filter((file) => file.type.startsWith("image/"));
+    const MAX_SIZE = 20 * 1024 * 1024; // 20MB per image
+    const validFiles = files.filter((file) => {
+      if (!file.type.startsWith("image/")) {
+        alert(`${file.name} is not a valid image`);
+        return false;
+      }
+      if (file.size > MAX_SIZE) {
+        alert(`${file.name} is larger than 20MB`);
+        return false;
+      }
+      return true;
+    });
+
     setSlideshowImages((prev) => [...prev, ...validFiles]);
 
     validFiles.forEach((file) => {
@@ -150,6 +179,22 @@ export default function CreateEventPage() {
   };
 
   const handleSubmit = async () => {
+    // Validation: Featured image is mandatory
+    if (!featuredImage) {
+      alert("Featured image is required");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Validation: Maximum one media type (slideshow OR video, not both)
+    const hasVideo = videoFile !== null;
+    const hasSlideshow = slideshowImages.length > 0;
+    if (hasVideo && hasSlideshow) {
+      alert("You can upload either a video OR a slideshow, but not both");
+      setIsSubmitting(false);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const now = new Date().toISOString();

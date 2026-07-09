@@ -126,6 +126,22 @@ export function EventCard({ event, variant = "default", fastSelling = false }: E
             </div>
           </div>
 
+          {/* Tickets Sold Progress Bar */}
+          {event.totalTickets > 0 && (
+            <div className="mt-3 space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Tickets Sold</span>
+                <span className="font-semibold text-primary">{event.soldTickets}/{event.totalTickets}</span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                <div
+                  className="h-full bg-gradient-to-r from-primary to-primary/80 transition-all"
+                  style={{ width: `${(event.soldTickets / event.totalTickets) * 100}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="mt-auto flex items-center justify-between pt-3">
             <div>
               <span className="text-xs text-muted-foreground">From</span>

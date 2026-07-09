@@ -19,8 +19,10 @@ interface EventCarouselRowProps {
 
 const GAP = 16;
 
-// Cards fully in view at each breakpoint — the carousel always shows one
-// extra slide's worth of width split as a half-peek on each edge.
+// Cards fully in view at each breakpoint + half-card peeks on both sides
+// Desktop (1024+): 4 cards center + 0.5 card peek each side = shows 5 cards (4 full + 2 half)
+// Tablet (640+): 2 cards center + 0.5 card peek each side = shows 3 cards (2 full + 2 half)
+// Mobile: 1 card center + 0.5 card peek each side = shows 2 cards (1 full + 2 half)
 function cardsPerViewForWidth(width: number): number {
   if (width >= 1024) return 4;
   if (width >= 640) return 2;
