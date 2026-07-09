@@ -96,42 +96,92 @@ export class PaymentService {
 
   // Shared "this payment succeeded" path — used by the Stripe/Paynow webhooks,
   // the direct Stripe status re-check, and the admin manual-verification tool.
-  // Idempotent: no-ops if the payment is already resolved or a ticket already exists.
+  // CRITICAL: This is the main fulfillment orchestrator. Every step must succeed
+  // before marking ticket as fulfilled.
   static async confirmPaid(
     reference: string,
     opts: { amount?: number; currency?: string; paymentMethod: string }
   ): Promise<void> {
-    const payment = await PaymentService.getPayment(reference);
-    if (!payment || payment.status === "paid" || payment.status === "failed") return;
+    try {
+      const payment = await PaymentService.getPayment(reference);
+      if (!payment) {
+        logError("confirmPaid_payment_not_found", new Error("Payment not found"), { reference });
+        throw new Error(`Payment not found: ${reference}`);
+      }
 
-    await PaymentService.updatePaymentStatus(reference, "paid");
+      // Idempotency check
+      if (payment.status === "paid" || payment.status === "failed") {
+        console.log("confirmPaid: Payment already processed", reference, payment.status);
+        return;
+      }
 
-    const existingTicket = await PaymentService.getTicketByPaymentReference(reference);
-    if (existingTicket) return;
+      // Step 1: Mark as paid in database
+      console.log("Step 1/7: Marking payment as paid...", reference);
+      await PaymentService.updatePaymentStatus(reference, "paid");
 
-    const m = (payment.metadata ?? {}) as Record<string, unknown>;
-    const ticket = await generateTicket({
-      paymentId: reference,
-      eventId: (m.eventId as string) || "",
-      ticketTypeId: (m.ticketTypeId as string) || "",
-      ticketTypeName: m.ticketTypeName as string | undefined,
-      eventTitle: m.eventTitle as string | undefined,
-      eventDate: m.eventDate as string | undefined,
-      eventTime: m.eventTime as string | undefined,
-      venue: m.venue as string | undefined,
-      buyerName: (m.buyerName as string) || "",
-      buyerEmail: (m.buyerEmail as string) || "",
-      buyerPhone: (m.buyerPhone as string) || "",
-      buyerUserId: payment.userId,
-      displayName: m.displayName as string | undefined,
-      idNumber: m.idNumber as string | undefined,
-      quantity: m.quantity as number | undefined,
-      amount: opts.amount ?? payment.amount,
-      currency: (opts.currency ?? payment.currency).toUpperCase(),
-      paymentMethod: opts.paymentMethod,
-    });
-    await sendTicketEmail(ticket);
-    await sendSaleNotificationEmails(ticket);
+      // Step 2: Check if ticket already exists (idempotency)
+      const existingTicket = await PaymentService.getTicketByPaymentReference(reference);
+      if (existingTicket) {
+        console.log("confirmPaid: Ticket already exists", reference, existingTicket.id);
+        return;
+      }
+
+      // Step 3: Generate ticket
+      const m = (payment.metadata ?? {}) as Record<string, unknown>;
+      console.log("Step 2/7: Generating ticket...", reference);
+      console.log("Payment metadata:", m);
+
+      if (!m.buyerEmail) {
+        logError("confirmPaid_missing_buyer_email", new Error("Buyer email required for ticket generation"), {
+          reference,
+          metadata: m
+        });
+        throw new Error("Buyer email is required to generate ticket");
+      }
+
+      const ticket = await generateTicket({
+        paymentId: reference,
+        eventId: (m.eventId as string) || "",
+        ticketTypeId: (m.ticketTypeId as string) || "",
+        ticketTypeName: m.ticketTypeName as string | undefined,
+        eventTitle: m.eventTitle as string | undefined,
+        eventDate: m.eventDate as string | undefined,
+        eventTime: m.eventTime as string | undefined,
+        venue: m.venue as string | undefined,
+        buyerName: (m.buyerName as string) || "Guest",
+        buyerEmail: (m.buyerEmail as string) || "",
+        buyerPhone: (m.buyerPhone as string) || "",
+        buyerUserId: payment.userId,
+        displayName: m.displayName as string | undefined,
+        idNumber: m.idNumber as string | undefined,
+        quantity: m.quantity as number | undefined,
+        amount: opts.amount ?? payment.amount,
+        currency: (opts.currency ?? payment.currency).toUpperCase(),
+        paymentMethod: opts.paymentMethod,
+      });
+
+      if (!ticket || !ticket.id) {
+        throw new Error("Failed to generate ticket");
+      }
+
+      console.log("✓ Step 3/7: Ticket generated", ticket.id);
+
+      // Step 4: Send ticket email
+      console.log("Step 4/7: Sending ticket email to", ticket.buyerEmail);
+      await sendTicketEmail(ticket);
+      console.log("✓ Step 5/7: Ticket email sent");
+
+      // Step 5: Send sale notification emails
+      console.log("Step 6/7: Sending sale notifications...");
+      await sendSaleNotificationEmails(ticket);
+      console.log("✓ Step 7/7: Sale notifications sent");
+
+      console.log("✅ FULFILLMENT COMPLETE:", reference, ticket.id);
+    } catch (error) {
+      logError("confirmPaid_workflow_failed", error, { reference, paymentMethod: opts.paymentMethod });
+      console.error("❌ FULFILLMENT FAILED for payment", reference, error);
+      throw error; // Re-throw so the endpoint knows fulfillment failed
+    }
   }
 
   // Shared "this payment did not succeed" path. Idempotent like confirmPaid.

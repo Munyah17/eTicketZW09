@@ -84,13 +84,23 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ received: true });
       }
 
-      await PaymentService.confirmPaid(reference, {
-        amount: session.amount_total / 100,
-        currency: session.currency.toUpperCase(),
-        paymentMethod: "stripe",
-      });
-
-      console.log("Payment successful and ticket generated:", reference);
+      try {
+        console.log("🚀 Starting fulfillment workflow for Stripe payment:", reference);
+        await PaymentService.confirmPaid(reference, {
+          amount: session.amount_total / 100,
+          currency: session.currency.toUpperCase(),
+          paymentMethod: "stripe",
+        });
+        console.log("✅ Fulfillment complete: Ticket generated and email sent for", reference);
+      } catch (fulfillmentError) {
+        console.error("❌ Fulfillment failed for Stripe payment", reference, fulfillmentError);
+        logError("stripe_webhook_fulfillment_failed", fulfillmentError, {
+          reference,
+          stripeSessionId: session.id,
+        });
+        // Even if fulfillment fails, we acknowledge the webhook to prevent retries
+        // The payment is marked as paid, but fulfillment needs manual review
+      }
     } else if (event.type === "checkout.session.expired") {
       const session = event.data.object;
       const reference = session.metadata?.reference;

@@ -3,14 +3,17 @@ import { PaymentService } from "@/lib/services/payment-service";
 import { logError } from "@/lib/error-logger";
 
 export async function POST(req: NextRequest) {
+  let reference = "";
+  let status = "";
+
   try {
     const body = await req.json();
-    
+
     console.log("Paynow webhook received:", body);
 
     // Paynow SDK sends: reference, status, amount
-    const reference = body.reference;
-    const status = body.status;
+    reference = body.reference;
+    status = body.status;
     const amount = body.amount;
 
     if (!reference || !status) {
@@ -32,12 +35,24 @@ export async function POST(req: NextRequest) {
 
     // Process payment based on status
     if (status === "Paid" || status === "Delivered") {
-      await PaymentService.confirmPaid(reference, {
-        amount: amount || payment.amount,
-        currency: payment.currency,
-        paymentMethod: "paynow",
-      });
-      console.log("Payment successful and ticket generated:", reference);
+      try {
+        console.log("🚀 Starting fulfillment workflow for Paynow payment:", reference);
+        await PaymentService.confirmPaid(reference, {
+          amount: amount || payment.amount,
+          currency: payment.currency,
+          paymentMethod: "paynow",
+        });
+        console.log("✅ Fulfillment complete: Ticket generated and email sent for", reference);
+      } catch (fulfillmentError) {
+        console.error("❌ Fulfillment failed for Paynow payment", reference, fulfillmentError);
+        logError("paynow_webhook_fulfillment_failed", fulfillmentError, {
+          reference,
+          status,
+          amount,
+        });
+        // Even if fulfillment fails, we acknowledge the webhook to prevent retries
+        // The payment is marked as paid, but fulfillment needs manual review
+      }
     } else {
       await PaymentService.markFailed(reference);
       console.error("Payment failed:", reference, status);
@@ -45,7 +60,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    logError("paynow_webhook", error);
+    logError("paynow_webhook", error, { reference, status });
+    console.error("Paynow webhook error:", error);
     return NextResponse.json({ error: "Webhook handler failed" }, { status: 500 });
   }
 }
