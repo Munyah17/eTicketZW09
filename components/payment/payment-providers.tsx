@@ -41,8 +41,8 @@ export function PaymentProviders({ amount, onSelect, selectedProvider }: Payment
   };
 
   return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
+    <div className="space-y-2 sm:space-y-3">
+      <p className="text-xs sm:text-sm text-muted-foreground px-1">
         Select your preferred payment method to complete your purchase of{" "}
         <strong className="font-mono">${amount.toFixed(2)}</strong>
       </p>
@@ -58,47 +58,50 @@ export function PaymentProviders({ amount, onSelect, selectedProvider }: Payment
           onClick={() => handleSelect(provider.id)}
         >
           <CardContent className="p-0">
-            {/* Banner Image */}
-            <div className="w-full bg-white flex items-center justify-center p-3 border-b">
+            {/* Banner Image - Responsive sizing */}
+            <div className="w-full bg-white flex items-center justify-center p-2 sm:p-3 border-b min-h-16 sm:min-h-24">
               <img
                 src={provider.banner}
                 alt={`${provider.name} payment banner`}
-                className="w-full max-h-28 object-contain"
+                className="w-full max-h-16 sm:max-h-24 object-contain"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = "none";
                 }}
               />
             </div>
 
-            <div className="p-4 flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="font-semibold">{provider.name}</h4>
+            {/* Card Info - Responsive layout */}
+            <div className="p-2 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
+                  <h4 className="font-semibold text-sm sm:text-base truncate">{provider.name}</h4>
                   {provider.active ? (
-                    <Badge variant="default" className="bg-success text-success-foreground gap-1">
+                    <Badge variant="default" className="bg-success text-success-foreground gap-1 text-xs shrink-0">
                       <Lock className="h-3 w-3" />
                       Active
                     </Badge>
                   ) : (
-                    <Badge variant="secondary">Coming Soon</Badge>
+                    <Badge variant="secondary" className="text-xs shrink-0">Coming Soon</Badge>
                   )}
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">{provider.description}</p>
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{provider.description}</p>
               </div>
 
-              {selectedProvider === provider.id ? (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                  <Check className="h-4 w-4" />
-                </div>
-              ) : provider.active ? (
-                <Button size="sm" variant="outline" disabled={loadingProvider === provider.id}>
-                  {loadingProvider === provider.id ? "..." : `Pay with ${provider.name}`}
-                </Button>
-              ) : (
-                <Button size="sm" variant="outline">
-                  {`Pay with ${provider.name}`}
-                </Button>
-              )}
+              <div className="flex-shrink-0">
+                {selectedProvider === provider.id ? (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                    <Check className="h-4 w-4" />
+                  </div>
+                ) : provider.active ? (
+                  <Button size="sm" variant="outline" disabled={loadingProvider === provider.id} className="text-xs sm:text-sm whitespace-nowrap">
+                    {loadingProvider === provider.id ? "..." : `Pay`}
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" className="text-xs sm:text-sm whitespace-nowrap">
+                    Pay
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
