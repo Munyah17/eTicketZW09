@@ -34,10 +34,22 @@ function row(label: string, value: string): string {
 // The buyer already receives their own confirmation as part of the existing
 // ticket-delivery email (lib/email/send-ticket-email.ts) — intentionally not
 // duplicated here.
+// Critical: requires RESEND_API_KEY environment variable to be set.
 export async function sendSaleNotificationEmails(ticket: GeneratedTicket): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn("RESEND_API_KEY not set — skipping sale notification emails for", ticket.id);
+    console.error(
+      "CRITICAL: RESEND_API_KEY not configured — SALE NOTIFICATION EMAILS ARE NOT BEING SENT!",
+      "Ticket ID:",
+      ticket.id,
+      "Event:",
+      ticket.eventTitle
+    );
+    logError("sale_notification_emails_not_sent", new Error("RESEND_API_KEY missing"), {
+      ticketId: ticket.id,
+      eventTitle: ticket.eventTitle,
+      reason: "Email service not configured",
+    });
     return;
   }
 

@@ -46,8 +46,8 @@ function buildEmailHtml(ticket: TicketPngData): string {
 }
 
 // Fired right after a ticket is generated for a successful payment.
-// No-ops (with a warning) when RESEND_API_KEY isn't configured, matching
-// how the Paynow/Stripe integrations handle missing credentials.
+// Sends downloadable ticket to buyer's email address.
+// Critical: requires RESEND_API_KEY environment variable to be set.
 export async function sendTicketEmail(ticket: TicketPngData): Promise<void> {
   if (!ticket.buyerEmail) {
     console.warn("sendTicketEmail: no buyer email on ticket", ticket.id);
@@ -56,7 +56,18 @@ export async function sendTicketEmail(ticket: TicketPngData): Promise<void> {
 
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
-    console.warn("RESEND_API_KEY not set — skipping ticket email for", ticket.id);
+    console.error(
+      "CRITICAL: RESEND_API_KEY not configured — TICKET EMAILS ARE NOT BEING SENT!",
+      "Ticket ID:",
+      ticket.id,
+      "Buyer Email:",
+      ticket.buyerEmail
+    );
+    logError("ticket_email_not_sent", new Error("RESEND_API_KEY missing"), {
+      ticketId: ticket.id,
+      buyerEmail: ticket.buyerEmail,
+      reason: "Email service not configured",
+    });
     return;
   }
 
@@ -79,11 +90,17 @@ export async function sendTicketEmail(ticket: TicketPngData): Promise<void> {
     });
 
     if (error) {
-      logError("ticket_email_send", error, { ticketId: ticket.id, buyerEmail: ticket.buyerEmail });
+      logError("ticket_email_send_failed", error, {
+        ticketId: ticket.id,
+        buyerEmail: ticket.buyerEmail,
+        eventTitle: ticket.eventTitle,
+      });
+      console.error("Failed to send ticket email:", error, "to:", ticket.buyerEmail);
     } else {
-      console.log("Ticket email sent to:", ticket.buyerEmail, "for ticket:", ticket.id);
+      console.log("✓ Ticket email sent successfully to:", ticket.buyerEmail, "for ticket:", ticket.id);
     }
   } catch (err) {
-    logError("ticket_email_generation", err, { ticketId: ticket.id, buyerEmail: ticket.buyerEmail });
+    logError("ticket_email_generation_failed", err, { ticketId: ticket.id, buyerEmail: ticket.buyerEmail });
+    console.error("Error generating/sending ticket email:", err);
   }
 }
