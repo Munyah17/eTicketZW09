@@ -438,7 +438,7 @@ export default function PlatformPage() {
             </div>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
-            <p className="text-sm text-muted-foreground">Shown on the Contact page and used as the platform's public identity.</p>
+            <p className="text-sm text-muted-foreground">Shown on the Contact page and used as the platform&apos;s public identity.</p>
             <div className="space-y-1.5">
               <Label htmlFor="site-name">Site Name</Label>
               <Input id="site-name" value={config.site_name} onChange={e => setFeature("site_name", e.target.value)} />

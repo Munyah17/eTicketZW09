@@ -241,12 +241,21 @@ export default function CreateEventPage() {
         formData.append("image", featuredImage);
         formData.append("eventId", savedEventId);
         try {
-          await fetch("/api/organizer/events/image", {
+          const res = await fetch("/api/organizer/events/image", {
             method: "POST",
             body: formData,
           });
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `Upload failed (${res.status})`);
+          }
         } catch (err) {
           console.error("Failed to upload featured image:", err);
+          alert(
+            "Your event was created, but the featured image failed to upload" +
+              (err instanceof Error ? ` (${err.message})` : "") +
+              ". You can add it from My Events."
+          );
         }
       }
       router.push(autoApprove ? "/organizer?created=true" : "/organizer?pendingReview=true");

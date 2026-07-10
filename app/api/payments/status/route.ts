@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PaymentService } from "@/lib/services/payment-service";
+import { PaymentService, PaynowService } from "@/lib/services/payment-service";
+import { logError } from "@/lib/error-logger";
 
 export async function GET(req: NextRequest) {
   const reference = req.nextUrl.searchParams.get("ref");
@@ -45,6 +46,30 @@ export async function GET(req: NextRequest) {
         }
       } catch (err) {
         console.error("Direct Stripe verification error:", err);
+        // Non-fatal: fall through and return current status
+      }
+    }
+  }
+
+  // Same for Paynow: when the buyer lands back on the confirmation page while
+  // the payment is still pending (webhook delayed or missed), verify directly
+  // with Paynow's servers and complete fulfillment right here.
+  if (payment.status === "pending" && payment.provider === "paynow") {
+    const pollUrl = payment.metadata?.paynow_poll_url as string | undefined;
+    if (pollUrl) {
+      try {
+        const verified = await PaynowService.pollStatus(pollUrl);
+        if (verified === "paid") {
+          await PaymentService.confirmPaid(reference, {
+            amount: payment.amount,
+            currency: payment.currency,
+            paymentMethod: "paynow",
+          });
+        } else if (verified === "failed") {
+          await PaymentService.markFailed(reference);
+        }
+      } catch (err) {
+        logError("paynow_status_poll_failed", err, { reference });
         // Non-fatal: fall through and return current status
       }
     }

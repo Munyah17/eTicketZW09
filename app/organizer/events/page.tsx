@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/ui/stat-card";
@@ -22,8 +22,8 @@ import {
   DollarSign,
   Plus,
   Eye,
-  Edit,
-  Trash2,
+  ImagePlus,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getOrganizerEvents } from "@/lib/events-store";
@@ -39,6 +39,51 @@ export default function OrganizerEventsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [uploadingEventId, setUploadingEventId] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const uploadTargetRef = useRef<string | null>(null);
+
+  const pickImageFor = (eventId: string) => {
+    uploadTargetRef.current = eventId;
+    imageInputRef.current?.click();
+  };
+
+  const handleImageSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const eventId = uploadTargetRef.current;
+    e.target.value = ""; // allow re-selecting the same file later
+    if (!file || !eventId) return;
+
+    if (!file.type.startsWith("image/")) {
+      alert("Please select a valid image file (PNG, JPG, WebP)");
+      return;
+    }
+    const MAX_SIZE = 20 * 1024 * 1024; // 20MB — matches the events storage bucket limit
+    if (file.size > MAX_SIZE) {
+      alert("Image must be 20MB or smaller");
+      return;
+    }
+
+    setUploadingEventId(eventId);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("eventId", eventId);
+      const res = await fetch("/api/organizer/events/image", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `Upload failed (${res.status})`);
+      }
+      await loadEvents();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Image upload failed. Please try again.");
+    } finally {
+      setUploadingEventId(null);
+    }
+  };
 
   const loadEvents = useCallback(async () => {
     if (!user) return;
@@ -118,6 +163,14 @@ export default function OrganizerEventsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Shared hidden input for per-row featured image uploads */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        className="hidden"
+        onChange={handleImageSelected}
+      />
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold">My Events</h1>
@@ -198,11 +251,30 @@ export default function OrganizerEventsPage() {
                     return (
                       <TableRow key={event.id}>
                         <TableCell className="whitespace-nowrap">
-                          <div>
-                            <p className="font-medium">{event.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {event.category}
-                            </p>
+                          <div className="flex items-center gap-3">
+                            {event.image ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={event.image}
+                                alt=""
+                                className="h-10 w-16 shrink-0 rounded-md object-cover"
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => pickImageFor(event.id)}
+                                className="flex h-10 w-16 shrink-0 items-center justify-center rounded-md border border-dashed text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                                title="Add featured image"
+                              >
+                                <ImagePlus className="h-4 w-4" />
+                              </button>
+                            )}
+                            <div>
+                              <p className="font-medium">{event.title}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {event.category}
+                              </p>
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell className="whitespace-nowrap">
@@ -229,15 +301,22 @@ export default function OrganizerEventsPage() {
                         <TableCell className="text-right whitespace-nowrap">
                           <div className="flex justify-end gap-2">
                             <Link href={`/events/${event.id}`}>
-                              <Button variant="ghost" size="icon">
+                              <Button variant="ghost" size="icon" title="View event page">
                                 <Eye className="h-4 w-4" />
                               </Button>
                             </Link>
-                            <Button variant="ghost" size="icon">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="text-destructive">
-                              <Trash2 className="h-4 w-4" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title={event.image ? "Replace featured image" : "Add featured image"}
+                              disabled={uploadingEventId === event.id}
+                              onClick={() => pickImageFor(event.id)}
+                            >
+                              {uploadingEventId === event.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <ImagePlus className="h-4 w-4" />
+                              )}
                             </Button>
                           </div>
                         </TableCell>

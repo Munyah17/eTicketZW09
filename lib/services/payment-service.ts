@@ -28,6 +28,7 @@ export interface PaymentInitiateResponse {
   reference: string;
   redirect_url: string;
   stripe_session_id?: string;
+  paynow_poll_url?: string;
   error?: string;
 }
 
@@ -85,6 +86,15 @@ export class PaymentService {
       if (updateError) {
         console.error("Payment stripe_session_id update failed:", updateError.message);
       }
+    } else if (result.paynow_poll_url) {
+      // The poll URL is how we later verify the payment directly with Paynow's
+      // servers (webhook bodies are unauthenticated and cannot be trusted).
+      const { error: updateError } = await supabase.from("payments")
+        .update({ metadata: { ...request.metadata, paynow_poll_url: result.paynow_poll_url } })
+        .eq("reference", reference);
+      if (updateError) {
+        console.error("Payment paynow_poll_url update failed:", updateError.message);
+      }
     }
 
     return result;
@@ -110,22 +120,27 @@ export class PaymentService {
         throw new Error(`Payment not found: ${reference}`);
       }
 
-      // Idempotency check
-      if (payment.status === "paid" || payment.status === "failed") {
-        console.log("confirmPaid: Payment already processed", reference, payment.status);
-        return;
-      }
-
-      // Step 1: Mark as paid in database
-      console.log("Step 1/7: Marking payment as paid...", reference);
-      await PaymentService.updatePaymentStatus(reference, "paid");
-
-      // Step 2: Check if ticket already exists (idempotency)
+      // Idempotency: the ticket row is the real completion marker, not the
+      // payment status. A payment can be "paid" with generation having failed
+      // mid-flight (crash, bad metadata) — in that case a retry must fall
+      // through and produce the ticket instead of returning early, otherwise
+      // the buyer is permanently stuck with a paid payment and no ticket.
       const existingTicket = await PaymentService.getTicketByPaymentReference(reference);
       if (existingTicket) {
         console.log("confirmPaid: Ticket already exists", reference, existingTicket.id);
         return;
       }
+      if (payment.status === "failed") {
+        console.log("confirmPaid: Payment previously marked failed — not fulfilling", reference);
+        return;
+      }
+      if (payment.status === "paid") {
+        console.log("confirmPaid: Payment already paid but no ticket found — resuming fulfillment", reference);
+      }
+
+      // Step 1: Mark as paid in database
+      console.log("Step 1/7: Marking payment as paid...", reference);
+      await PaymentService.updatePaymentStatus(reference, "paid");
 
       // Step 3: Generate ticket
       const m = (payment.metadata ?? {}) as Record<string, unknown>;
@@ -300,7 +315,14 @@ class PaynowService {
 
     try {
       const response = await paynow.send(payment);
-      if (response.success) return { success: true, reference, redirect_url: response.redirectUrl };
+      if (response.success) {
+        return {
+          success: true,
+          reference,
+          redirect_url: response.redirectUrl,
+          paynow_poll_url: response.pollUrl,
+        };
+      }
       const paynowError = response.error || response.errors?.join(", ") || "Paynow initiation failed";
       return { success: false, reference, redirect_url: "", error: paynowError };
     } catch (error) {
@@ -308,7 +330,33 @@ class PaynowService {
       return { success: false, reference, redirect_url: "", error: "Failed to initiate Paynow payment" };
     }
   }
+
+  // Asks Paynow's own servers for the transaction status — the only
+  // trustworthy source. Returns "paid", "failed", or "pending".
+  static async pollStatus(pollUrl: string): Promise<"paid" | "failed" | "pending"> {
+    const PAYNOW_INTEGRATION_ID = process.env.PAYNOW_INTEGRATION_ID || "";
+    const PAYNOW_INTEGRATION_KEY = process.env.PAYNOW_INTEGRATION_KEY || "";
+    if (!PAYNOW_INTEGRATION_ID || !PAYNOW_INTEGRATION_KEY) {
+      throw new Error("Paynow credentials are not configured");
+    }
+
+    // Never poll a URL outside Paynow — a forged webhook could otherwise point
+    // us at an attacker-controlled server that answers "Paid".
+    const host = new URL(pollUrl).hostname;
+    if (host !== "paynow.co.zw" && !host.endsWith(".paynow.co.zw")) {
+      throw new Error(`Refusing to poll non-Paynow URL: ${host}`);
+    }
+
+    const paynow = new Paynow(PAYNOW_INTEGRATION_ID, PAYNOW_INTEGRATION_KEY);
+    const status = await paynow.pollTransaction(pollUrl);
+    const s = String(status?.status ?? "").toLowerCase();
+    if (s === "paid" || s === "awaiting delivery" || s === "delivered") return "paid";
+    if (s === "cancelled" || s === "failed" || s === "disputed" || s === "refunded") return "failed";
+    return "pending";
+  }
 }
+
+export { PaynowService };
 
 class StripeService {
   static async initiatePayment(reference: string, request: PaymentInitiateRequest): Promise<PaymentInitiateResponse> {

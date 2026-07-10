@@ -36,10 +36,16 @@ export default async function Image() {
               height: 84,
               borderRadius: 20,
               background: "rgba(255,255,255,0.15)",
-              fontSize: 48,
             }}
           >
-            🎟️
+            {/* Inline ticket icon — emoji would make next/og fetch artwork
+                from a CDN at build time, which breaks offline/flaky builds */}
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" />
+              <path d="M13 5v2" />
+              <path d="M13 17v2" />
+              <path d="M13 11v2" />
+            </svg>
           </div>
           <div style={{ display: "flex", fontSize: 64, fontWeight: 700, color: "#ffffff" }}>
             E-Tickets<span style={{ color: "#93c5fd" }}>ZW</span>
