@@ -2,7 +2,49 @@
 
 ---
 
-## Session 2 (2026-07-11): ticket redesign, delivery diagnosis, scanner repair
+## Session 3 (2026-07-12): branding, carousel, live Stripe webhook
+
+- **Logo**: extracted the icon mark and wordmark lockup from the supplied
+  artwork (real alpha transparency — the gray "glow" seen in previews was
+  the viewer's own compositing, not baked into the file). Generated a
+  dark-mode wordmark variant (white text) via pixel recolor. Wired into
+  the public header (desktop + mobile), footer, and
+  favicons/apple-touch-icon via new `components/layout/logo.tsx`. Admin/
+  organizer dashboard chrome intentionally left alone (Crown/Briefcase
+  icons there signal role, not brand).
+- **Homepage carousel**: desktop was showing 4 full cards + a cut-off 5th
+  (intentional "peek" scroll affordance). Peek now only applies at tablet
+  width; desktop shows exactly 4 full-width cards, each wider since the
+  space once reserved for the clipped 5th card is redistributed
+  (`components/home/event-carousel-row.tsx`).
+- **Event images re-verified**: ran a second, stricter E2E test through the
+  actual frontend code paths (RLS-scoped insert exactly as `saveEvent()`
+  does it, then a real multipart upload to `/api/organizer/events/image`
+  with a live session, then confirmed via the public `/api/events` listing
+  used by the homepage). Confirmed working end-to-end. All 7 pre-existing
+  events still show placeholders because they predate the fix and no
+  organizer has uploaded artwork for them yet — this is a data gap, not a
+  code defect.
+- **Stripe webhook — now live**: rotated `STRIPE_SECRET_KEY` to the
+  project-specific live key, created a dedicated webhook endpoint
+  (`https://www.eticket.co.zw/api/payments/webhook/stripe`, events
+  `checkout.session.completed` + `checkout.session.expired`) via the
+  Stripe API, stored the returned signing secret as `STRIPE_WEBHOOK_SECRET`
+  in Vercel (this variable didn't exist before — signature verification
+  was silently disabled), and forced a redeploy so both took effect.
+  Verified in production: an unsigned request is now rejected (400,
+  previously would have been accepted unverified), and a correctly-signed
+  request passes verification and reaches business logic (404 "Payment not
+  found" on a synthetic reference — proves the signature check passed).
+- **Paynow "webhook"**: Paynow has no dashboard-registered webhook concept
+  like Stripe — the callback URL (`resultUrl`) is set programmatically per
+  transaction in `PaynowService.initiatePayment()` and already points at
+  `/api/payments/webhook/paynow`. Nothing to configure in a Paynow
+  dashboard. The payment-status confirmation function using the
+  Integration ID/Key that forum posts suggest as a fallback is exactly
+  what `PaynowService.pollStatus()` (shipped in the prior session) already
+  does — it's the mechanism the webhook itself uses to verify the POSTed
+  status against Paynow's own servers before fulfilling.
 
 ### Email "still not sending" — actual root cause captured
 The delivery tracking added in session 1 recorded Resend's real rejection on the
