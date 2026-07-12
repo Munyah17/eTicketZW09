@@ -45,10 +45,21 @@ export async function POST(request: NextRequest) {
 
   if (authError) return NextResponse.json({ error: authError.message }, { status: 400 });
 
-  await supabase
+  // The handle_new_user trigger already created the profile row from
+  // user_metadata (role included) — this update only needs to force
+  // verified:true so an admin-created account skips the self-signup
+  // email-confirmation gate. Previously unchecked: a failed update here
+  // left the account unverified with the route still reporting success.
+  const { error: profileError } = await supabase
     .from("profiles")
     .update({ name, role: "admin", phone: phone ?? "", verified: true })
     .eq("id", authData.user.id);
+  if (profileError) {
+    return NextResponse.json(
+      { error: `Account created but profile setup failed: ${profileError.message}. The account may show as unverified.` },
+      { status: 500 }
+    );
+  }
 
   await logAudit({
     actorId: auth.user.id,

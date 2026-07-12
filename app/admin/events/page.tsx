@@ -27,6 +27,7 @@ import type { Event } from "@/lib/types";
 export default function AdminEventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [markupValue, setMarkupValue] = useState("");
@@ -35,13 +36,24 @@ export default function AdminEventsPage() {
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.set("search", searchQuery);
       const res = await fetch(`/api/admin/events?${params}`);
       const data = await res.json();
+      // Previously any failure (network error, non-OK response, bad JSON)
+      // fell through to an empty list identical to "no events exist" — an
+      // admin had no way to tell a real outage apart from a genuinely empty
+      // platform.
+      if (!res.ok) {
+        setLoadError(data.error || `Failed to load events (${res.status})`);
+        setEvents([]);
+        return;
+      }
       setEvents(data.events ?? []);
-    } catch {
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "Failed to load events.");
       setEvents([]);
     } finally {
       setLoading(false);
@@ -159,7 +171,14 @@ export default function AdminEventsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {events.length === 0 ? (
+                {loadError ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-destructive">
+                      {loadError} —{" "}
+                      <button className="underline" onClick={fetchEvents}>retry</button>
+                    </TableCell>
+                  </TableRow>
+                ) : events.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       No events found

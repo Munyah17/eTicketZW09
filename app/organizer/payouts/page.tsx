@@ -184,10 +184,14 @@ export default function OrganizerPayoutsPage() {
     if (!confirm("Are you sure you want to delete this payout method?")) return;
     try {
       const res = await fetch(`/api/organizer/payouts/methods/${methodId}`, { method: "DELETE" });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        alert(json.error || "Failed to delete payout method. Please try again.");
+        return;
+      }
       reload();
-    } catch (error) {
-      console.error("Error deleting method:", error);
+    } catch {
+      alert("Failed to delete payout method. Please check your connection and try again.");
     }
   };
 

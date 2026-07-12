@@ -75,22 +75,35 @@ export default function StaffManagementPage() {
     s.email.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Previously ignored the response entirely — a failed write (permission
+  // denial, DB error) looked identical to success: the dialog just closed
+  // and the list reloaded showing the account unchanged, with no indication
+  // anything had gone wrong.
+  const reportIfFailed = async (res: Response, fallback: string) => {
+    if (res.ok) return true;
+    const json = await res.json().catch(() => ({}));
+    alert(json.error || fallback);
+    return false;
+  };
+
   const handleSuspend = async (s: StaffMember) => {
-    await fetch("/api/admin/staff", {
+    const res = await fetch("/api/admin/staff", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: s.id, is_suspended: !s.isSuspended }),
     });
+    await reportIfFailed(res, "Failed to update suspension status.");
     reload();
   };
 
   const handleDelete = async (s: StaffMember) => {
-    await fetch("/api/admin/staff", {
+    const res = await fetch("/api/admin/staff", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: s.id }),
     });
     setConfirmDelete(null);
+    await reportIfFailed(res, "Failed to delete account.");
     reload();
   };
 

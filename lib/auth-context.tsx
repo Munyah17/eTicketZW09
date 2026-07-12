@@ -151,13 +151,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (updates.organizerCategory !== undefined) dbUpdates.organizer_category = updates.organizerCategory;
     if (updates.organizerSubtype !== undefined) dbUpdates.organizer_subtype = updates.organizerSubtype;
 
-    const { data: updated } = await supabase
+    const { data: updated, error } = await supabase
       .from("profiles")
       .update(dbUpdates)
       .eq("id", user.id)
       .select()
       .single();
 
+    // Previously ignored — a failed save (RLS denial, network blip) looked
+    // identical to a successful one: no error, no state change, no feedback.
+    if (error) throw new Error(error.message);
     if (updated) setUser(dbProfileToUser(updated));
   };
 

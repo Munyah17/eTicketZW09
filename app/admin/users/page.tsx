@@ -95,32 +95,47 @@ export default function UsersPage() {
     { header: "Joined", accessor: (u) => u.createdAt },
   ];
 
+  // Shared failure surface for the suspend/delete/role actions below — these
+  // previously ignored the response entirely, so a failed write (permission
+  // denial, DB error) looked identical to success: the dialog just closed
+  // and the list reloaded showing the account unchanged, with no indication
+  // anything had gone wrong.
+  const reportIfFailed = async (res: Response, fallback: string) => {
+    if (res.ok) return true;
+    const json = await res.json().catch(() => ({}));
+    alert(json.error || fallback);
+    return false;
+  };
+
   const handleSuspend = async (u: UserType) => {
-    await fetch("/api/admin/users", {
+    const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: u.id, is_suspended: !u.isSuspended }),
     });
+    await reportIfFailed(res, "Failed to update suspension status.");
     reload();
   };
 
   const handleDelete = async (u: UserType) => {
-    await fetch("/api/admin/users", {
+    const res = await fetch("/api/admin/users", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: u.id }),
     });
     setConfirmDelete(null);
+    await reportIfFailed(res, "Failed to delete account.");
     reload();
   };
 
   const handleRoleChange = async (u: UserType, role: UserRole) => {
-    await fetch("/api/admin/users", {
+    const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: u.id, role }),
     });
     setConfirmRole(null);
+    await reportIfFailed(res, "Failed to change role.");
     reload();
   };
 
