@@ -1,5 +1,58 @@
 # Engineering Log — Stabilisation Audit (2026-07-10/11)
 
+---
+
+## Session 2 (2026-07-11): ticket redesign, delivery diagnosis, scanner repair
+
+### Email "still not sending" — actual root cause captured
+The delivery tracking added in session 1 recorded Resend's real rejection on the
+first post-deploy sale: **"The eticket.co.zw domain is not verified. Please, add
+and verify your domain on https://resend.com/domains."** The code path works;
+the Resend account cannot send from `@eticket.co.zw` until its DNS records
+(SPF + DKIM, from the Resend dashboard) are added at the DNS host
+(ns5/ns6.my-control-panel.com — cPanel, not Vercel, so it must be done there).
+**Owner action required — nothing further can be fixed in code.**
+Recovery for past sales: added `POST /api/admin/tickets/[id]/resend` plus a
+re-send button on Admin → All Tickets, so every undelivered ticket can be pushed
+to its buyer once the domain verifies.
+
+### Featured images — pipeline proven working in production
+Ran a full E2E test against the live site: created a temp organizer + draft
+event, signed in, uploaded an image through `/api/organizer/events/image` with a
+real session — HTTP 200, file in the `events` bucket, `events.image` updated,
+public URL served. All artifacts cleaned up. The pipeline is healthy; the seven
+existing events show placeholders because **no artwork has been uploaded for
+them yet**. Organizers add it via My Events → image button on each row (or at
+creation time).
+
+### Ticket redesign (lib/ticket-png.tsx)
+Landscape 1600×640: left panel with brand band + event branding (title,
+date/time, venue, holder, amount, purchased), vertical dashed tear line, right
+stub with ADMIT ONE, QR, validation code, and seat. Seat number
+(`tickets.seat_number`, new migration 20260711000000, applied live) renders on
+both panel and stub when present. Verified by rendering a sample PNG in a unit
+test and inspecting it.
+
+### QR now leads to the confirmation check system
+QR content changed from a JSON blob to `https://www.eticket.co.zw/validate?code=<id>`:
+- Phone cameras open `/validate`, which now serves a **public read-only
+  authenticity check** (new `GET /api/tickets/check`) for non-staff — status,
+  event, type, seat; no buyer contact details; never mutates the ticket.
+- Staff arriving with `?code=` get the code auto-looked-up for admission.
+- `normalizeTicketCode()` (lib/validation.ts, unit-tested) extracts the id from
+  URL / legacy-JSON / raw formats in both `/api/validate` and
+  `/api/organizer/gate`.
+
+### Latent scanner defect fixed
+Both scanners could never match a scanned QR: `/api/validate` compared the
+payload against `qr_code` (which stores a data-URL *image string*) and the old
+JSON payload matched nothing; `/api/organizer/gate` used `.eq("qr_code", code)`
+— guaranteed miss. Both now normalize and match on ticket id / ID number.
+The stored `qr_code` data-URL also now encodes the validation URL so QR images
+shown in My Tickets / confirmation pages behave identically to the PNG.
+
+---
+
 Full audit of code, Vercel deployment, and the live Supabase database, followed by
 structural fixes. Each section: problem → root cause → fix → verification.
 

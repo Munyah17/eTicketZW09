@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isUuid, normalizeTicketCode } from "@/lib/validation";
 
 // Session-scoped (RLS: organizer can only see/update tickets for their own
 // events) — used by the gate check-in page for both listing an event's
@@ -28,12 +29,22 @@ export async function POST(req: NextRequest) {
   if (action === "scan") {
     if (!eventId || !code) return NextResponse.json({ error: "eventId and code are required" }, { status: 400 });
 
-    const { data: ticket } = await supabase
+    // QR payloads arrive as a validation URL (current) or JSON (legacy); the
+    // old .eq("qr_code", code) match compared against a stored data-URL image
+    // string and could never find a ticket.
+    const normalized = normalizeTicketCode(code);
+    const filter = isUuid(normalized)
+      ? `id.eq.${normalized},id_number.eq.${normalized}`
+      : `id_number.eq.${normalized}`;
+
+    const { data: tickets } = await supabase
       .from("tickets")
       .select("*")
       .eq("event_id", eventId)
-      .eq("qr_code", code)
-      .maybeSingle();
+      .or(filter)
+      .order("purchased_at", { ascending: false })
+      .limit(1);
+    const ticket = tickets?.[0];
 
     if (!ticket) {
       return NextResponse.json({ status: "not_found", message: "Ticket not found or not valid for this event" });

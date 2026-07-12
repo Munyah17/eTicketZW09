@@ -56,14 +56,39 @@ interface ValidationResult {
 
 const AUTHORIZED_ROLES = new Set(["admin", "super_admin", "organizer", "staff"]);
 
+interface PublicCheckResult {
+  status: "valid" | "used" | "invalid";
+  message: string;
+  ticket?: {
+    id: string;
+    eventTitle: string;
+    eventDate: string;
+    eventTime: string;
+    venue: string;
+    ticketTypeName: string;
+    seatNumber?: string | null;
+    holder?: string;
+  };
+}
+
 export default function ValidatePage() {
   const { user, isLoggedIn, loading: authLoading } = useAuth();
   const [ticketCode, setTicketCode] = useState("");
   const [validationResult, setValidationResult] = useState<ValidationResult>({ status: "idle" });
   const [isValidating, setIsValidating] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [codeParam, setCodeParam] = useState<string | null>(null);
+  const [publicCheck, setPublicCheck] = useState<PublicCheckResult | null>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<{ stop: () => void } | null>(null);
+  const autoLookupDone = useRef(false);
+
+  // Ticket QR codes encode /validate?code=<ticket-id>. Read it on mount
+  // (plain window.location to keep the page statically prerenderable).
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("code");
+    if (code) setCodeParam(code);
+  }, []);
 
   // Re-focus the code field after every scan/reset so an external USB/Bluetooth
   // barcode-scanner "gun" (which just types + Enter) always has somewhere to type.
@@ -94,6 +119,23 @@ export default function ValidatePage() {
   }, []);
 
   const handleValidate = () => runLookup(ticketCode);
+
+  // Arriving via a scanned QR: staff get the code pre-filled and looked up
+  // automatically; everyone else gets a read-only public confirmation check.
+  const isStaff = !authLoading && isLoggedIn && !!user && AUTHORIZED_ROLES.has(user.role);
+  useEffect(() => {
+    if (!codeParam || authLoading || autoLookupDone.current) return;
+    autoLookupDone.current = true;
+    if (isStaff) {
+      setTicketCode(codeParam);
+      runLookup(codeParam);
+    } else {
+      fetch(`/api/tickets/check?code=${encodeURIComponent(codeParam)}`)
+        .then((res) => res.json())
+        .then((json) => setPublicCheck(json))
+        .catch(() => setPublicCheck({ status: "invalid", message: "Could not check this ticket. Please try again." }));
+    }
+  }, [codeParam, authLoading, isStaff, runLookup]);
 
   const handleReset = () => {
     setTicketCode("");
@@ -168,6 +210,81 @@ export default function ValidatePage() {
   }
 
   if (!isLoggedIn || !user || !AUTHORIZED_ROLES.has(user.role)) {
+    // Public confirmation check — someone scanned a ticket QR with a phone
+    // camera. Show read-only authenticity status; admission stays staff-only.
+    if (codeParam) {
+      const pc = publicCheck;
+      return (
+        <div className="flex min-h-screen flex-col">
+          <Header />
+          <main className="flex flex-1 items-center justify-center bg-secondary/30">
+            <div className="w-full max-w-md px-4 py-10">
+              <Card>
+                <CardHeader className="text-center">
+                  <div
+                    className={cn(
+                      "mx-auto flex h-16 w-16 items-center justify-center rounded-full",
+                      !pc ? "bg-muted" : pc.status === "valid" ? "bg-success/10" : pc.status === "used" ? "bg-warning/10" : "bg-destructive/10"
+                    )}
+                  >
+                    {!pc ? (
+                      <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
+                    ) : pc.status === "valid" ? (
+                      <CheckCircle2 className="h-8 w-8 text-success" />
+                    ) : pc.status === "used" ? (
+                      <AlertCircle className="h-8 w-8 text-warning" />
+                    ) : (
+                      <XCircle className="h-8 w-8 text-destructive" />
+                    )}
+                  </div>
+                  <CardTitle className="mt-3">
+                    {!pc
+                      ? "Checking ticket…"
+                      : pc.status === "valid"
+                      ? "Genuine Ticket"
+                      : pc.status === "used"
+                      ? "Ticket Already Used"
+                      : "Invalid Ticket"}
+                  </CardTitle>
+                  {pc && <CardDescription>{pc.message}</CardDescription>}
+                </CardHeader>
+                {pc?.ticket && (
+                  <CardContent className="space-y-2 text-sm">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Event</span>
+                      <span className="font-medium text-right">{pc.ticket.eventTitle}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Date</span>
+                      <span className="font-medium text-right">{pc.ticket.eventDate} · {pc.ticket.eventTime}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Venue</span>
+                      <span className="font-medium text-right">{pc.ticket.venue}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-muted-foreground">Ticket Type</span>
+                      <span className="font-medium text-right">{pc.ticket.ticketTypeName}</span>
+                    </div>
+                    {pc.ticket.seatNumber && (
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-muted-foreground">Seat</span>
+                        <span className="font-medium text-right">{pc.ticket.seatNumber}</span>
+                      </div>
+                    )}
+                    <p className="pt-3 text-xs text-muted-foreground">
+                      This is a read-only authenticity check by E-TicketsZW. Entry admission is done by event staff at the gate.
+                    </p>
+                  </CardContent>
+                )}
+              </Card>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      );
+    }
+
     return (
       <div className="flex min-h-screen flex-col">
         <Header />

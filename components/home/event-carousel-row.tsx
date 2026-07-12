@@ -19,14 +19,21 @@ interface EventCarouselRowProps {
 
 const GAP = 16;
 
-// Cards fully in view at each breakpoint + half-card peeks on both sides
-// Desktop (1024+): 4 cards center + 0.5 card peek each side = shows 5 cards (4 full + 2 half)
+// Cards fully in view at each breakpoint.
+// Desktop (1024+): exactly 4 full-width cards, no peek — wider cards, no
+//   partial "5th" card cut off at the edge.
 // Tablet (640+): 2 cards center + 0.5 card peek each side = shows 3 cards (2 full + 2 half)
 // Mobile: 1 card center + 0.5 card peek each side = shows 2 cards (1 full + 2 half)
 function cardsPerViewForWidth(width: number): number {
   if (width >= 1024) return 4;
   if (width >= 640) return 2;
   return 1;
+}
+
+// Only mobile/tablet get the half-card "peek" scroll affordance; desktop
+// shows a clean set of full cards with no cut-off edge card.
+function hasPeekForWidth(width: number): boolean {
+  return width > 0 && width < 1024;
 }
 
 export function EventCarouselRow({
@@ -58,10 +65,12 @@ export function EventCarouselRow({
 
   const cardsPerView = cardsPerViewForWidth(viewportWidth);
   const isMobile = cardsPerView === 1;
-  // At sm/lg breakpoints we intentionally show a half-card "peek" of the next
-  // slide as a scroll affordance. On mobile that peek reads as a second
-  // column, so mobile gets exactly one full-width card per view instead.
-  const slots = isMobile ? cardsPerView : cardsPerView + 1;
+  const hasPeek = hasPeekForWidth(viewportWidth) && !isMobile;
+  // Tablet shows a half-card "peek" of the next slide as a scroll affordance.
+  // Mobile and desktop show exactly cardsPerView full cards with no cut-off
+  // edge card — on mobile a peek reads as a second column, on desktop it
+  // wastes width that should go toward wider cards instead.
+  const slots = hasPeek ? cardsPerView + 1 : cardsPerView;
   const cardWidth = viewportWidth > 0
     ? isMobile
       ? viewportWidth
@@ -73,7 +82,7 @@ export function EventCarouselRow({
   const maxOffset = Math.max(0, trackWidth - viewportWidth);
   const maxIndex = Math.max(0, events.length - cardsPerView);
 
-  const rawOffset = isMobile ? index * step : (index - 0.5) * step;
+  const rawOffset = hasPeek ? (index - 0.5) * step : index * step;
   const offset = Math.min(Math.max(rawOffset, 0), maxOffset);
 
   const canScrollPrev = index > 0;
@@ -157,7 +166,7 @@ export function EventCarouselRow({
           {events.map((event) => (
             <div
               key={event.id}
-              className="w-full shrink-0 grow-0 sm:w-1/3 lg:w-1/5"
+              className="w-full shrink-0 grow-0 sm:w-1/3 lg:w-1/4"
               style={viewportWidth > 0 ? { width: cardWidth, flexBasis: cardWidth } : undefined}
             >
               <EventCard event={event} variant={cardVariant} fastSelling={fastSellingBadge} />

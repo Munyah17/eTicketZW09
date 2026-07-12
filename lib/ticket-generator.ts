@@ -2,6 +2,7 @@ import QRCode from "qrcode";
 import { v4 as uuidv4 } from "uuid";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logError } from "@/lib/error-logger";
+import { validationUrl } from "@/lib/ticket-png";
 
 export interface TicketGenerationData {
   paymentId: string;
@@ -22,6 +23,7 @@ export interface TicketGenerationData {
   quantity?: number;
   displayName?: string;
   idNumber?: string;
+  seatNumber?: string;
 }
 
 export interface GeneratedTicket {
@@ -48,6 +50,7 @@ export interface GeneratedTicket {
   isAdmitted: boolean;
   purchasedAt: string;
   saleType: "online" | "gate";
+  seatNumber?: string | null;
 }
 
 export async function generateTicket(data: TicketGenerationData): Promise<GeneratedTicket> {
@@ -78,6 +81,7 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     isAdmitted: false,
     purchasedAt: new Date().toISOString(),
     saleType: "online",
+    seatNumber: data.seatNumber || null,
   };
 
   // Persist to DB with snake_case columns matching the PostgreSQL schema
@@ -109,6 +113,7 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     is_admitted: ticket.isAdmitted,
     purchased_at: ticket.purchasedAt,
     sale_type: ticket.saleType,
+    seat_number: ticket.seatNumber,
   });
 
   if (error) {
@@ -122,7 +127,10 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
 
 async function generateQRCode(ticketId: string): Promise<string> {
   try {
-    return await QRCode.toDataURL(ticketId);
+    // Encodes the confirmation-check URL so scanning with any phone camera
+    // opens the eTicket validation page. Must stay in sync with the QR
+    // rendered on the ticket PNG (lib/ticket-png.tsx).
+    return await QRCode.toDataURL(validationUrl(ticketId));
   } catch (error) {
     logError("qr_code_generation", error, { ticketId });
     return ticketId;

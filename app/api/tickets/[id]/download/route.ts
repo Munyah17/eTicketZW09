@@ -33,6 +33,7 @@ export async function GET(
     currency: ticket.currency,
     paymentMethod: ticket.payment_method,
     purchasedAt: ticket.purchased_at,
+    seatNumber: ticket.seat_number,
   });
 
   return new NextResponse(png, {

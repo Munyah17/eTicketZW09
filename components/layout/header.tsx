@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { UserRole } from "@/lib/types";
+import { Logo } from "./logo";
 
 const navigation = [
   { name: "Home", href: "/" },
@@ -58,13 +59,8 @@ export function Header() {
         </Button>
 
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-            <Ticket className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <span className="text-xl font-heading font-bold tracking-tight">
-            E-Tickets<span className="text-primary">ZW</span>
-          </span>
+        <Link href="/" className="flex items-center">
+          <Logo height={32} />
         </Link>
 
         {/* Desktop Navigation */}
@@ -315,11 +311,8 @@ export function Header() {
           )}
         >
           <div className="flex items-center justify-between p-4 border-b bg-background">
-            <Link href="/" className="flex items-center gap-2" onClick={() => setMobileMenuOpen(false)}>
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Ticket className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="text-lg font-heading font-bold">E-TicketsZW</span>
+            <Link href="/" className="flex items-center" onClick={() => setMobileMenuOpen(false)}>
+              <Logo height={28} />
             </Link>
             <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(false)}>
               <X className="h-5 w-5" />

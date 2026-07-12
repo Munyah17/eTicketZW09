@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isUuid } from "./validation";
+import { isUuid, normalizeTicketCode } from "./validation";
 
 describe("isUuid", () => {
   it("accepts a well-formed v4 UUID", () => {
@@ -20,5 +20,48 @@ describe("isUuid", () => {
 
   it("rejects empty string", () => {
     expect(isUuid("")).toBe(false);
+  });
+});
+
+describe("normalizeTicketCode", () => {
+  const id = "7e3e066e-3035-413a-a21d-ebc48da90397";
+
+  it("extracts the code from a validation URL (current QR format)", () => {
+    expect(normalizeTicketCode(`https://www.eticket.co.zw/validate?code=${id}`)).toBe(id);
+  });
+
+  it("extracts the code from alternative URL param names", () => {
+    expect(normalizeTicketCode(`https://www.eticket.co.zw/validate?tid=${id}`)).toBe(id);
+    expect(normalizeTicketCode(`https://www.eticket.co.zw/validate?ticket=${id}`)).toBe(id);
+  });
+
+  it("extracts the ticketId from legacy JSON QR payloads", () => {
+    expect(
+      normalizeTicketCode(JSON.stringify({ ticketId: id, validationCode: "ETKT-DA90397" }))
+    ).toBe(id);
+  });
+
+  it("passes raw uuids through unchanged", () => {
+    expect(normalizeTicketCode(id)).toBe(id);
+  });
+
+  it("passes raw ID numbers through unchanged", () => {
+    expect(normalizeTicketCode("63-123456A70")).toBe("63-123456A70");
+  });
+
+  it("trims whitespace", () => {
+    expect(normalizeTicketCode(`  ${id}  `)).toBe(id);
+  });
+
+  it("returns the raw text for malformed JSON", () => {
+    expect(normalizeTicketCode("{not json")).toBe("{not json");
+  });
+
+  it("returns the raw URL when it has no known code param", () => {
+    expect(normalizeTicketCode("https://example.com/foo")).toBe("https://example.com/foo");
+  });
+
+  it("returns empty string for empty input", () => {
+    expect(normalizeTicketCode("")).toBe("");
   });
 });

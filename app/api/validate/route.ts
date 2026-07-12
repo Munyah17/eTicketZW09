@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isUuid } from "@/lib/validation";
+import { isUuid, normalizeTicketCode } from "@/lib/validation";
 
 // Ticket admission control — restricted to staff/organizer/admin accounts.
 // This searches across ALL tickets platform-wide (no event/organizer scope),
@@ -32,15 +32,20 @@ export async function POST(req: NextRequest) {
   if (action === "lookup") {
     if (!code) return NextResponse.json({ error: "code is required" }, { status: 400 });
 
+    // Scanned QR codes arrive as a validation URL (current) or JSON (legacy);
+    // manual entry arrives as a raw uuid or national ID number. Normalize all
+    // of them down to the identifier before building the filter.
+    const normalized = normalizeTicketCode(code);
+
     // id is a uuid column — only include it in the OR filter when the
     // entered code actually looks like one, otherwise PostgREST errors on
     // the malformed comparison instead of just finding no rows. id_number
     // is also searchable so staff can admit someone on a lost/forgotten
     // ticket using just their ID — .limit(1) covers the (rare) case where
     // two tickets share an ID number, picking the most recent purchase.
-    const filter = isUuid(code)
-      ? `id.eq.${code},qr_code.eq.${code},id_number.eq.${code}`
-      : `qr_code.eq.${code},id_number.eq.${code}`;
+    const filter = isUuid(normalized)
+      ? `id.eq.${normalized},id_number.eq.${normalized}`
+      : `id_number.eq.${normalized}`;
 
     const { data: tickets } = await admin
       .from("tickets")

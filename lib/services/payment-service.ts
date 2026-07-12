@@ -170,6 +170,7 @@ export class PaymentService {
         buyerUserId: payment.userId,
         displayName: m.displayName as string | undefined,
         idNumber: m.idNumber as string | undefined,
+        seatNumber: m.seatNumber as string | undefined,
         quantity: m.quantity as number | undefined,
         amount: opts.amount ?? payment.amount,
         currency: (opts.currency ?? payment.currency).toUpperCase(),

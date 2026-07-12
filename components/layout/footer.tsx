@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { Ticket, Phone, Mail, MapPin } from "lucide-react";
+import { Phone, Mail, MapPin } from "lucide-react";
+import { Logo } from "./logo";
 
 const footerLinks = {
   events: [
@@ -40,13 +41,8 @@ export function Footer() {
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-5">
           {/* Brand */}
           <div className="lg:col-span-1">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-                <Ticket className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="text-xl font-heading font-bold tracking-tight">
-                E-Tickets<span className="text-primary">ZW</span>
-              </span>
+            <Link href="/" className="flex items-center">
+              <Logo height={32} />
             </Link>
             <p className="mt-4 text-sm text-muted-foreground">
               Zimbabwe&apos;s premier event ticketing platform. We don&apos;t just sell tickets, we help your events succeed.

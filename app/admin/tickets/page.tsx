@@ -27,6 +27,7 @@ import {
   ArrowRight,
   Download,
   RefreshCw,
+  Send,
 } from "lucide-react";
 
 type TicketRow = {
@@ -101,6 +102,20 @@ export default function AdminTicketsPage() {
   }, [load]);
 
   const { stats, tickets, total, pages } = data;
+
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const handleResend = async (ticketId: string) => {
+    setResendingId(ticketId);
+    try {
+      const res = await fetch(`/api/admin/tickets/${ticketId}/resend`, { method: "POST" });
+      const json = await res.json();
+      alert(json.message || (res.ok ? "Ticket re-sent." : "Re-send failed."));
+    } catch {
+      alert("Re-send failed. Please try again.");
+    } finally {
+      setResendingId(null);
+    }
+  };
 
   const getStatusBadge = (status: string, validated: boolean) => {
     if (validated) {
@@ -242,20 +257,21 @@ export default function AdminTicketsPage() {
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Channel</TableHead>
-                <TableHead className="text-right pr-6">Date</TableHead>
+                <TableHead className="text-right">Date</TableHead>
+                <TableHead className="text-right pr-6">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
                     <RefreshCw className="h-6 w-6 mx-auto mb-3 animate-spin opacity-40" />
                     <p className="text-sm">Loading tickets…</p>
                   </TableCell>
                 </TableRow>
               ) : tickets.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
                     <Search className="h-8 w-8 mx-auto mb-3 opacity-30" />
                     <p className="font-medium">
                       {debouncedSearch ? "No tickets match your search" : "No tickets yet"}
@@ -315,13 +331,35 @@ export default function AdminTicketsPage() {
                         {ticket.sale_type === "online" ? "Online" : "Gate"}
                       </span>
                     </TableCell>
-                    <TableCell className="text-right pr-6 text-xs text-muted-foreground">
+                    <TableCell className="text-right text-xs text-muted-foreground">
                       {ticket.purchased_at
                         ? new Date(ticket.purchased_at).toLocaleDateString("en-ZW", {
                             day: "numeric",
                             month: "short",
                           })
                         : "—"}
+                    </TableCell>
+                    <TableCell className="text-right pr-6">
+                      <div className="flex justify-end gap-1">
+                        <a href={`/api/tickets/${ticket.id}/download`} download>
+                          <Button variant="ghost" size="icon" title="Download ticket PNG">
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </a>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          title="Re-send ticket to buyer (email + WhatsApp)"
+                          disabled={resendingId === ticket.id}
+                          onClick={() => handleResend(ticket.id)}
+                        >
+                          {resendingId === ticket.id ? (
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
