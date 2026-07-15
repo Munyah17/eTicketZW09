@@ -18,10 +18,11 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Search, Tag, Percent, RefreshCw, CheckCircle2, XCircle } from "lucide-react";
+import { Search, Tag, Percent, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Trash2 } from "lucide-react";
 import type { Event } from "@/lib/types";
 
 export default function AdminEventsPage() {
@@ -33,6 +34,8 @@ export default function AdminEventsPage() {
   const [markupValue, setMarkupValue] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Event | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
@@ -101,6 +104,26 @@ export default function AdminEventsPage() {
       body: JSON.stringify({ eventId, status }),
     });
     fetchEvents();
+  };
+
+  const handleDelete = async (event: Event) => {
+    setDeleting(true);
+    try {
+      const res = await fetch("/api/admin/events", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId: event.id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(json.error || "Failed to delete event.");
+        return;
+      }
+      setConfirmDelete(null);
+      fetchEvents();
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const statusBadge = (status: Event["status"]) => {
@@ -246,6 +269,15 @@ export default function AdminEventsPage() {
                               Remove
                             </Button>
                           ) : null}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive hover:text-destructive"
+                            title="Delete listing"
+                            onClick={() => setConfirmDelete(event)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -295,6 +327,37 @@ export default function AdminEventsPage() {
             <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSetMarkup} disabled={saving}>
               {saving ? "Saving…" : "Save Markup"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm Delete Dialog */}
+      <Dialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" /> Delete Listing
+            </DialogTitle>
+            <DialogDescription>
+              This cannot be undone. If this event has ever sold a ticket, the delete will be refused —
+              use Cancel/Reject instead to preserve buyers&apos; records.
+            </DialogDescription>
+          </DialogHeader>
+          {confirmDelete && (
+            <div className="py-2">
+              <p className="text-sm font-medium">{confirmDelete.title}</p>
+              <p className="text-xs text-muted-foreground">{confirmDelete.organizerName}</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={() => confirmDelete && handleDelete(confirmDelete)}
+            >
+              {deleting ? "Deleting…" : "Delete Permanently"}
             </Button>
           </DialogFooter>
         </DialogContent>
