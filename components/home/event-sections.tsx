@@ -82,20 +82,42 @@ export function EventSections() {
     );
   }
 
+  // Every section below is paired with the banner slot that follows it, but
+  // a section with zero events renders nothing (EventCarouselRow returns
+  // null) — while SectionBanner always renders *something* (a real ad, or
+  // the "Advertise Here" placeholder). Left unpaired, an empty category
+  // between two non-empty ones collapsed to nothing, leaving its banner
+  // sitting directly against the next section's banner with no category
+  // visible between them. Gating each banner on its section actually having
+  // content keeps every banner anchored to a category that's really there.
   return (
     <>
-      <FeaturedSection events={sections.featured} />
-      <SectionBanner position={1} />
-      <BestSellingSection events={sections.bestSelling} />
-      <SectionBanner position={2} />
-      {CATEGORY_ORDER.map((category, i) => (
-        <Fragment key={category}>
-          <CategorySection category={category} events={sections[category]} />
-          <SectionBanner position={i + 3} />
-        </Fragment>
-      ))}
-      <UpcomingSection events={sections.comingSoon} />
-      <SectionBanner position={13} />
+      {sections.featured.length > 0 && (
+        <>
+          <FeaturedSection events={sections.featured} />
+          <SectionBanner position={1} />
+        </>
+      )}
+      {sections.bestSelling.length > 0 && (
+        <>
+          <BestSellingSection events={sections.bestSelling} />
+          <SectionBanner position={2} />
+        </>
+      )}
+      {CATEGORY_ORDER.map((category, i) =>
+        sections[category].length > 0 ? (
+          <Fragment key={category}>
+            <CategorySection category={category} events={sections[category]} />
+            <SectionBanner position={i + 3} />
+          </Fragment>
+        ) : null
+      )}
+      {sections.comingSoon.length > 0 && (
+        <>
+          <UpcomingSection events={sections.comingSoon} />
+          <SectionBanner position={13} />
+        </>
+      )}
     </>
   );
 }
