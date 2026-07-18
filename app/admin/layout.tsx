@@ -236,7 +236,7 @@ export default function AdminLayout({
           </div>
 
           {/* Nav */}
-          <nav className="flex-1 px-3 py-3">
+          <nav className="flex-1 overflow-y-auto px-3 py-3">
             <NavLinks />
           </nav>
 
