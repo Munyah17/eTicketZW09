@@ -51,6 +51,10 @@ export const metadata: Metadata = {
     follow: true,
   },
   icons: {
+    // icon.svg (a generic placeholder unrelated to our actual logo) used to
+    // be listed here too — most browsers prefer an SVG favicon over PNG
+    // when both are given, so it was silently winning over these correct,
+    // logo-emblem-derived PNGs. Removed rather than hand-traced into SVG.
     icon: [
       {
         url: '/icon-light-32x32.png',
@@ -59,10 +63,6 @@ export const metadata: Metadata = {
       {
         url: '/icon-dark-32x32.png',
         media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
       },
     ],
     apple: '/apple-icon.png',

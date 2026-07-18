@@ -62,30 +62,52 @@ export async function GET() {
   const comingSoonFrom = new Date(now + SIX_WEEKS_MS).toISOString().split("T")[0];
   const soldOutCutoff = new Date(now - SEVEN_DAYS_MS).toISOString();
 
-  // Two parallel queries cover every section:
-  // 1. "featured" — top sellers, may include older events, needs its own sort
-  // 2. "recent 100" — newest published events, used to derive all other sections
-  const [{ data: featuredRows }, { data: recentRows }] = await Promise.all([
-    supabase
-      .from("events")
-      .select(COLS)
-      .eq("status", "published")
-      .order("sold_tickets", { ascending: false })
-      .limit(8),
-    supabase
-      .from("events")
-      .select(COLS)
-      .eq("status", "published")
-      .order("created_at", { ascending: false })
-      .limit(100),
-  ]);
+  // Single query covers every section — "recent 100" newest published
+  // events, from which Featured, Best Selling, Coming Soon, and every
+  // category row are all derived in memory.
+  const { data: recentRows } = await supabase
+    .from("events")
+    .select(COLS)
+    .eq("status", "published")
+    .order("created_at", { ascending: false })
+    .limit(100);
 
   const recent = (recentRows ?? []) as unknown as Record<string, unknown>[];
 
   const byCategory = (cat: string) =>
     recent.filter((e) => e.category === cat).slice(0, 12).map(toEvent);
 
-  const featured = (featuredRows ?? []) as unknown as Record<string, unknown>[];
+  // Featured: a composite score, not raw sold_tickets — the old sort let one
+  // huge historical event dominate forever, and had no floor keeping past
+  // (unbuyable) events out at all.
+  //   - sell-through rate (0-100) is the dominant signal: a small event
+  //     that's 90% sold is more "hot" than a big one sitting at 20%.
+  //   - log-scaled raw volume still gives real scale credit, so a
+  //     500-ticket show at 40% doesn't lose to a 5-ticket meetup at 100%.
+  //   - a real featured image is a cheap, checkable proxy for "polished
+  //     listing" — also nudges organizers to actually add one.
+  //   - a decaying freshness boost gives new listings a fair, temporary
+  //     shot at visibility instead of being permanently buried under
+  //     long-established top performers.
+  const featuredScore = (e: Record<string, unknown>) => {
+    const total = Number(e.total_tickets) || 0;
+    const sold = Number(e.sold_tickets) || 0;
+    const sellThrough = total > 0 ? sold / total : 0;
+    const daysSinceCreated = (now - new Date(e.created_at as string).getTime()) / (1000 * 60 * 60 * 24);
+    const freshnessBoost = Math.max(0, 15 - daysSinceCreated * 1.5);
+    const hasImage = !!(e.image as string);
+    return sellThrough * 100 + Math.log10(sold + 1) * 8 + (hasImage ? 10 : 0) + freshnessBoost;
+  };
+
+  const featured = recent
+    .filter((e) => {
+      const onSale = (e.date as string) >= today;
+      const soldOut = e.sold_out_at as string | null;
+      const recentlySoldOut = !!soldOut && soldOut >= soldOutCutoff;
+      return onSale || recentlySoldOut;
+    })
+    .sort((a, b) => featuredScore(b) - featuredScore(a))
+    .slice(0, 8);
 
   // Best Selling: ranked by sell-through rate, not raw volume, so fast-moving
   // events surface even if smaller than Featured's top sellers. A sold-out
