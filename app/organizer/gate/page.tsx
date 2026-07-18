@@ -31,15 +31,29 @@ import {
   UserCheck,
   Ban,
   RefreshCw,
+  WifiOff,
+  Wifi,
+  CloudUpload,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getOrganizerEvents } from "@/lib/events-store";
 import { Ticket as TicketType, Event } from "@/lib/types";
+import {
+  cacheRoster,
+  getCachedRoster,
+  lookupOffline,
+  queueOfflineAdmit,
+  getQueue,
+  syncQueue,
+  type RawTicketRow,
+  type SyncConflict,
+} from "@/lib/offline-gate-queue";
 
 type ScanResult = {
   status: "valid" | "invalid" | "admitted" | "not_found";
   ticket?: Record<string, unknown>;
   message: string;
+  offline?: boolean;
 };
 
 function mapTicket(r: Record<string, unknown>): TicketType {
@@ -86,6 +100,27 @@ export default function GateManagementPage() {
   const scannerRef = useRef<{ stop: () => void } | null>(null);
   const manualCodeRef = useRef<HTMLInputElement>(null);
 
+  // Venue connectivity is unreliable in the field — a scanner that stops
+  // working the moment the network drops is a real problem here. When
+  // offline, scans and admits fall back to a locally cached roster and get
+  // queued to replay once the connection returns.
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingSync, setPendingSync] = useState(0);
+  const [syncing, setSyncing] = useState(false);
+  const [conflicts, setConflicts] = useState<SyncConflict[]>([]);
+
+  useEffect(() => {
+    setIsOnline(navigator.onLine);
+    const goOnline = () => setIsOnline(true);
+    const goOffline = () => setIsOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
+  }, []);
+
   // Keep focus in the manual-code field between scans so an external
   // USB/Bluetooth barcode scanner (keyboard-wedge input) can fire repeatedly
   // without staff needing to click back into the field each time.
@@ -103,13 +138,51 @@ export default function GateManagementPage() {
     try {
       const res = await fetch(`/api/organizer/gate?eventId=${selectedEvent}`);
       const json = await res.json();
-      setTickets(((json.tickets ?? []) as Record<string, unknown>[]).map(mapTicket));
+      const raw = (json.tickets ?? []) as RawTicketRow[];
+      setTickets(raw.map(mapTicket));
+      // Refresh the offline snapshot on every successful online fetch so it
+      // never drifts far from the real roster.
+      cacheRoster(selectedEvent, raw).catch(() => {});
+    } catch {
+      // Fetch failed — most likely offline. Fall back to whatever roster was
+      // cached from the last successful load instead of showing an empty
+      // event.
+      const cached = await getCachedRoster(selectedEvent).catch(() => []);
+      setTickets(cached.map(mapTicket));
     } finally {
       setLoading(false);
     }
   }, [selectedEvent]);
 
   useEffect(() => { loadTickets(); }, [loadTickets]);
+
+  const refreshPendingCount = useCallback(async () => {
+    if (!selectedEvent) return;
+    const queue = await getQueue(selectedEvent).catch(() => []);
+    setPendingSync(queue.length);
+  }, [selectedEvent]);
+
+  useEffect(() => { refreshPendingCount(); }, [refreshPendingCount]);
+
+  const runSync = useCallback(async () => {
+    if (!selectedEvent || syncing) return;
+    setSyncing(true);
+    try {
+      const result = await syncQueue(selectedEvent);
+      if (result.conflicts.length > 0) setConflicts((prev) => [...prev, ...result.conflicts]);
+      await refreshPendingCount();
+      if (result.synced > 0) await loadTickets();
+    } finally {
+      setSyncing(false);
+    }
+  }, [selectedEvent, syncing, refreshPendingCount, loadTickets]);
+
+  // Auto-sync the moment connectivity returns — staff shouldn't have to
+  // remember to press a button for the queue to catch up.
+  useEffect(() => {
+    if (isOnline && selectedEvent) runSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline]);
 
   const admittedCount = tickets.filter((t) => t.isAdmitted).length;
   const validCount = tickets.filter((t) => t.paymentStatus === "completed" && !t.isAdmitted).length;
@@ -153,6 +226,23 @@ export default function GateManagementPage() {
   }, []);
 
   const handleScan = async (code: string) => {
+    if (!isOnline) {
+      const roster = await getCachedRoster(selectedEvent).catch(() => []);
+      const lookup = lookupOffline(roster, code);
+      if (lookup.status === "not_found") {
+        setScanResult({ status: "not_found", message: "Not found in the offline roster. Check the code, or try again once back online.", offline: true });
+      } else {
+        const messages: Record<string, string> = {
+          valid: "Valid ticket — ready for admission (offline).",
+          admitted: "Already admitted (offline record).",
+          invalid: "Payment not completed.",
+        };
+        setScanResult({ status: lookup.status, ticket: lookup.ticket, message: messages[lookup.status], offline: true });
+      }
+      setDialogOpen(true);
+      return;
+    }
+
     const res = await fetch("/api/organizer/gate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -172,6 +262,20 @@ export default function GateManagementPage() {
 
   const handleAdmit = async () => {
     if (!scanResult?.ticket) return;
+
+    if (!isOnline) {
+      await queueOfflineAdmit(selectedEvent, scanResult.ticket.id as string, user?.id || "unknown");
+      setScanResult({
+        status: "admitted",
+        ticket: scanResult.ticket,
+        message: "Admitted offline — will sync automatically once back online.",
+        offline: true,
+      });
+      await refreshPendingCount();
+      loadTickets();
+      return;
+    }
+
     const res = await fetch("/api/organizer/gate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -184,12 +288,61 @@ export default function GateManagementPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold">Gate Management</h1>
-        <p className="text-muted-foreground mt-1">
-          Validate and admit ticket holders at the gate
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Gate Management</h1>
+          <p className="text-muted-foreground mt-1">
+            Validate and admit ticket holders at the gate
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isOnline ? (
+            <span className="flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1.5 text-xs font-medium text-green-700">
+              <Wifi className="h-3.5 w-3.5" /> Online
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-700">
+              <WifiOff className="h-3.5 w-3.5" /> Offline — scans still work
+            </span>
+          )}
+          {pendingSync > 0 && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={!isOnline || syncing}
+              onClick={runSync}
+            >
+              <CloudUpload className={`h-3.5 w-3.5 ${syncing ? "animate-pulse" : ""}`} />
+              {syncing ? "Syncing…" : `${pendingSync} pending sync`}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {conflicts.length > 0 && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="flex items-center gap-2 text-sm font-medium text-red-800">
+            <AlertTriangle className="h-4 w-4" />
+            {conflicts.length} sync conflict{conflicts.length > 1 ? "s" : ""} need review
+          </p>
+          <p className="mt-1 text-xs text-red-700">
+            These tickets were admitted offline on this device, but someone else had already admitted them first —
+            likely a second gate line. Check with other gate staff before letting a duplicate entry through.
+          </p>
+          <ul className="mt-2 space-y-1 text-xs text-red-700">
+            {conflicts.map((c, i) => (
+              <li key={`${c.ticketId}-${i}`}>
+                <span className="font-mono">{c.ticketId.slice(0, 8)}…</span> — {c.message}
+              </li>
+            ))}
+          </ul>
+          <Button size="sm" variant="ghost" className="mt-2 h-7 text-xs" onClick={() => setConflicts([])}>
+            Dismiss
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader>
@@ -334,6 +487,11 @@ export default function GateManagementPage() {
               {scanResult?.status === "admitted" && (<><AlertTriangle className="h-6 w-6 text-amber-600" />Already Admitted</>)}
               {scanResult?.status === "invalid" && (<><XCircle className="h-6 w-6 text-red-600" />Invalid Ticket</>)}
               {scanResult?.status === "not_found" && (<><Ban className="h-6 w-6 text-red-600" />Not Found</>)}
+              {scanResult?.offline && (
+                <span className="ml-auto flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700">
+                  <WifiOff className="h-3 w-3" /> Offline
+                </span>
+              )}
             </DialogTitle>
           </DialogHeader>
 
