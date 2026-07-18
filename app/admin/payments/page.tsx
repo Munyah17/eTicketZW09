@@ -24,7 +24,7 @@ interface AdminPayment {
   provider: string;
   amount: number;
   currency: string;
-  status: "pending" | "paid" | "failed";
+  status: "pending" | "paid" | "failed" | "paid_refund_required";
   metadata: Record<string, unknown> | null;
   error_message: string | null;
   created_at: string;
@@ -36,6 +36,10 @@ const STATUS_CONFIG = {
   paid: { label: "Paid", icon: CheckCircle2, color: "bg-emerald-100 text-emerald-700" },
   pending: { label: "Pending", icon: Clock, color: "bg-amber-100 text-amber-700" },
   failed: { label: "Failed", icon: XCircle, color: "bg-red-100 text-red-700" },
+  // Money was captured but the ticket type sold out before fulfillment could
+  // issue a ticket (two buyers racing for the last spot) — needs a human to
+  // refund the buyer or raise capacity and re-trigger. Never automatic.
+  paid_refund_required: { label: "Refund Required", icon: ShieldAlert, color: "bg-red-100 text-red-700" },
 };
 
 export default function AdminPaymentsPage() {
@@ -166,6 +170,9 @@ export default function AdminPaymentsPage() {
                           <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground">
                             <Ticket className="h-3 w-3" /> {p.hasTicket ? "Issued" : "Issuing…"}
                           </span>
+                        )}
+                        {p.status === "paid_refund_required" && p.error_message && (
+                          <p className="mt-1 max-w-xs text-xs text-red-700">{p.error_message}</p>
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-right">

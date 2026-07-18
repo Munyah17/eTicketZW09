@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { Paynow } from "paynow";
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateTicket } from "@/lib/ticket-generator";
+import { generateTicket, TicketSoldOutError } from "@/lib/ticket-generator";
 import { sendTicketEmail } from "@/lib/email/send-ticket-email";
 import { sendSaleNotificationEmails } from "@/lib/email/send-sale-notification-emails";
 import { sendTicketWhatsApp } from "@/lib/whatsapp";
@@ -38,7 +38,7 @@ export interface PaymentStatus {
   provider: PaymentProvider;
   amount: number;
   currency: string;
-  status: "pending" | "paid" | "failed";
+  status: "pending" | "paid" | "failed" | "paid_refund_required";
   created_at: string;
   updated_at: string;
   metadata?: Record<string, unknown>;
@@ -134,6 +134,14 @@ export class PaymentService {
         console.log("confirmPaid: Payment previously marked failed — not fulfilling", reference);
         return;
       }
+      if (payment.status === "paid_refund_required") {
+        // Already flagged sold-out-at-fulfillment — don't retry automatically.
+        // Resolving this needs a human decision (refund, or raise capacity
+        // and manually re-trigger), not another identical attempt that will
+        // fail the same way.
+        console.log("confirmPaid: Previously flagged oversold/refund-required — not retrying", reference);
+        return;
+      }
       if (payment.status === "paid") {
         console.log("confirmPaid: Payment already paid but no ticket found — resuming fulfillment", reference);
       }
@@ -155,27 +163,47 @@ export class PaymentService {
         throw new Error("Buyer email is required to generate ticket");
       }
 
-      const ticket = await generateTicket({
-        paymentId: reference,
-        eventId: (m.eventId as string) || "",
-        ticketTypeId: (m.ticketTypeId as string) || "",
-        ticketTypeName: m.ticketTypeName as string | undefined,
-        eventTitle: m.eventTitle as string | undefined,
-        eventDate: m.eventDate as string | undefined,
-        eventTime: m.eventTime as string | undefined,
-        venue: m.venue as string | undefined,
-        buyerName: (m.buyerName as string) || "Guest",
-        buyerEmail: (m.buyerEmail as string) || "",
-        buyerPhone: (m.buyerPhone as string) || "",
-        buyerUserId: payment.userId,
-        displayName: m.displayName as string | undefined,
-        idNumber: m.idNumber as string | undefined,
-        seatNumber: m.seatNumber as string | undefined,
-        quantity: m.quantity as number | undefined,
-        amount: opts.amount ?? payment.amount,
-        currency: (opts.currency ?? payment.currency).toUpperCase(),
-        paymentMethod: opts.paymentMethod,
-      });
+      let ticket;
+      try {
+        ticket = await generateTicket({
+          paymentId: reference,
+          eventId: (m.eventId as string) || "",
+          ticketTypeId: (m.ticketTypeId as string) || "",
+          ticketTypeName: m.ticketTypeName as string | undefined,
+          eventTitle: m.eventTitle as string | undefined,
+          eventDate: m.eventDate as string | undefined,
+          eventTime: m.eventTime as string | undefined,
+          venue: m.venue as string | undefined,
+          buyerName: (m.buyerName as string) || "Guest",
+          buyerEmail: (m.buyerEmail as string) || "",
+          buyerPhone: (m.buyerPhone as string) || "",
+          buyerUserId: payment.userId,
+          displayName: m.displayName as string | undefined,
+          idNumber: m.idNumber as string | undefined,
+          seatNumber: m.seatNumber as string | undefined,
+          quantity: m.quantity as number | undefined,
+          amount: opts.amount ?? payment.amount,
+          currency: (opts.currency ?? payment.currency).toUpperCase(),
+          paymentMethod: opts.paymentMethod,
+        });
+      } catch (genError) {
+        if (genError instanceof TicketSoldOutError) {
+          // Money has already been captured by the provider — this is not a
+          // "retry and it'll work" failure, it needs a human to refund the
+          // buyer. Flag it as loudly and searchably as possible: a distinct
+          // payments.status value (not the generic "paid") so it can't be
+          // mistaken for a normal successful sale, plus a clear error_message.
+          const flagMessage = `SOLD OUT AT FULFILLMENT — payment captured, no ticket issued, refund required. ${genError.message}`;
+          await createAdminClient()
+            .from("payments")
+            .update({ status: "paid_refund_required", error_message: flagMessage })
+            .eq("reference", reference);
+          logError("ticket_oversold_refund_required", genError, { reference, ticketTypeId: genError.ticketTypeId });
+          console.error("🔴 OVERSOLD — REFUND REQUIRED:", reference, genError.message);
+          return;
+        }
+        throw genError;
+      }
 
       if (!ticket || !ticket.id) {
         throw new Error("Failed to generate ticket");

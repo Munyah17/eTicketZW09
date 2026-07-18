@@ -53,6 +53,17 @@ export interface GeneratedTicket {
   seatNumber?: string | null;
 }
 
+// Thrown when create_ticket_with_capacity_check() finds the ticket type
+// already at capacity — distinct from a generic DB error so callers can
+// react to "we took their money but the last spot is gone" differently
+// from "something broke".
+export class TicketSoldOutError extends Error {
+  constructor(public ticketTypeId: string, dbMessage: string) {
+    super(`Ticket type ${ticketTypeId} is sold out: ${dbMessage}`);
+    this.name = "TicketSoldOutError";
+  }
+}
+
 export async function generateTicket(data: TicketGenerationData): Promise<GeneratedTicket> {
   const ticketId = uuidv4();
   const qrCode = await generateQRCode(ticketId);
@@ -84,45 +95,80 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     seatNumber: data.seatNumber || null,
   };
 
-  // Persist to DB with snake_case columns matching the PostgreSQL schema
+  // Persisted via create_ticket_with_capacity_check() — a single Postgres
+  // function that locks the ticket_type row, checks sold+requested against
+  // quantity, and inserts the ticket, all in one transaction. A plain
+  // .insert() here (the old approach) had no such gate: two buyers
+  // completing payment for the last spot within the same window would both
+  // get a valid ticket, since `sold` was only ever incremented *after*
+  // insert by the existing tickets_sold_counts trigger.
   const supabase = createAdminClient();
-  const { error } = await supabase.from("tickets").insert({
-    id: ticketId,
-    payment_reference: data.paymentId,
-    event_id: data.eventId || null,
-    ticket_type_id: data.ticketTypeId || null,
-    ticket_type_name: ticket.ticketTypeName,
-    event_title: ticket.eventTitle,
-    event_date: ticket.eventDate,
-    event_time: ticket.eventTime,
-    venue: ticket.venue,
-    buyer_name: ticket.buyerName,
-    buyer_contact: ticket.buyerContact,
-    buyer_display_name: ticket.buyerDisplayName,
-    buyer_email: ticket.buyerEmail,
-    buyer_user_id: data.buyerUserId || null,
-    id_number: data.idNumber || "",
-    price: ticket.price,
-    markup: ticket.markup,
-    total_paid: ticket.totalPaid,
-    currency: ticket.currency,
-    payment_method: ticket.paymentMethod,
-    payment_status: ticket.paymentStatus,
-    qr_code: ticket.qrCode,
-    validated: ticket.validated,
-    is_admitted: ticket.isAdmitted,
-    purchased_at: ticket.purchasedAt,
-    sale_type: ticket.saleType,
-    seat_number: ticket.seatNumber,
+  const { data: row, error } = await supabase.rpc("create_ticket_with_capacity_check", {
+    p_id: ticketId,
+    p_payment_reference: data.paymentId,
+    p_event_id: data.eventId || null,
+    p_ticket_type_id: data.ticketTypeId || null,
+    p_ticket_type_name: ticket.ticketTypeName,
+    p_event_title: ticket.eventTitle,
+    p_event_date: ticket.eventDate,
+    p_event_time: ticket.eventTime,
+    p_venue: ticket.venue,
+    p_buyer_name: ticket.buyerName,
+    p_buyer_contact: ticket.buyerContact,
+    p_buyer_display_name: ticket.buyerDisplayName,
+    p_buyer_email: ticket.buyerEmail,
+    p_buyer_user_id: data.buyerUserId || null,
+    p_id_number: data.idNumber || "",
+    p_price: ticket.price,
+    p_markup: ticket.markup,
+    p_total_paid: ticket.totalPaid,
+    p_currency: ticket.currency,
+    p_payment_method: ticket.paymentMethod,
+    p_qr_code: ticket.qrCode,
+    p_sale_type: ticket.saleType,
+    p_seat_number: ticket.seatNumber,
+    p_requested_qty: data.quantity || 1,
   });
 
   if (error) {
+    if (error.message?.includes("SOLD_OUT")) {
+      throw new TicketSoldOutError(data.ticketTypeId, error.message);
+    }
     logError("ticket_persist", error, { ticketId, paymentReference: data.paymentId });
-  } else {
-    console.log("Ticket saved:", { ticketId, paymentReference: data.paymentId });
+    throw new Error(`Failed to persist ticket: ${error.message}`);
   }
 
-  return ticket;
+  console.log("Ticket saved:", { ticketId, paymentReference: data.paymentId });
+  return row ? dbRowToGeneratedTicket(row) : ticket;
+}
+
+function dbRowToGeneratedTicket(row: Record<string, unknown>): GeneratedTicket {
+  return {
+    id: row.id as string,
+    eventId: row.event_id as string,
+    ticketTypeId: row.ticket_type_id as string,
+    ticketTypeName: row.ticket_type_name as string,
+    eventTitle: row.event_title as string,
+    eventDate: row.event_date as string,
+    eventTime: row.event_time as string,
+    venue: row.venue as string,
+    buyerName: row.buyer_name as string,
+    buyerContact: row.buyer_contact as string,
+    buyerDisplayName: row.buyer_display_name as string,
+    buyerEmail: row.buyer_email as string,
+    price: Number(row.price),
+    markup: Number(row.markup),
+    totalPaid: Number(row.total_paid),
+    currency: row.currency as string,
+    paymentMethod: row.payment_method as string,
+    paymentStatus: "completed",
+    qrCode: row.qr_code as string,
+    validated: Boolean(row.validated),
+    isAdmitted: Boolean(row.is_admitted),
+    purchasedAt: row.purchased_at as string,
+    saleType: row.sale_type as "online" | "gate",
+    seatNumber: (row.seat_number as string | null) ?? null,
+  };
 }
 
 async function generateQRCode(ticketId: string): Promise<string> {
