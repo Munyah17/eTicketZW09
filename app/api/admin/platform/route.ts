@@ -11,6 +11,7 @@ const ALLOWED_FIELDS = new Set([
   "online_payments",
   "stripe_enabled",
   "paynow_enabled",
+  "ecocash_enabled",
   "announcement_active",
   "announcement_message",
   "announcement_type",

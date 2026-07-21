@@ -93,7 +93,7 @@ export interface Ticket {
 
 export type PaymentMethod = "ecocash" | "innbucks" | "visa" | "mastercard" | "cash" | "stripe" | "paynow" | "epay";
 
-export type PaymentProvider = "stripe" | "paynow" | "epay" | "mobile_money" | "card" | "cash";
+export type PaymentProvider = "stripe" | "paynow" | "ecocash" | "epay" | "mobile_money" | "card" | "cash";
 
 export interface Banner {
   id: string;
@@ -251,7 +251,7 @@ export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: strin
   { value: "stripe", label: "Card Payment", icon: "credit-card", provider: "stripe" },
   { value: "paynow", label: "Paynow", icon: "phone", provider: "paynow" },
   { value: "epay", label: "ePay", icon: "credit-card", provider: "epay" },
-  { value: "ecocash", label: "EcoCash", icon: "phone", provider: "mobile_money" },
+  { value: "ecocash", label: "EcoCash", icon: "phone", provider: "ecocash" },
   { value: "innbucks", label: "InnBucks", icon: "phone", provider: "mobile_money" },
   { value: "visa", label: "Visa Card", icon: "credit-card", provider: "card" },
   { value: "mastercard", label: "Mastercard", icon: "credit-card", provider: "card" },
@@ -277,6 +277,14 @@ export const ONLINE_PAYMENT_PROVIDERS = [
     name: "Paynow",
     description: "Zimbabwe's local payment gateway — powered by Paynow",
     banner: "/payments/paynow-banner.png",
+    active: true,
+    methods: [],
+  },
+  {
+    id: "ecocash" as PaymentProvider,
+    name: "EcoCash Instant",
+    description: "Pay directly from your EcoCash wallet — a PIN prompt is sent straight to your phone",
+    banner: "/payments/ecocash-banner.svg",
     active: true,
     methods: [],
   },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +28,7 @@ export function TicketPurchaseForm({
   onTicketTypeChange,
 }: TicketPurchaseFormProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const [quantity, setQuantity] = useState(1);
   const [buyerName, setBuyerName] = useState("");
   const [buyerContact, setBuyerContact] = useState("");
@@ -124,6 +126,35 @@ export function TicketPurchaseForm({
         return;
       }
 
+      // EcoCash Instant has no hosted checkout page — the charge request
+      // itself sends a USSD PIN prompt straight to the buyer's phone, so
+      // there's nothing to redirect to. Go straight to the confirmation
+      // page, which polls for the outcome.
+      if (provider === "ecocash") {
+        sessionStorage.setItem(
+          "lastPurchaseAttempt",
+          JSON.stringify({
+            id: data.reference,
+            eventId: event.id,
+            eventTitle: event.title,
+            eventDate: event.date,
+            eventTime: event.time,
+            venue: event.venue,
+            ticketType: selectedTicketType.name,
+            quantity,
+            buyerName,
+            buyerContact,
+            displayName: useAnonymous ? "Anonymous" : displayName || buyerName,
+            paymentMethod: provider,
+            totalPaid: totalPrice,
+            currency: selectedTicketType.currency,
+            purchasedAt: new Date().toISOString(),
+          })
+        );
+        router.push(`/tickets/confirmation?ref=${data.reference}`);
+        return;
+      }
+
       if (!data.redirect_url) {
         setPaymentError("No checkout URL returned from payment provider. Please try again.");
         setStep("provider");
@@ -189,6 +220,8 @@ export function TicketPurchaseForm({
           <p className="mt-2 text-sm text-muted-foreground">
             {selectedProvider === "paynow"
               ? "Creating your Paynow checkout session…"
+              : selectedProvider === "ecocash"
+              ? "Sending a payment request to your EcoCash wallet…"
               : "Creating your Stripe checkout session…"}
           </p>
         </CardContent>

@@ -139,6 +139,13 @@ export function PaymentProviders({ amount, onSelect, selectedProvider }: Payment
                   <Badge className="bg-blue-500">Available</Badge>
                 </CardContent>
               </Card>
+
+              <Card className="border-primary/50 bg-primary/5">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <p className="font-semibold">EcoCash Instant</p>
+                  <Badge className="bg-emerald-500">Available</Badge>
+                </CardContent>
+              </Card>
             </div>
           </div>
 

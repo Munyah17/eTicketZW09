@@ -21,9 +21,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!["paynow", "stripe"].includes(body.provider)) {
+    if (!["paynow", "stripe", "ecocash"].includes(body.provider)) {
       return NextResponse.json(
-        { error: "Invalid provider. Must be 'paynow' or 'stripe'" },
+        { error: "Invalid provider. Must be 'paynow', 'stripe', or 'ecocash'" },
         { status: 400 }
       );
     }
@@ -39,6 +39,9 @@ export async function POST(req: NextRequest) {
     }
     if (platformConfig && body.provider === "paynow" && !platformConfig.paynow_enabled) {
       return NextResponse.json({ error: "Paynow payments are currently disabled" }, { status: 503 });
+    }
+    if (platformConfig && body.provider === "ecocash" && !platformConfig.ecocash_enabled) {
+      return NextResponse.json({ error: "EcoCash payments are currently disabled" }, { status: 503 });
     }
 
     const result = await PaymentService.initiatePayment(body);

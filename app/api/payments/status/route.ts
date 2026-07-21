@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PaymentService, PaynowService } from "@/lib/services/payment-service";
+import { PaymentService, PaynowService, EcocashService } from "@/lib/services/payment-service";
 import { logError } from "@/lib/error-logger";
 
 export async function GET(req: NextRequest) {
@@ -70,6 +70,30 @@ export async function GET(req: NextRequest) {
         }
       } catch (err) {
         logError("paynow_status_poll_failed", err, { reference });
+        // Non-fatal: fall through and return current status
+      }
+    }
+  }
+
+  // Same for EcoCash Instant Payment: there's no redirect page at all here —
+  // the buyer approves a USSD PIN prompt on their phone — so this poll is
+  // often the *first* time we learn the outcome, not just a fallback.
+  if (payment.status === "pending" && payment.provider === "ecocash") {
+    const endUserId = payment.metadata?.ecocash_end_user_id as string | undefined;
+    if (endUserId) {
+      try {
+        const verified = await EcocashService.pollStatus(endUserId, reference);
+        if (verified === "paid") {
+          await PaymentService.confirmPaid(reference, {
+            amount: payment.amount,
+            currency: payment.currency,
+            paymentMethod: "ecocash",
+          });
+        } else if (verified === "failed") {
+          await PaymentService.markFailed(reference);
+        }
+      } catch (err) {
+        logError("ecocash_status_poll_failed", err, { reference });
         // Non-fatal: fall through and return current status
       }
     }

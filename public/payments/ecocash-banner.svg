@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 130" width="600" height="130">
+  <rect width="600" height="130" rx="10" fill="white" stroke="#00A651" stroke-width="2"/>
+
+  <!-- EcoCash logo -->
+  <g transform="translate(24, 30)">
+    <rect width="64" height="64" rx="14" fill="#00A651"/>
+    <text x="32" y="30" font-family="Arial, sans-serif" font-weight="900" font-size="16" fill="white" text-anchor="middle">Eco</text>
+    <text x="32" y="48" font-family="Arial, sans-serif" font-weight="900" font-size="16" fill="white" text-anchor="middle">Cash</text>
+  </g>
+
+  <text x="104" y="52" font-family="Arial, sans-serif" font-weight="900" font-size="26" fill="#00A651">EcoCash</text>
+  <text x="104" y="74" font-family="Arial, sans-serif" font-size="12" fill="#555">Instant mobile money payments</text>
+
+  <line x1="24" y1="98" x2="576" y2="98" stroke="#E5E5E5" stroke-width="1.5"/>
+
+  <text x="24" y="118" font-family="Arial, sans-serif" font-size="11" fill="#00A651" font-weight="700">Pay instantly from your EcoCash wallet</text>
+  <text x="576" y="118" font-family="Arial, sans-serif" font-size="11" fill="#888" text-anchor="end">*151# · USSD confirm</text>
+</svg>

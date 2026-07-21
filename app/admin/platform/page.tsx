@@ -26,6 +26,7 @@ interface PlatformConfig {
   online_payments: boolean;
   stripe_enabled: boolean;
   paynow_enabled: boolean;
+  ecocash_enabled: boolean;
   announcement_active: boolean;
   announcement_message: string;
   announcement_type: "info" | "warning" | "error" | "ad";
@@ -91,6 +92,7 @@ export default function PlatformPage() {
           online_payments: config.online_payments,
           stripe_enabled: config.stripe_enabled,
           paynow_enabled: config.paynow_enabled,
+          ecocash_enabled: config.ecocash_enabled,
           announcement_active: config.announcement_active,
           announcement_message: config.announcement_message,
           announcement_type: config.announcement_type,
@@ -235,6 +237,7 @@ export default function PlatformPage() {
               { key: "online_payments" as const, label: "Online Payments", desc: "Master switch for all payment processing" },
               { key: "stripe_enabled" as const, label: "Stripe Gateway", desc: "Card payments via Stripe" },
               { key: "paynow_enabled" as const, label: "Paynow Gateway", desc: "Zimbabwe payments via Paynow" },
+              { key: "ecocash_enabled" as const, label: "EcoCash Instant", desc: "Direct EcoCash wallet charges — PIN prompt sent to buyer's phone" },
               { key: "auto_approve_events" as const, label: "Auto-Approve Events", desc: "New events go live immediately; disable to hold them for admin review first" },
             ] as const).map(f => (
               <div key={f.key} className="flex items-center justify-between py-3 gap-4">
@@ -279,6 +282,12 @@ export default function PlatformPage() {
                 desc: "Zimbabwe local gateway · USD & ZWL",
                 enabled: config.paynow_enabled,
                 docsUrl: "https://www.paynow.co.zw",
+              },
+              {
+                name: "EcoCash Instant",
+                desc: "Direct wallet charge · USD & ZWG",
+                enabled: config.ecocash_enabled,
+                docsUrl: "https://developers.ecocash.co.zw",
               },
             ].map(gw => (
               <div key={gw.name} className="flex items-center justify-between p-3 rounded-lg border bg-background">

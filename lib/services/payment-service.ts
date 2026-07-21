@@ -9,7 +9,7 @@ import { sendSaleNotificationEmails } from "@/lib/email/send-sale-notification-e
 import { sendTicketWhatsApp } from "@/lib/whatsapp";
 import { logError } from "@/lib/error-logger";
 
-export type PaymentProvider = "paynow" | "stripe";
+export type PaymentProvider = "paynow" | "stripe" | "ecocash";
 
 export interface PaymentInitiateRequest {
   product_name: string;
@@ -29,6 +29,7 @@ export interface PaymentInitiateResponse {
   redirect_url: string;
   stripe_session_id?: string;
   paynow_poll_url?: string;
+  ecocash_end_user_id?: string;
   error?: string;
 }
 
@@ -73,6 +74,8 @@ export class PaymentService {
       result = await PaynowService.initiatePayment(reference, request);
     } else if (request.provider === "stripe") {
       result = await StripeService.initiatePayment(reference, request);
+    } else if (request.provider === "ecocash") {
+      result = await EcocashService.initiatePayment(reference, request);
     } else {
       result = { success: false, reference, redirect_url: "", error: "Invalid payment provider" };
     }
@@ -94,6 +97,16 @@ export class PaymentService {
         .eq("reference", reference);
       if (updateError) {
         console.error("Payment paynow_poll_url update failed:", updateError.message);
+      }
+    } else if (result.ecocash_end_user_id) {
+      // Needed later to poll EcoCash's Transaction Lookup endpoint — the
+      // lookup is keyed on endUserId + clientCorrelator (our reference),
+      // same "never trust the webhook body alone" reasoning as Paynow above.
+      const { error: updateError } = await supabase.from("payments")
+        .update({ metadata: { ...request.metadata, ecocash_end_user_id: result.ecocash_end_user_id } })
+        .eq("reference", reference);
+      if (updateError) {
+        console.error("Payment ecocash_end_user_id update failed:", updateError.message);
       }
     }
 
@@ -386,6 +399,150 @@ class PaynowService {
 }
 
 export { PaynowService };
+
+// EcoCash Instant Payment (EIP) — direct wallet-charge API, distinct from
+// Paynow. There is no hosted checkout page: a Charge Request pushes a USSD
+// PIN prompt straight to the buyer's phone, and the final outcome is only
+// known once we poll Transaction Lookup (or the notifyUrl webhook fires, but
+// per the same "unauthenticated webhook body" reasoning as Paynow, that is
+// only ever a wake-up signal — never trusted for the actual status).
+class EcocashService {
+  // EIP's endUserId is the bare 9-digit subscriber number (e.g. "773047653"),
+  // not the 263-prefixed or 0-prefixed forms buyers normally type.
+  static normalizeMsisdn(phone: string): string {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.startsWith("263")) return digits.slice(3);
+    if (digits.startsWith("0")) return digits.slice(1);
+    return digits;
+  }
+
+  private static authHeader(): string {
+    const username = process.env.ECOCASH_EIP_USERNAME || "";
+    const password = process.env.ECOCASH_EIP_PASSWORD || "";
+    return "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
+  }
+
+  // developers.ecocash.co.zw sits behind Cloudflare, which 403s requests with
+  // no User-Agent (Node's fetch sends none by default) — confirmed against
+  // the live sandbox, not a hypothetical.
+  private static requestHeaders(extra?: Record<string, string>): Record<string, string> {
+    return {
+      Authorization: EcocashService.authHeader(),
+      "User-Agent": "Mozilla/5.0 (compatible; ETicketsZW/1.0)",
+      Accept: "application/json",
+      ...extra,
+    };
+  }
+
+  // The EIP sandbox response schema doesn't match its own docs consistently
+  // (fields seen: status / statusMessage / transactionOperationStatus / text)
+  // — classify defensively off whatever text fields are present rather than
+  // depending on one exact field.
+  private static classify(body: Record<string, unknown>): "paid" | "failed" | "pending" {
+    const haystack = [
+      body.status,
+      body.statusMessage,
+      body.transactionOperationStatus,
+      body.text,
+      body.ecocashResponseCode,
+      body.responseMessage,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    if (/success/.test(haystack)) return "paid";
+    if (/insufficient|invalid|fail|barred|limit|cancel|declin/.test(haystack)) return "failed";
+    return "pending";
+  }
+
+  static async initiatePayment(reference: string, request: PaymentInitiateRequest): Promise<PaymentInitiateResponse> {
+    const baseUrl = process.env.ECOCASH_EIP_BASE_URL || "";
+    const merchantCode = process.env.ECOCASH_MERCHANT_CODE || "";
+    const merchantPin = process.env.ECOCASH_MERCHANT_PIN || "";
+    const merchantNumber = process.env.ECOCASH_MERCHANT_NUMBER || "";
+    const terminalID = process.env.ECOCASH_TERMINAL_ID || "WEB01";
+
+    if (!baseUrl || !process.env.ECOCASH_EIP_USERNAME || !process.env.ECOCASH_EIP_PASSWORD || !merchantCode || !merchantPin || !merchantNumber) {
+      return { success: false, reference, redirect_url: "", error: "EcoCash Instant Payment credentials are not configured." };
+    }
+
+    const buyerPhone = (request.metadata?.buyerPhone as string) || "";
+    const endUserId = EcocashService.normalizeMsisdn(buyerPhone);
+    if (!endUserId || endUserId.length < 9) {
+      return { success: false, reference, redirect_url: "", error: "A valid EcoCash phone number is required." };
+    }
+
+    const origin = request.origin || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+
+    const body = {
+      clientCorrelator: reference,
+      notifyUrl: `${origin}/api/payments/webhook/ecocash`,
+      referenceCode: reference,
+      tranType: "MER",
+      endUserId,
+      remarks: "E-TicketsZW",
+      transactionOperationStatus: "Charged",
+      terminalID,
+      paymentAmount: {
+        charginginformation: {
+          amount: request.amount,
+          currency: request.currency.toUpperCase(),
+          description: request.product_name,
+        },
+        chargeMetaData: { channel: "WEB" },
+      },
+      merchantCode,
+      merchantPin,
+      merchantNumber,
+      countryCode: "ZW",
+      location: "Harare",
+      superMerchantName: "ECOCASH",
+      merchantName: "E-TicketsZW",
+    };
+
+    try {
+      const res = await fetch(`${baseUrl}/transactions/amount/`, {
+        method: "POST",
+        headers: EcocashService.requestHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const message = (data.statusMessage as string) || (data.message as string) || `EcoCash request failed (${res.status})`;
+        logError("ecocash_initiate_rejected", new Error(message), { reference, status: res.status, data });
+        return { success: false, reference, redirect_url: "", error: message };
+      }
+
+      // A charge request that comes back 200 means EIP accepted it and sent
+      // the PIN prompt — the transaction itself is still pending until the
+      // buyer responds, which is not a failure of *this* call.
+      return { success: true, reference, redirect_url: "", ecocash_end_user_id: endUserId };
+    } catch (error) {
+      logError("ecocash_initiate", error, { reference });
+      return { success: false, reference, redirect_url: "", error: "Failed to initiate EcoCash payment" };
+    }
+  }
+
+  static async pollStatus(endUserId: string, clientCorrelator: string): Promise<"paid" | "failed" | "pending"> {
+    const baseUrl = process.env.ECOCASH_EIP_BASE_URL || "";
+    if (!baseUrl || !process.env.ECOCASH_EIP_USERNAME || !process.env.ECOCASH_EIP_PASSWORD) {
+      throw new Error("EcoCash Instant Payment credentials are not configured");
+    }
+
+    const res = await fetch(`${baseUrl}/${encodeURIComponent(endUserId)}/transactions/amount/${encodeURIComponent(clientCorrelator)}`, {
+      headers: EcocashService.requestHeaders(),
+    });
+    if (!res.ok) {
+      if (res.status === 404) return "pending"; // not yet resolved on EcoCash's side
+      throw new Error(`EcoCash lookup failed (${res.status})`);
+    }
+    const data = await res.json().catch(() => ({}));
+    return EcocashService.classify(data);
+  }
+}
+
+export { EcocashService };
 
 class StripeService {
   static async initiatePayment(reference: string, request: PaymentInitiateRequest): Promise<PaymentInitiateResponse> {

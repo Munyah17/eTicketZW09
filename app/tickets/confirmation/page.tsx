@@ -340,7 +340,9 @@ function TicketConfirmationContent() {
               <Ticket className="mx-auto h-16 w-16 text-muted-foreground" />
               <h1 className="mt-4 text-2xl font-bold">Payment Pending</h1>
               <p className="mt-2 text-muted-foreground">
-                Your payment is still being confirmed. Please wait a few moments and refresh this page.
+                {paymentStatus.provider === "ecocash"
+                  ? "Check your phone for the EcoCash PIN prompt and confirm the payment, then refresh this page."
+                  : "Your payment is still being confirmed. Please wait a few moments and refresh this page."}
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button onClick={() => window.location.reload()}>Refresh Status</Button>
