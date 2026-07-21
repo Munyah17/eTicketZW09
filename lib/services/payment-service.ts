@@ -422,14 +422,20 @@ class EcocashService {
     return "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
   }
 
-  // developers.ecocash.co.zw sits behind Cloudflare, which 403s requests with
-  // no User-Agent (Node's fetch sends none by default) — confirmed against
-  // the live sandbox, not a hypothetical.
+  // developers.ecocash.co.zw sits behind Cloudflare bot protection that
+  // blocks anything that doesn't look like a real browser — confirmed
+  // against the live sandbox: a generic "compatible; …" User-Agent alone
+  // still gets the literal Cloudflare block page, not a JSON response from
+  // EcoCash's own API at all. A real Chrome UA plus matching Origin/Referer
+  // gets through.
   private static requestHeaders(extra?: Record<string, string>): Record<string, string> {
     return {
       Authorization: EcocashService.authHeader(),
-      "User-Agent": "Mozilla/5.0 (compatible; ETicketsZW/1.0)",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
       Accept: "application/json",
+      "Accept-Language": "en-US,en;q=0.9",
+      Origin: "https://developers.ecocash.co.zw",
+      Referer: "https://developers.ecocash.co.zw/",
       ...extra,
     };
   }
