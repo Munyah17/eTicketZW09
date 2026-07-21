@@ -67,7 +67,7 @@ export function SectionBanner({ position = 1 }: SectionBannerProps) {
     return (
       <section className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
         <Link href="/advertise">
-          <div className="group relative flex h-24 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-muted-foreground/20 bg-gradient-to-r from-secondary/50 via-secondary/30 to-secondary/50 transition-all hover:border-primary/30 hover:bg-secondary/70 md:h-32">
+          <div className="group relative flex h-36 items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-muted-foreground/20 bg-gradient-to-r from-secondary/50 via-secondary/30 to-secondary/50 transition-all hover:border-primary/30 hover:bg-secondary/70 md:h-48">
             <div className="flex items-center gap-3 text-muted-foreground transition-colors group-hover:text-primary">
               <Megaphone className="h-6 w-6 md:h-8 md:w-8" />
               <div className="text-center">
@@ -85,7 +85,7 @@ export function SectionBanner({ position = 1 }: SectionBannerProps) {
   return (
     <section ref={rootRef} className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
       <Link href={banner.link || "#"}>
-        <div className="relative h-24 overflow-hidden rounded-xl bg-gradient-to-r from-primary/20 via-primary/10 to-accent shadow-sm ring-1 ring-border transition-shadow hover:shadow-md md:h-32">
+        <div className="relative h-36 overflow-hidden rounded-xl bg-gradient-to-r from-primary/20 via-primary/10 to-accent shadow-sm ring-1 ring-border transition-shadow hover:shadow-md md:h-48">
           <Image
             src={banner.image}
             alt={banner.title || "Advertisement"}

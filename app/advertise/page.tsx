@@ -40,7 +40,7 @@ const bannerTypes = [
     features: [
       "Inline banner placement",
       "Targeted category exposure",
-      "970×250px recommended size",
+      "1200×190px recommended size (6.3:1)",
     ],
   },
 ];

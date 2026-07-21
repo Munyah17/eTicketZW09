@@ -18,6 +18,33 @@ import { Upload, X, Image as ImageIcon, Link as LinkIcon, LayoutTemplate, Layers
 import { Banner } from "@/lib/types";
 import { formatCompactNumber } from "@/lib/utils";
 
+// Target aspect ratios for each banner slot — must track the live component
+// (components/home/hero-slider.tsx, components/home/section-banner.tsx).
+// Section banners are a fixed-height, fluid-width strip, so this is the
+// desktop reference ratio; a generous tolerance below accounts for it
+// cropping slightly differently on narrower screens.
+const BANNER_ASPECT: Record<"hero" | "section", { ratio: number; label: string }> = {
+  hero: { ratio: 1200 / 400, label: "1200×400px" },
+  section: { ratio: 1200 / 190, label: "1200×190px" },
+};
+const ASPECT_TOLERANCE = 0.2; // ±20%
+
+function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Could not read this image file."));
+    };
+    img.src = url;
+  });
+}
+
 export default function BannerManagementPage() {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,12 +90,39 @@ export default function BannerManagementPage() {
     setDraftLink(banner.link || "");
     setDraftFile(null);
     setDraftPreview(null);
+    setFileError(null);
     setDialogOpen(true);
   };
 
-  const handleFileSelect = (file: File | null) => {
+  const [fileError, setFileError] = useState<string | null>(null);
+
+  const handleFileSelect = async (file: File | null) => {
+    setFileError(null);
+    if (!file) {
+      setDraftFile(null);
+      setDraftPreview(null);
+      return;
+    }
+
+    const target = BANNER_ASPECT[editingBanner?.type ?? "section"];
+    try {
+      const { width, height } = await readImageDimensions(file);
+      const ratio = width / height;
+      const deviation = Math.abs(ratio - target.ratio) / target.ratio;
+      if (deviation > ASPECT_TOLERANCE) {
+        setFileError(
+          `This image is ${width}×${height}px (${ratio.toFixed(2)}:1) — too far from the banner's shape to fit without ` +
+            `cropping out a big chunk of it. Please create a banner at ${target.label} (or the same proportions) and upload that instead.`
+        );
+        return;
+      }
+    } catch {
+      setFileError("Could not read this image file — please try a different one.");
+      return;
+    }
+
     setDraftFile(file);
-    setDraftPreview(file ? URL.createObjectURL(file) : null);
+    setDraftPreview(URL.createObjectURL(file));
   };
 
   const handleSaveBanner = async () => {
@@ -112,7 +166,10 @@ export default function BannerManagementPage() {
     const cfg = statusCfg[banner.status] ?? statusCfg.available;
     return (
       <Card className="border-0 shadow-sm overflow-hidden">
-        <div className="aspect-[3/1] bg-muted/60 flex items-center justify-center border-b relative">
+        <div
+          className="bg-muted/60 flex items-center justify-center border-b relative"
+          style={{ aspectRatio: BANNER_ASPECT[banner.type].ratio }}
+        >
           {banner.image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={banner.image} alt={banner.title || "Banner"} className="absolute inset-0 h-full w-full object-cover" />
@@ -252,7 +309,7 @@ export default function BannerManagementPage() {
                 </div>
                 <div>
                   <p className="font-medium">{editingBanner.type === "hero" ? "Hero Slide" : "Section Banner"} #{editingBanner.position}</p>
-                  <p className="text-xs text-muted-foreground">${editingBanner.pricePerDay}/day · {editingBanner.type === "hero" ? "1200×400px" : "970×250px"}</p>
+                  <p className="text-xs text-muted-foreground">${editingBanner.pricePerDay}/day · {BANNER_ASPECT[editingBanner.type].label}</p>
                 </div>
               </div>
             )}
@@ -279,8 +336,13 @@ export default function BannerManagementPage() {
                     <p className="text-sm font-medium">Click to upload</p>
                   </>
                 )}
-                <p className="text-xs text-muted-foreground mt-2">PNG, JPG, WebP · {editingBanner?.type === "hero" ? "1200×400px recommended" : "970×250px recommended"}</p>
+                <p className="text-xs text-muted-foreground mt-2">
+                  PNG, JPG, WebP · {BANNER_ASPECT[editingBanner?.type ?? "section"].label} recommended
+                </p>
               </div>
+              {fileError && (
+                <p className="mt-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{fileError}</p>
+              )}
             </div>
 
             <div>
