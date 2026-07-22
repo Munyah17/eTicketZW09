@@ -20,6 +20,14 @@ const nextConfig = {
   // bundle if Turbopack tries to trace it. Keep it external so it's resolved
   // at runtime in the browser instead.
   serverExternalPackages: ["jspdf", "jspdf-autotable"],
+  async redirects() {
+    return [
+      // The browse-all-events page moved to /allevents — exact match only,
+      // so /events/[id] detail pages are untouched. Query params (e.g.
+      // ?category=music) are forwarded automatically.
+      { source: "/events", destination: "/allevents", permanent: true },
+    ]
+  },
 }
 
 export default nextConfig

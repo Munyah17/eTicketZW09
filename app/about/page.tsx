@@ -67,7 +67,7 @@ export default function AboutPage() {
               unforgettable experiences across Zimbabwe.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <Link href="/events">
+              <Link href="/allevents">
                 <Button size="lg" className="bg-primary hover:bg-primary/90">
                   Browse Events
                 </Button>
@@ -131,7 +131,7 @@ export default function AboutPage() {
             {categories.map((cat) => (
               <Link
                 key={cat.label}
-                href={`/events?category=${cat.label.toLowerCase()}`}
+                href={`/allevents?category=${cat.label.toLowerCase()}`}
               >
                 <Card className="text-center transition-all hover:shadow-md">
                   <CardContent className="pt-6">

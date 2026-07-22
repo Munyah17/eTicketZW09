@@ -87,7 +87,9 @@ export async function GET(req: NextRequest) {
       query = query.order("date", { ascending: true });
   }
 
-  const { data, error } = await query.limit(200);
+  // /allevents shows the entire published catalog, no pagination — this
+  // limit just guards against an unbounded query, not a real page size.
+  const { data, error } = await query.limit(5000);
   if (error) {
     console.error("Events list error:", error.message);
     return NextResponse.json({ error: "Failed to fetch events" }, { status: 500 });

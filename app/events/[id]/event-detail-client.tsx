@@ -69,7 +69,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
       <div className="border-b bg-secondary/30">
         <div className="mx-auto max-w-7xl px-4 py-3 lg:px-8">
           <Link
-            href="/events"
+            href="/allevents"
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
           >
             <ChevronLeft className="h-4 w-4" />

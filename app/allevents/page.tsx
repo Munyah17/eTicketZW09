@@ -14,43 +14,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Filter, X, Calendar, MapPin, LayoutGrid, List } from "lucide-react";
+import { Search, Filter, X, MapPin } from "lucide-react";
 import { EVENT_CATEGORIES, EventCategory, type Event } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { SuggestInput } from "@/components/ui/suggest-input";
-
-const COLUMNS = 5;
-const ROWS_PER_PAGE = 5;
-const PAGE_SIZE = COLUMNS * ROWS_PER_PAGE;
+import { getEventStatusTag } from "@/lib/event-status";
 
 const cities = ["All Cities", "Harare", "Bulawayo", "Victoria Falls", "Mutare", "Gweru"];
-const sortOptions = [
-  { value: "newest", label: "Recently Posted" },
-  { value: "date-asc", label: "Date: Soonest First" },
-  { value: "date-desc", label: "Date: Latest First" },
-  { value: "price-asc", label: "Price: Low to High" },
-  { value: "price-desc", label: "Price: High to Low" },
-  { value: "popularity", label: "Most Popular" },
-];
 
-function EventsPageContent() {
+function AllEventsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialCategory = searchParams.get("category") as EventCategory | null;
-  const initialSort = searchParams.get("sort");
 
   const [allEvents, setAllEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory || "all");
   const [selectedCity, setSelectedCity] = useState("All Cities");
-  const [sortBy, setSortBy] = useState(initialSort === "newest" ? "newest" : "date-asc");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showFilters, setShowFilters] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   useEffect(() => {
-    fetch("/api/events")
+    // Always newest-posted-first — this page is the flat, ungrouped
+    // chronological feed of every listing, not a curated/sorted view.
+    fetch("/api/events?sort=newest")
       .then((r) => r.json())
       .then((data) => setAllEvents(data.events ?? []))
       .catch(() => setAllEvents([]))
@@ -60,7 +47,6 @@ function EventsPageContent() {
   const filteredEvents = useMemo(() => {
     let events = allEvents.filter((e) => e.status === "published");
 
-    // Filter by search query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       events = events.filter(
@@ -72,55 +58,18 @@ function EventsPageContent() {
       );
     }
 
-    // Filter by category
     if (selectedCategory && selectedCategory !== "all") {
       events = events.filter((e) => e.category === selectedCategory);
     }
 
-    // Filter by city
     if (selectedCity !== "All Cities") {
       events = events.filter((e) => e.city === selectedCity);
     }
 
-    // Sort
-    switch (sortBy) {
-      case "newest":
-        events.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        break;
-      case "date-asc":
-        events.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        break;
-      case "date-desc":
-        events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        break;
-      case "price-asc":
-        events.sort((a, b) => {
-          const minA = Math.min(...a.ticketTypes.map((t) => t.price));
-          const minB = Math.min(...b.ticketTypes.map((t) => t.price));
-          return minA - minB;
-        });
-        break;
-      case "price-desc":
-        events.sort((a, b) => {
-          const minA = Math.min(...a.ticketTypes.map((t) => t.price));
-          const minB = Math.min(...b.ticketTypes.map((t) => t.price));
-          return minB - minA;
-        });
-        break;
-      case "popularity":
-        events.sort((a, b) => b.soldTickets - a.soldTickets);
-        break;
-    }
-
-    return events;
-  }, [allEvents, searchQuery, selectedCategory, selectedCity, sortBy]);
-
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [searchQuery, selectedCategory, selectedCity, sortBy]);
-
-  const visibleEvents = filteredEvents.slice(0, visibleCount);
-  const hasMore = visibleCount < filteredEvents.length;
+    // API already returns newest-posted-first; re-sort defensively here too
+    // so client-side filtering can never disturb that order.
+    return [...events].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [allEvents, searchQuery, selectedCategory, selectedCity]);
 
   const activeFiltersCount = [
     selectedCategory !== "all" ? 1 : 0,
@@ -138,15 +87,13 @@ function EventsPageContent() {
       <Header />
 
       <main className="flex-1">
-        {/* Page Header */}
         <section className="border-b bg-secondary/30 py-8">
           <div className="mx-auto max-w-7xl px-4 lg:px-8">
-            <h1 className="text-3xl font-bold md:text-4xl">Browse Events</h1>
+            <h1 className="text-3xl font-bold md:text-4xl">All Events</h1>
             <p className="mt-2 text-muted-foreground">
-              Discover amazing events happening across Zimbabwe
+              Every event ever listed on E-TicketsZW — newest first
             </p>
 
-            {/* Search Bar */}
             <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-center">
               <SuggestInput
                 className="relative flex-1"
@@ -176,59 +123,23 @@ function EventsPageContent() {
                   </span>
                 )}
               />
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowFilters(!showFilters)}
-                  className={cn("gap-2", showFilters && "bg-accent")}
-                >
-                  <Filter className="h-4 w-4" />
-                  Filters
-                  {activeFiltersCount > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 w-5 rounded-full p-0 text-xs">
-                      {activeFiltersCount}
-                    </Badge>
-                  )}
-                </Button>
-                <div className="hidden md:flex">
-                  <Button
-                    variant={viewMode === "grid" ? "secondary" : "ghost"}
-                    size="icon"
-                    onClick={() => setViewMode("grid")}
-                  >
-                    <LayoutGrid className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === "list" ? "secondary" : "ghost"}
-                    size="icon"
-                    onClick={() => setViewMode("list")}
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
+              <Button
+                variant="outline"
+                onClick={() => setShowFilters(!showFilters)}
+                className={cn("gap-2", showFilters && "bg-accent")}
+              >
+                <Filter className="h-4 w-4" />
+                Filters
+                {activeFiltersCount > 0 && (
+                  <Badge variant="secondary" className="ml-1 h-5 w-5 rounded-full p-0 text-xs">
+                    {activeFiltersCount}
+                  </Badge>
+                )}
+              </Button>
             </div>
 
-            {/* Filters */}
             {showFilters && (
               <div className="mt-4 flex flex-wrap items-center gap-4 rounded-lg border bg-background p-4">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                    <SelectTrigger className="w-[160px]">
-                      <SelectValue placeholder="Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      {EVENT_CATEGORIES.map((cat) => (
-                        <SelectItem key={cat.value} value={cat.value}>
-                          {cat.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 <div className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-muted-foreground" />
                   <Select value={selectedCity} onValueChange={setSelectedCity}>
@@ -245,19 +156,6 @@ function EventsPageContent() {
                   </Select>
                 </div>
 
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Sort by" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sortOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
                 {activeFiltersCount > 0 && (
                   <Button variant="ghost" size="sm" onClick={clearFilters} className="gap-1">
                     <X className="h-3 w-3" />
@@ -267,7 +165,6 @@ function EventsPageContent() {
               </div>
             )}
 
-            {/* Category Pills */}
             <div className="mt-4 flex flex-wrap gap-2">
               <Button
                 variant={selectedCategory === "all" ? "default" : "outline"}
@@ -292,22 +189,13 @@ function EventsPageContent() {
           </div>
         </section>
 
-        {/* Events Grid */}
+        {/* Full chronological feed — no pagination, the list simply grows
+            (and the scrollbar with it) as more events get listed. */}
         <section className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-muted-foreground">
-                Showing <span className="font-medium text-foreground">{visibleEvents.length}</span> of{" "}
-                <span className="font-medium text-foreground">{filteredEvents.length}</span> events
-              </p>
-              {sortBy === "newest" && (
-                <Badge variant="secondary" className="gap-1">
-                  Recently Posted
-                  <button onClick={() => setSortBy("date-asc")} className="ml-1 hover:text-foreground">×</button>
-                </Badge>
-              )}
-            </div>
-          </div>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Showing <span className="font-medium text-foreground">{filteredEvents.length}</span> of{" "}
+            <span className="font-medium text-foreground">{allEvents.filter((e) => e.status === "published").length}</span> events
+          </p>
 
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -326,33 +214,11 @@ function EventsPageContent() {
               </Button>
             </div>
           ) : (
-            <>
-              {viewMode === "grid" ? (
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-                  {visibleEvents.map((event) => (
-                    <EventCard key={event.id} event={event} />
-                  ))}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {visibleEvents.map((event) => (
-                    <EventCard key={event.id} event={event} variant="compact" />
-                  ))}
-                </div>
-              )}
-
-              {hasMore && (
-                <div className="mt-8 flex justify-center">
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-                  >
-                    Show More
-                  </Button>
-                </div>
-              )}
-            </>
+            <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
+              {filteredEvents.map((event) => (
+                <EventCard key={event.id} event={event} statusTag={getEventStatusTag(event)} />
+              ))}
+            </div>
           )}
         </section>
       </main>
@@ -362,10 +228,10 @@ function EventsPageContent() {
   );
 }
 
-export default function EventsPage() {
+export default function AllEventsPage() {
   return (
     <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
-      <EventsPageContent />
+      <AllEventsPageContent />
     </Suspense>
   );
 }

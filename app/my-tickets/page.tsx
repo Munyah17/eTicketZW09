@@ -123,7 +123,7 @@ export default function MyTicketsPage() {
                 View and manage your purchased tickets
               </p>
             </div>
-            <Link href="/events">
+            <Link href="/allevents">
               <Button className="gap-2 bg-primary hover:bg-primary/90">
                 <Ticket className="h-4 w-4" />
                 Browse Events
@@ -175,7 +175,7 @@ export default function MyTicketsPage() {
                     ? "Try adjusting your search query"
                     : "You haven't purchased any tickets yet"}
                 </p>
-                <Link href="/events">
+                <Link href="/allevents">
                   <Button className="mt-4">Browse Events</Button>
                 </Link>
               </div>

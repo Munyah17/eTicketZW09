@@ -13,7 +13,7 @@ export function CategorySection({ category, events }: CategorySectionProps) {
     <EventCarouselRow
       title={categoryLabel}
       subtitle={`${events.length} upcoming ${events.length === 1 ? "event" : "events"}`}
-      viewAllHref={`/events?category=${category}`}
+      viewAllHref={`/allevents?category=${category}`}
       events={events}
     />
   );
@@ -24,7 +24,7 @@ export function FeaturedSection({ events, title = "Featured Events" }: { events:
     <EventCarouselRow
       title={title}
       subtitle="Trending events you don't want to miss"
-      viewAllHref="/events"
+      viewAllHref="/allevents"
       events={events}
     />
   );
@@ -35,7 +35,7 @@ export function BestSellingSection({ events }: { events: Event[] }) {
     <EventCarouselRow
       title="Best Selling Events"
       subtitle="Fast-selling events you don't want to miss"
-      viewAllHref="/events"
+      viewAllHref="/allevents"
       events={events}
       fastSellingBadge
     />
@@ -47,7 +47,7 @@ export function UpcomingSection({ events }: { events: Event[] }) {
     <EventCarouselRow
       title="Coming Soon"
       subtitle="Get your tickets before they sell out"
-      viewAllHref="/events"
+      viewAllHref="/allevents"
       events={events}
     />
   );

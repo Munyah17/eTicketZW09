@@ -190,7 +190,7 @@ function TicketConfirmationContent() {
               Please return to the checkout page and try again, or contact support if the issue persists.
             </p>
             <div className="mt-6 flex justify-center gap-3">
-              <Link href="/events">
+              <Link href="/allevents">
                 <Button variant="outline">Browse Events</Button>
               </Link>
               <Link href={`/tickets/confirmation?ref=${reference}`}>
@@ -211,7 +211,7 @@ function TicketConfirmationContent() {
   // Link back to the specific event so "Try Again" repeats the full checkout process
   const retryUrl = paymentStatus.metadata?.eventId
     ? `/events/${paymentStatus.metadata.eventId}`
-    : "/events";
+    : "/allevents";
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -342,7 +342,7 @@ function TicketConfirmationContent() {
                 </p>
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                   <Button onClick={() => window.location.reload()}>Refresh</Button>
-                  <Link href="/events">
+                  <Link href="/allevents">
                     <Button variant="outline">Browse Events</Button>
                   </Link>
                 </div>
@@ -359,7 +359,7 @@ function TicketConfirmationContent() {
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button onClick={() => window.location.reload()}>Refresh Status</Button>
-                <Link href="/events">
+                <Link href="/allevents">
                   <Button variant="outline">Browse Events</Button>
                 </Link>
               </div>
@@ -372,7 +372,7 @@ function TicketConfirmationContent() {
                 Your payment did not go through. Would you like to try again or use a different payment method?
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Link href="/events">
+                <Link href="/allevents">
                   <Button variant="outline">Browse Events</Button>
                 </Link>
                 <Link href={retryUrl}>
@@ -383,7 +383,7 @@ function TicketConfirmationContent() {
           )}
 
           <div className="mt-8 text-center">
-            <Link href="/events">
+            <Link href="/allevents">
               <Button variant="outline">Browse More Events</Button>
             </Link>
           </div>

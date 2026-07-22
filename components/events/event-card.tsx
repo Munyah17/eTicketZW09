@@ -12,9 +12,10 @@ interface EventCardProps {
   event: Event;
   variant?: "default" | "compact";
   fastSelling?: boolean;
+  statusTag?: { label: string; className: string } | null;
 }
 
-export function EventCard({ event, variant = "default", fastSelling = false }: EventCardProps) {
+export function EventCard({ event, variant = "default", fastSelling = false, statusTag }: EventCardProps) {
   const lowestPrice = event.ticketTypes.length > 0 ? Math.min(...event.ticketTypes.map((t) => t.price)) : 0;
   const availableTickets = event.totalTickets - event.soldTickets;
   const categoryLabel = EVENT_CATEGORIES.find((c) => c.value === event.category)?.label || event.category;
@@ -91,16 +92,26 @@ export function EventCard({ event, variant = "default", fastSelling = false }: E
           <Badge className="absolute left-3 top-3 bg-background/90 text-foreground hover:bg-background/90">
             {categoryLabel}
           </Badge>
-          {/* Availability indicator */}
-          {availableTickets < 50 && availableTickets > 0 && (
-            <Badge className="absolute right-3 top-3 bg-warning text-warning-foreground">
-              Only {availableTickets} left!
+          {/* Availability indicator — a passed-in statusTag (used on the All
+              Events page) takes over this corner entirely, since it already
+              covers sold-out/almost-sold-out plus ended/cancelled/hot-selling. */}
+          {statusTag ? (
+            <Badge className={`absolute right-3 top-3 ${statusTag.className}`}>
+              {statusTag.label}
             </Badge>
-          )}
-          {availableTickets === 0 && event.totalTickets > 0 && (
-            <Badge className="absolute right-3 top-3 bg-destructive text-destructive-foreground">
-              Sold Out
-            </Badge>
+          ) : (
+            <>
+              {availableTickets < 50 && availableTickets > 0 && (
+                <Badge className="absolute right-3 top-3 bg-warning text-warning-foreground">
+                  Only {availableTickets} left!
+                </Badge>
+              )}
+              {availableTickets === 0 && event.totalTickets > 0 && (
+                <Badge className="absolute right-3 top-3 bg-destructive text-destructive-foreground">
+                  Sold Out
+                </Badge>
+              )}
+            </>
           )}
           {shouldShowSellFast && (
             <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2 py-1 text-white shadow-md">

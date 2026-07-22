@@ -36,7 +36,7 @@ const HOUSE_SLIDES: HouseSlide[] = [
     badge: "Zimbabwe's Own",
     heading: "Zimbabwe's Premier Event Ticketing Platform",
     body: "Discover concerts, comedy, sports, and festivals across Zimbabwe — book your tickets in seconds.",
-    primaryHref: "/events",
+    primaryHref: "/allevents",
     primaryLabel: "Browse Events",
     secondaryHref: "/organizer/create",
     secondaryLabel: "List Your Event",
@@ -109,7 +109,7 @@ export function HeroSlider() {
             .map((b) => ({
               id: b.id as string,
               title: (b.title as string) || "",
-              link: (b.link as string) || "/events",
+              link: (b.link as string) || "/allevents",
               image: b.image as string | undefined,
               impressions: Number(b.impressions) || 0,
             }))
@@ -192,7 +192,7 @@ export function HeroSlider() {
                           Learn More
                         </Button>
                       </Link>
-                      <Link href="/events">
+                      <Link href="/allevents">
                         <Button
                           size="lg"
                           variant="outline"

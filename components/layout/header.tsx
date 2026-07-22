@@ -22,7 +22,7 @@ import { Logo } from "./logo";
 
 const navigation = [
   { name: "Home", href: "/" },
-  { name: "Events", href: "/events" },
+  { name: "All Events", href: "/allevents" },
   { name: "For Organizers", href: "/organizer" },
   { name: "Advertise", href: "/advertise" },
   { name: "About", href: "/about" },
