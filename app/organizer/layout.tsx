@@ -14,13 +14,14 @@ import {
   Menu,
   X,
   ChevronLeft,
+  BadgeCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 
-const sidebarItems = [
+const baseSidebarItems = [
   { name: "Dashboard", href: "/organizer", icon: LayoutDashboard },
   { name: "My Events", href: "/organizer/events", icon: Calendar },
   { name: "Ticket Sales", href: "/organizer/sales", icon: Ticket },
@@ -30,6 +31,11 @@ const sidebarItems = [
   { name: "Settings", href: "/organizer/settings", icon: Settings },
 ];
 
+// Service Provider passes are scoped to Super Admin and the owning
+// organizer only (not Staff, not regular Admin) — so the nav link is
+// conditional rather than living in the shared base list.
+const servicePassesItem = { name: "Service Passes", href: "/organizer/passes", icon: BadgeCheck };
+
 export default function OrganizerLayout({
   children,
 }: {
@@ -37,10 +43,11 @@ export default function OrganizerLayout({
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { isLoggedIn, isOrganizer, isStaff, isAdmin } = useAuth();
+  const { isLoggedIn, isOrganizer, isStaff, isAdmin, isSuperAdmin } = useAuth();
 
   // Allow organizers, staff, and admins to access the dashboard
   const canAccessOrganizer = isOrganizer || isStaff || isAdmin;
+  const sidebarItems = isOrganizer || isSuperAdmin ? [...baseSidebarItems, servicePassesItem] : baseSidebarItems;
 
   if (!isLoggedIn) {
     return (
