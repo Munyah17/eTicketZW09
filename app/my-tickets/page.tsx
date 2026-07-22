@@ -262,12 +262,20 @@ export default function MyTicketsPage() {
                       <p className="mt-2 text-xs text-muted-foreground">
                         Show this at entry
                       </p>
-                      <a href={`/api/tickets/${ticket.id}/download`} download={`ticket-${ticket.id}.png`}>
-                        <Button variant="outline" size="sm" className="mt-3 gap-2">
-                          <Download className="h-3 w-3" />
-                          Download PNG
-                        </Button>
-                      </a>
+                      <div className="mt-3 flex gap-2">
+                        <a href={`/api/tickets/${ticket.id}/download`} download={`ticket-${ticket.id}.png`}>
+                          <Button variant="outline" size="sm" className="gap-2">
+                            <Download className="h-3 w-3" />
+                            Download PNG
+                          </Button>
+                        </a>
+                        <a href={`/api/tickets/${ticket.id}/wristband`} download={`wristband-${ticket.id}.png`}>
+                          <Button variant="outline" size="sm" className="gap-2" title="Optional — gate staff have wristbands ready">
+                            <Download className="h-3 w-3" />
+                            Wristband
+                          </Button>
+                        </a>
+                      </div>
                     </div>
                   </div>
                 </Card>

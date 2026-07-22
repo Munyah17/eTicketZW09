@@ -314,11 +314,24 @@ function TicketConfirmationContent() {
                       Download Ticket (PNG)
                     </Button>
                   </a>
+                  <a
+                    href={`/api/tickets/${ticketData.id}/wristband`}
+                    download={`wristband-${ticketData.id}.png`}
+                    className="flex-1"
+                  >
+                    <Button variant="outline" className="w-full gap-2">
+                      <Download className="h-4 w-4" />
+                      Print Wristband
+                    </Button>
+                  </a>
                   <Button variant="outline" className="flex-1 gap-2">
                     <Share2 className="h-4 w-4" />
                     Share
                   </Button>
                 </div>
+                <p className="mt-2 text-center text-xs text-muted-foreground">
+                  Gate staff will have your wristband ready at the venue — printing your own is optional.
+                </p>
               </>
             ) : (
               <div className="rounded-3xl border border-success/20 bg-success/10 p-8 text-center">

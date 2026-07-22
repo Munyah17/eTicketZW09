@@ -34,6 +34,7 @@ import {
   WifiOff,
   Wifi,
   CloudUpload,
+  Printer,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getOrganizerEvents } from "@/lib/events-store";
@@ -108,6 +109,45 @@ export default function GateManagementPage() {
   const [pendingSync, setPendingSync] = useState(0);
   const [syncing, setSyncing] = useState(false);
   const [conflicts, setConflicts] = useState<SyncConflict[]>([]);
+  const [printingWristbands, setPrintingWristbands] = useState(false);
+  const [wristbandProgress, setWristbandProgress] = useState({ done: 0, total: 0 });
+
+  // Bundles every ticket's wristband into one printable PDF, one wristband
+  // per page — a convenience for gate staff to pre-print a batch before
+  // doors open. Doesn't touch ticket/admission data at all, purely a
+  // read-and-render operation on what's already loaded.
+  const handlePrintAllWristbands = async () => {
+    if (tickets.length === 0) return;
+    setPrintingWristbands(true);
+    setWristbandProgress({ done: 0, total: tickets.length });
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      // Matches the wristband PNG's own aspect ratio (1900x200, ~9.5:1) —
+      // one wide, short strip per page instead of a full sheet per band.
+      const doc = new jsPDF({ unit: "mm", format: [250, 26], orientation: "landscape" });
+
+      for (let i = 0; i < tickets.length; i++) {
+        const ticket = tickets[i];
+        const res = await fetch(`/api/tickets/${ticket.id}/wristband`);
+        const blob = await res.blob();
+        const dataUrl: string = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        if (i > 0) doc.addPage([250, 26], "landscape");
+        doc.addImage(dataUrl, "PNG", 0, 0, 250, 26);
+        setWristbandProgress({ done: i + 1, total: tickets.length });
+      }
+
+      doc.save(`wristbands-${selectedEvent}.pdf`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Failed to generate wristbands PDF.");
+    } finally {
+      setPrintingWristbands(false);
+    }
+  };
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
@@ -375,6 +415,21 @@ export default function GateManagementPage() {
 
       {selectedEvent && !loading && (
         <>
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              disabled={tickets.length === 0 || printingWristbands}
+              onClick={handlePrintAllWristbands}
+            >
+              <Printer className={`h-4 w-4 ${printingWristbands ? "animate-pulse" : ""}`} />
+              {printingWristbands
+                ? `Preparing ${wristbandProgress.done}/${wristbandProgress.total}…`
+                : `Print All Wristbands (${tickets.length})`}
+            </Button>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <StatCard label="Total Tickets" value={tickets.length} icon={Ticket} iconClassName="bg-primary/10 text-primary" />
             <StatCard label="Admitted" value={admittedCount} icon={UserCheck} iconClassName="bg-green-100 text-green-700" />
