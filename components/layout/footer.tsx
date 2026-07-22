@@ -136,14 +136,11 @@ export function Footer() {
               </div>
             </div>
             <p className="text-sm font-mono text-muted-foreground">
-              &copy; {new Date().getFullYear()} E-TicketsZW. All rights reserved.
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground/70">
-              Location data &copy;{" "}
-              <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
-                OpenStreetMap
+              &copy; {new Date().getFullYear()} E-TicketsZW. All rights reserved. Developed &amp; Powered By{" "}
+              <a href="https://globalspaceweb.co.zw" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
+                Globalspaceweb.co.zw
               </a>{" "}
-              contributors
+              (+263773 909 307)
             </p>
           </div>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 md:justify-start font-mono">

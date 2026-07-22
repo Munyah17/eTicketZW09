@@ -104,8 +104,9 @@ export default function AdminPaymentsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Payment Verification</h1>
           <p className="text-muted-foreground mt-1">
-            Live payment ledger. Use manual verification only while webhooks aren&apos;t configured —
-            check the Stripe/Paynow dashboard for the real outcome before approving.
+            Live payment ledger. Stripe and Paynow webhooks are configured and verified — most payments
+            confirm automatically. Manual verification is a fallback for a payment stuck pending; check the
+            provider dashboard for the real outcome before approving.
           </p>
         </div>
         <div className="flex gap-2">

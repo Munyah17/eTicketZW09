@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,18 @@ export function TicketPurchaseForm({
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const [feePercent, setFeePercent] = useState(PLATFORM_FEE_PERCENTAGE);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  // Each step ("details" -> "provider" -> "processing" -> "redirect") renders
+  // very different content heights -- going from the tall provider list down
+  // to the short "session ready" card left the page's old scroll position
+  // sitting below the new, shorter content, which reads as "it jumped to the
+  // bottom" (it didn't move; the page under it just got shorter). Pulling
+  // the card into view on every step change keeps whatever's actionable
+  // actually on screen regardless of how tall the previous step was.
+  useEffect(() => {
+    cardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [step]);
 
   useEffect(() => {
     fetch("/api/platform-config")
@@ -197,7 +209,7 @@ export function TicketPurchaseForm({
 
   if (!selectedTicketType) {
     return (
-      <Card>
+      <Card ref={cardRef}>
         <CardHeader>
           <CardTitle className="text-lg">Select a Ticket</CardTitle>
         </CardHeader>
@@ -213,7 +225,7 @@ export function TicketPurchaseForm({
   // Spinner shown while the API call is in flight
   if (step === "processing") {
     return (
-      <Card>
+      <Card ref={cardRef}>
         <CardContent className="flex flex-col items-center justify-center py-12">
           <Spinner className="h-12 w-12" />
           <p className="mt-4 font-semibold">Connecting to payment gateway…</p>
@@ -234,7 +246,7 @@ export function TicketPurchaseForm({
   if (step === "redirect" && redirectUrl) {
     const providerName = selectedProvider === "paynow" ? "Paynow" : "Stripe";
     return (
-      <Card>
+      <Card ref={cardRef}>
         <CardContent className="flex flex-col items-center justify-center py-10 gap-4">
           <div className="text-center">
             <p className="font-semibold text-lg">Your checkout session is ready</p>
@@ -258,7 +270,7 @@ export function TicketPurchaseForm({
   }
 
   return (
-    <Card>
+    <Card ref={cardRef}>
       <CardHeader>
         <CardTitle className="text-lg">
           {step === "details" ? "Your Details" : "Select Payment Method"}

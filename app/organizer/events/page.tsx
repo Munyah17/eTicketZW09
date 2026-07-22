@@ -24,6 +24,7 @@ import {
   Eye,
   ImagePlus,
   Loader2,
+  PackagePlus,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getOrganizerEvents } from "@/lib/events-store";
@@ -31,6 +32,7 @@ import { Event } from "@/lib/types";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { DateRangeFilter, inDateRange } from "@/components/ui/date-range-filter";
 import type { ExportColumn } from "@/lib/export-utils";
+import { RestockDialog } from "@/components/events/restock-dialog";
 
 export default function OrganizerEventsPage() {
   const { user } = useAuth();
@@ -42,6 +44,7 @@ export default function OrganizerEventsPage() {
   const [uploadingEventId, setUploadingEventId] = useState<string | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const uploadTargetRef = useRef<string | null>(null);
+  const [restockEvent, setRestockEvent] = useState<Event | null>(null);
 
   const pickImageFor = (eventId: string) => {
     uploadTargetRef.current = eventId;
@@ -318,6 +321,14 @@ export default function OrganizerEventsPage() {
                                 <ImagePlus className="h-4 w-4" />
                               )}
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Restock tickets"
+                              onClick={() => setRestockEvent(event)}
+                            >
+                              <PackagePlus className="h-4 w-4" />
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -329,6 +340,13 @@ export default function OrganizerEventsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <RestockDialog
+        event={restockEvent}
+        open={!!restockEvent}
+        onOpenChange={(open) => !open && setRestockEvent(null)}
+        onSaved={() => { loadEvents(); }}
+      />
     </div>
   );
 }

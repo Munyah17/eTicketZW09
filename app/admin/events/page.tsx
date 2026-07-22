@@ -22,8 +22,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Search, Tag, Percent, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Trash2 } from "lucide-react";
+import { Search, Tag, Percent, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Trash2, PackagePlus } from "lucide-react";
 import type { Event } from "@/lib/types";
+import { RestockDialog } from "@/components/events/restock-dialog";
 
 export default function AdminEventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -36,6 +37,7 @@ export default function AdminEventsPage() {
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<Event | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [restockEvent, setRestockEvent] = useState<Event | null>(null);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
@@ -272,6 +274,14 @@ export default function AdminEventsPage() {
                           <Button
                             size="sm"
                             variant="outline"
+                            title="Restock tickets"
+                            onClick={() => setRestockEvent(event)}
+                          >
+                            <PackagePlus className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
                             className="text-destructive hover:text-destructive"
                             title="Delete listing"
                             onClick={() => setConfirmDelete(event)}
@@ -362,6 +372,13 @@ export default function AdminEventsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <RestockDialog
+        event={restockEvent}
+        open={!!restockEvent}
+        onOpenChange={(open) => !open && setRestockEvent(null)}
+        onSaved={() => { fetchEvents(); }}
+      />
     </div>
   );
 }
