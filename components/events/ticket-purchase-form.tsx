@@ -407,7 +407,7 @@ export function TicketPurchaseForm({
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
-                  Service Fee ({feePercent}%)
+                  Processing Fee
                 </span>
                 <span className="font-mono">${platformFee.toFixed(2)}</span>
               </div>
