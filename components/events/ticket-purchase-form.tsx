@@ -11,8 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import { Minus, Plus, Lock, ArrowLeft } from "lucide-react";
-import { Event, PaymentProvider, PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
-import { calculatePlatformFee, calculateTotalWithFee } from "@/lib/pricing";
+import { Event, PaymentProvider } from "@/lib/types";
 import { PaymentProviders } from "@/components/payment/payment-providers";
 import { useAuth } from "@/lib/auth-context";
 
@@ -40,7 +39,8 @@ export function TicketPurchaseForm({
   const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
-  const [feePercent, setFeePercent] = useState(PLATFORM_FEE_PERCENTAGE);
+  const [platformFee, setPlatformFee] = useState(0);
+  const [totalPrice, setTotalPrice] = useState(0);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Each step ("details" -> "provider" -> "processing" -> "redirect") renders
@@ -54,25 +54,43 @@ export function TicketPurchaseForm({
     cardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [step]);
 
-  useEffect(() => {
-    fetch("/api/platform-config")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.config?.service_fee_percent !== undefined) {
-          setFeePercent(Number(data.config.service_fee_percent));
-        }
-      })
-      .catch(() => {});
-  }, []);
-
   const selectedTicketType = event.ticketTypes.find((t) => t.id === selectedTicketTypeId);
   const available = selectedTicketType
     ? selectedTicketType.quantity - selectedTicketType.sold
     : 0;
 
   const basePrice = selectedTicketType ? selectedTicketType.price * quantity : 0;
-  const platformFee = calculatePlatformFee(basePrice, feePercent);
-  const totalPrice = calculateTotalWithFee(basePrice, feePercent);
+
+  // The processing fee's rate is never sent to the browser (trade secret —
+  // see memory: eticketzw-fee-secrecy). The server computes it and returns
+  // only the resulting dollar amounts.
+  useEffect(() => {
+    if (basePrice <= 0) {
+      setPlatformFee(0);
+      setTotalPrice(0);
+      return;
+    }
+    let cancelled = false;
+    fetch("/api/checkout/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ subtotal: basePrice }),
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (cancelled) return;
+        setPlatformFee(Number(data.fee) || 0);
+        setTotalPrice(Number(data.total) || basePrice);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setPlatformFee(0);
+          setTotalPrice(basePrice);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [basePrice]);
+
   const showBaseUrlWarning = !process.env.NEXT_PUBLIC_BASE_URL;
 
   const handleQuantityChange = (delta: number) => {
