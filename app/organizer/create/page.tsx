@@ -89,9 +89,15 @@ export default function CreateEventPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      alert("Please select a valid image file (PNG, JPG, WebP)");
+    // Validate file type — must match the storage bucket's allowed types
+    // exactly (supabase/migrations/20260710000000_create_events_storage_bucket.sql).
+    // "image/*" alone let unsupported formats like iPhone HEIC photos pass
+    // this check only to be silently rejected by Storage later.
+    const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const extIsAllowed = ["png", "jpg", "jpeg", "webp", "gif"].includes(ext);
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type) && !extIsAllowed) {
+      alert("Please select a PNG, JPG, WebP, or GIF image. Other formats (like HEIC from an iPhone) aren't supported yet — try converting or taking a screenshot instead.");
       return;
     }
 
@@ -416,7 +422,7 @@ export default function CreateEventPage() {
             <div className="space-y-4 rounded-lg border p-4 bg-secondary/50">
               <div className="flex items-center gap-2">
                 <ImageIcon className="h-5 w-5 text-primary" />
-                <h3 className="font-semibold">Featured Image (Recommended)</h3>
+                <h3 className="font-semibold">Featured Image (Required)</h3>
               </div>
               <p className="text-sm text-muted-foreground">
                 Upload an attractive cover image for your event that will be displayed on event cards

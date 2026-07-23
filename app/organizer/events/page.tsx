@@ -57,8 +57,11 @@ export default function OrganizerEventsPage() {
     e.target.value = ""; // allow re-selecting the same file later
     if (!file || !eventId) return;
 
-    if (!file.type.startsWith("image/")) {
-      alert("Please select a valid image file (PNG, JPG, WebP)");
+    const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    const extIsAllowed = ["png", "jpg", "jpeg", "webp", "gif"].includes(ext);
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type) && !extIsAllowed) {
+      alert("Please select a PNG, JPG, WebP, or GIF image. Other formats (like HEIC from an iPhone) aren't supported yet — try converting or taking a screenshot instead.");
       return;
     }
     const MAX_SIZE = 20 * 1024 * 1024; // 20MB — matches the events storage bucket limit
