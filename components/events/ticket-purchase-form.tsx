@@ -126,6 +126,11 @@ export function TicketPurchaseForm({
             buyerPhone: buyerContact,
             displayName: useAnonymous ? "Anonymous" : displayName || buyerName,
             idNumber,
+            // Dollar amount actually charged as the buyer-side service fee —
+            // captured now so the wallet ledger reflects what this specific
+            // sale really charged, not whatever the fee % happens to be by
+            // the time fulfillment runs.
+            platformFeeAmount: platformFee,
           },
         }),
       });

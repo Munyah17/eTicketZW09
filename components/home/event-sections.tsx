@@ -43,13 +43,23 @@ const CATEGORY_ORDER: EventCategory[] = [
 export function EventSections() {
   const [sections, setSections] = useState<HomeSections>(EMPTY);
   const [loaded, setLoaded] = useState(false);
+  // Distinct from "loaded with zero events" — a fetch failure must never
+  // render as "No Events Yet", which reads to visitors as the platform
+  // being empty instead of a transient loading hiccup.
+  const [loadError, setLoadError] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/events/home");
-      if (res.ok) setSections(await res.json());
+      if (res.ok) {
+        setSections(await res.json());
+        setLoadError(false);
+      } else {
+        setLoadError(true);
+      }
     } catch (e) {
       console.error("EventSections:", e);
+      setLoadError(true);
     } finally {
       setLoaded(true);
     }
@@ -66,6 +76,23 @@ export function EventSections() {
       <div className="mx-auto max-w-7xl px-4 py-16 lg:px-8 text-center text-muted-foreground">
         Loading events…
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <section className="mx-auto max-w-7xl px-4 py-20 lg:px-8 text-center">
+        <h2 className="text-2xl font-bold">Couldn&apos;t Load Events</h2>
+        <p className="mt-3 text-muted-foreground max-w-md mx-auto">
+          Something went wrong loading events. Please try again.
+        </p>
+        <button
+          onClick={() => { setLoaded(false); load(); }}
+          className="mt-4 inline-flex items-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-secondary/50"
+        >
+          Retry
+        </button>
+      </section>
     );
   }
 

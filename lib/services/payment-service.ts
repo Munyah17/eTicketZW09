@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import https from "node:https";
 // @ts-ignore - Paynow SDK doesn't have TypeScript types
 import { Paynow } from "paynow";
 import Stripe from "stripe";
@@ -195,6 +196,7 @@ export class PaymentService {
           idNumber: m.idNumber as string | undefined,
           seatNumber: m.seatNumber as string | undefined,
           quantity: m.quantity as number | undefined,
+          buyerFeeAmount: m.platformFeeAmount as number | undefined,
           amount: opts.amount ?? payment.amount,
           currency: (opts.currency ?? payment.currency).toUpperCase(),
           paymentMethod: opts.paymentMethod,
@@ -422,22 +424,52 @@ class EcocashService {
     return "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
   }
 
-  // developers.ecocash.co.zw sits behind Cloudflare bot protection that
-  // blocks anything that doesn't look like a real browser — confirmed
-  // against the live sandbox: a generic "compatible; …" User-Agent alone
-  // still gets the literal Cloudflare block page, not a JSON response from
-  // EcoCash's own API at all. A real Chrome UA plus matching Origin/Referer
-  // gets through.
   private static requestHeaders(extra?: Record<string, string>): Record<string, string> {
     return {
       Authorization: EcocashService.authHeader(),
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
       Accept: "application/json",
-      "Accept-Language": "en-US,en;q=0.9",
-      Origin: "https://developers.ecocash.co.zw",
-      Referer: "https://developers.ecocash.co.zw/",
       ...extra,
     };
+  }
+
+  // developers.ecocash.co.zw sits behind Cloudflare bot management. During
+  // testing, fetch()/undici got a 403 block page on requests that succeeded
+  // moments later via Node's plain https module with identical headers —
+  // and after enough rapid test traffic, https started getting 403'd too,
+  // which points at request-volume-triggered rate limiting rather than a
+  // pure client-fingerprint block. Using https.request is a reasonable,
+  // zero-cost hedge either way (undici is more commonly fingerprinted by
+  // WAFs than Node's classic http client), but if 403s recur in production
+  // outside of any burst, treat Cloudflare rate limiting as the prime
+  // suspect before anything else.
+  private static requestJson(
+    url: string,
+    options: { method: "GET" | "POST"; headers: Record<string, string>; body?: string }
+  ): Promise<{ status: number; data: Record<string, unknown> }> {
+    return new Promise((resolve, reject) => {
+      const req = https.request(
+        url,
+        { method: options.method, headers: options.headers },
+        (res) => {
+          let raw = "";
+          res.on("data", (chunk) => (raw += chunk));
+          res.on("end", () => {
+            let data: Record<string, unknown> = {};
+            try {
+              data = raw ? JSON.parse(raw) : {};
+            } catch {
+              // Non-JSON body (e.g. a block page) — leave data as {}, caller
+              // falls back to a generic message keyed off the HTTP status.
+            }
+            resolve({ status: res.statusCode || 0, data });
+          });
+        }
+      );
+      req.on("error", reject);
+      if (options.body) req.write(options.body);
+      req.end();
+    });
   }
 
   // The EIP sandbox response schema doesn't match its own docs consistently
@@ -507,16 +539,16 @@ class EcocashService {
     };
 
     try {
-      const res = await fetch(`${baseUrl}/transactions/amount/`, {
+      const bodyStr = JSON.stringify(body);
+      const { status, data } = await EcocashService.requestJson(`${baseUrl}/transactions/amount/`, {
         method: "POST",
-        headers: EcocashService.requestHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify(body),
+        headers: EcocashService.requestHeaders({ "Content-Type": "application/json", "Content-Length": String(Buffer.byteLength(bodyStr)) }),
+        body: bodyStr,
       });
-      const data = await res.json().catch(() => ({}));
 
-      if (!res.ok) {
-        const message = (data.statusMessage as string) || (data.message as string) || `EcoCash request failed (${res.status})`;
-        logError("ecocash_initiate_rejected", new Error(message), { reference, status: res.status, data });
+      if (status < 200 || status >= 300) {
+        const message = (data.statusMessage as string) || (data.message as string) || `EcoCash request failed (${status})`;
+        logError("ecocash_initiate_rejected", new Error(message), { reference, status, data });
         return { success: false, reference, redirect_url: "", error: message };
       }
 
@@ -536,14 +568,14 @@ class EcocashService {
       throw new Error("EcoCash Instant Payment credentials are not configured");
     }
 
-    const res = await fetch(`${baseUrl}/${encodeURIComponent(endUserId)}/transactions/amount/${encodeURIComponent(clientCorrelator)}`, {
-      headers: EcocashService.requestHeaders(),
-    });
-    if (!res.ok) {
-      if (res.status === 404) return "pending"; // not yet resolved on EcoCash's side
-      throw new Error(`EcoCash lookup failed (${res.status})`);
+    const { status, data } = await EcocashService.requestJson(
+      `${baseUrl}/${encodeURIComponent(endUserId)}/transactions/amount/${encodeURIComponent(clientCorrelator)}`,
+      { method: "GET", headers: EcocashService.requestHeaders() }
+    );
+    if (status < 200 || status >= 300) {
+      if (status === 404) return "pending"; // not yet resolved on EcoCash's side
+      throw new Error(`EcoCash lookup failed (${status})`);
     }
-    const data = await res.json().catch(() => ({}));
     return EcocashService.classify(data);
   }
 }

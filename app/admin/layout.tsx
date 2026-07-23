@@ -28,6 +28,7 @@ import {
   ChevronsUpDown,
   Sparkles,
   Activity,
+  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,7 @@ const superAdminLinks = [
   { href: "/admin/system-health", label: "System Health", icon: Activity, group: "Operations" },
   { href: "/admin/settings", label: "My Account", icon: Settings, group: "Operations" },
   // ── Super Admin ──────────────────────────────
+  { href: "/admin/wallet", label: "System Wallet", icon: Wallet, group: "Super Admin" },
   { href: "/admin/staff", label: "Staff Management", icon: Crown, group: "Super Admin" },
   { href: "/admin/transactions", label: "Transactions", icon: CreditCard, group: "Super Admin" },
   { href: "/admin/platform", label: "Platform Config", icon: Settings2, group: "Super Admin" },

@@ -20,6 +20,7 @@ import { ANNOUNCEMENT_AD_PRICE_PER_2_WEEKS } from "@/lib/types";
 
 interface PlatformConfig {
   service_fee_percent: number;
+  organizer_commission_percent: number;
   new_registrations: boolean;
   new_organizer_signups: boolean;
   maintenance_mode: boolean;
@@ -46,6 +47,7 @@ export default function PlatformPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [feeInput, setFeeInput] = useState("10");
+  const [commissionInput, setCommissionInput] = useState("5");
   const [adFile, setAdFile] = useState<File | null>(null);
   const [adPreview, setAdPreview] = useState<string | null>(null);
   const [uploadingAd, setUploadingAd] = useState(false);
@@ -58,6 +60,7 @@ export default function PlatformPage() {
       setConfig(json.config);
       setOriginal(json.config);
       setFeeInput(String(json.config.service_fee_percent));
+      setCommissionInput(String(json.config.organizer_commission_percent));
     } finally {
       setLoading(false);
     }
@@ -81,11 +84,13 @@ export default function PlatformPage() {
     setSaving(true);
     try {
       const fee = parseFloat(feeInput);
+      const commission = parseFloat(commissionInput);
       const res = await fetch("/api/admin/platform", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           service_fee_percent: isNaN(fee) ? 10 : Math.min(Math.max(fee, 0), 50),
+          organizer_commission_percent: isNaN(commission) ? 5 : Math.min(Math.max(commission, 0), 50),
           new_registrations: config.new_registrations,
           new_organizer_signups: config.new_organizer_signups,
           maintenance_mode: config.maintenance_mode,
@@ -157,6 +162,7 @@ export default function PlatformPage() {
     if (original) {
       setConfig(original);
       setFeeInput(String(original.service_fee_percent));
+      setCommissionInput(String(original.organizer_commission_percent));
     }
     setSaved(false);
   };
@@ -215,6 +221,42 @@ export default function PlatformPage() {
               <div className="pb-1">
                 <p className="text-xs text-muted-foreground">For a $100 ticket</p>
                 <p className="text-lg font-mono font-bold text-emerald-600">+${((parseFloat(feeInput) || 0)).toFixed(2)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3 border-b">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-50">
+                <Wallet className="h-4 w-4 text-violet-600" />
+              </div>
+              <CardTitle className="text-base">Organizer Commission</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">Percentage taken from the organizer&apos;s side of every sale as platform revenue — separate from the buyer-facing service fee above. Feeds the System Wallet.</p>
+            <div className="flex items-end gap-3">
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor="commission">Commission Percentage</Label>
+                <div className="relative">
+                  <Input
+                    id="commission"
+                    type="number"
+                    min="0"
+                    max="50"
+                    step="0.5"
+                    value={commissionInput}
+                    onChange={e => setCommissionInput(e.target.value)}
+                    className="pr-8"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
+                </div>
+              </div>
+              <div className="pb-1">
+                <p className="text-xs text-muted-foreground">For a $100 ticket</p>
+                <p className="text-lg font-mono font-bold text-violet-600">-${((parseFloat(commissionInput) || 0)).toFixed(2)}</p>
               </div>
             </div>
           </CardContent>

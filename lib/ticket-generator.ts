@@ -24,6 +24,12 @@ export interface TicketGenerationData {
   displayName?: string;
   idNumber?: string;
   seatNumber?: string;
+  // Dollar amount of the buyer-side service fee actually charged on this
+  // sale (platform_config.service_fee_percent applied at checkout time) —
+  // passed through from payment metadata rather than recomputed here, so
+  // the wallet ledger reflects what was really charged even if the fee
+  // percent changes later.
+  buyerFeeAmount?: number;
 }
 
 export interface GeneratedTicket {
@@ -64,6 +70,21 @@ export class TicketSoldOutError extends Error {
   }
 }
 
+// Resolves the commission rate for a sale: the event's own negotiated
+// override if one is set, otherwise the platform-wide default. Read fresh
+// per sale (not cached) so a rate change applies to the very next ticket.
+async function resolveCommissionPercent(eventId: string): Promise<number> {
+  const supabase = createAdminClient();
+  const [{ data: event }, { data: config }] = await Promise.all([
+    supabase.from("events").select("commission_percent").eq("id", eventId).maybeSingle(),
+    supabase.from("platform_config").select("organizer_commission_percent").eq("id", 1).maybeSingle(),
+  ]);
+  if (event?.commission_percent !== null && event?.commission_percent !== undefined) {
+    return Number(event.commission_percent);
+  }
+  return Number(config?.organizer_commission_percent ?? 5);
+}
+
 export async function generateTicket(data: TicketGenerationData): Promise<GeneratedTicket> {
   const ticketId = uuidv4();
   const qrCode = await generateQRCode(ticketId);
@@ -95,13 +116,24 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     seatNumber: data.seatNumber || null,
   };
 
+  // Commission is the organizer's cut being taken, so it must be based on
+  // the organizer's actual base revenue for the whole purchase — total
+  // amount charged minus the buyer-side service fee (which was never
+  // organizer revenue) and NOT divided by quantity (ticket.price is a
+  // per-unit figure used for display; commission applies to the full sale).
+  const commissionPercent = await resolveCommissionPercent(data.eventId);
+  const organizerBaseRevenue = data.amount - (data.buyerFeeAmount ?? 0);
+  const commissionAmount = organizerBaseRevenue * (commissionPercent / 100);
+
   // Persisted via create_ticket_with_capacity_check() — a single Postgres
   // function that locks the ticket_type row, checks sold+requested against
   // quantity, and inserts the ticket, all in one transaction. A plain
   // .insert() here (the old approach) had no such gate: two buyers
   // completing payment for the last spot within the same window would both
   // get a valid ticket, since `sold` was only ever incremented *after*
-  // insert by the existing tickets_sold_counts trigger.
+  // insert by the existing tickets_sold_counts trigger. It now also writes
+  // the matching wallet_ledger row in the same transaction, so a ticket can
+  // never exist without its commission/fee record or vice versa.
   const supabase = createAdminClient();
   const { data: row, error } = await supabase.rpc("create_ticket_with_capacity_check", {
     p_id: ticketId,
@@ -128,6 +160,8 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     p_sale_type: ticket.saleType,
     p_seat_number: ticket.seatNumber,
     p_requested_qty: data.quantity || 1,
+    p_buyer_fee_amount: data.buyerFeeAmount ?? 0,
+    p_commission_amount: commissionAmount,
   });
 
   if (error) {

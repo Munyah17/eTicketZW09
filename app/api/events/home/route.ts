@@ -65,12 +65,20 @@ export async function GET() {
   // Single query covers every section — "recent 100" newest published
   // events, from which Featured, Best Selling, Coming Soon, and every
   // category row are all derived in memory.
-  const { data: recentRows } = await supabase
+  const { data: recentRows, error } = await supabase
     .from("events")
     .select(COLS)
     .eq("status", "published")
     .order("created_at", { ascending: false })
     .limit(100);
+
+  // A query error must not be swallowed into "zero events" — that reads to
+  // every visitor as "this platform has nothing on it" instead of the
+  // transient DB hiccup it actually is. Surface it as a real failure so the
+  // frontend can retry instead of rendering a false "No Events Yet".
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   const recent = (recentRows ?? []) as unknown as Record<string, unknown>[];
 
