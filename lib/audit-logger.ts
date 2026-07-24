@@ -7,7 +7,7 @@ export type AuditAction =
   | "user.create" | "user.delete" | "user.suspend" | "user.activate"
   | "user.role_change" | "user.password_reset"
   | "staff.create" | "staff.update" | "staff.remove"
-  | "event.publish" | "event.unpublish" | "event.delete" | "event.markup_change"
+  | "event.publish" | "event.unpublish" | "event.delete" | "event.markup_change" | "event.edit"
   | "payout.approve" | "payout.decline" | "payout.manual"
   | "platform.fee_change" | "platform.feature_toggle" | "platform.announcement"
   | "organizer.verify" | "organizer.suspend"
@@ -31,6 +31,7 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   "event.unpublish": "Unpublished event",
   "event.delete": "Deleted event",
   "event.markup_change": "Changed event markup",
+  "event.edit": "Edited event listing",
   "payout.approve": "Approved payout",
   "payout.decline": "Declined payout",
   "payout.manual": "Manual payout",

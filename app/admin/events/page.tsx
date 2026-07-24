@@ -22,11 +22,14 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Search, Tag, Percent, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Trash2, PackagePlus } from "lucide-react";
+import { Search, Tag, Percent, RefreshCw, CheckCircle2, XCircle, AlertTriangle, Trash2, PackagePlus, Pencil } from "lucide-react";
+import Link from "next/link";
 import type { Event } from "@/lib/types";
 import { RestockDialog } from "@/components/events/restock-dialog";
+import { useAuth } from "@/lib/auth-context";
 
 export default function AdminEventsPage() {
+  const { isSuperAdmin } = useAuth();
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -250,6 +253,14 @@ export default function AdminEventsPage() {
                                 Reject
                               </Button>
                             </>
+                          )}
+                          {isSuperAdmin && (
+                            <Link href={`/super-admin/events/${event.id}/edit`}>
+                              <Button size="sm" variant="outline" className="gap-1.5" title="Edit event listing">
+                                <Pencil className="h-3.5 w-3.5" />
+                                Edit
+                              </Button>
+                            </Link>
                           )}
                           <Button
                             size="sm"
