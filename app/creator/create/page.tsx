@@ -282,6 +282,14 @@ export default function CreateEventPage() {
 
       const savedEventId = await saveEvent(newEvent);
 
+      if (!autoApprove) {
+        fetch("/api/events/notify-submitted", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ eventId: savedEventId }),
+        }).catch(() => {});
+      }
+
       // Upload featured image if provided
       if (featuredImage) {
         const formData = new FormData();

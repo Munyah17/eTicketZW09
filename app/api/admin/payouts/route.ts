@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/server-auth";
 import { logAudit } from "@/lib/server-audit-log";
+import { sendPayoutStatusEmail } from "@/lib/email/send-payout-notification";
 
 // Payouts are requested through the system, but validated and paid out
 // manually (bank/mobile money transfer happens outside this app) — this
@@ -56,6 +57,10 @@ export async function PATCH(req: NextRequest) {
     resourceId: payoutId,
     details: { status, declineReason },
   });
+
+  if (status === "approved" || status === "declined") {
+    sendPayoutStatusEmail(payoutId, status, declineReason).catch(() => {});
+  }
 
   return NextResponse.json({ success: true });
 }

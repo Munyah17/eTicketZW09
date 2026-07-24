@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MINIMUM_PAYOUT, PAYOUT_TRANSACTION_COST_PERCENTAGE } from "@/lib/types";
 import { calculatePayoutTransactionCost } from "@/lib/pricing";
+import { sendPayoutSubmittedEmail } from "@/lib/email/send-payout-notification";
 
 // The admin-configurable floor (Platform Configuration > Payouts) overrides
 // the MINIMUM_PAYOUT constant when set; the constant remains the fallback.
@@ -93,17 +94,32 @@ export async function POST(req: NextRequest) {
 
   const transactionCost = calculatePayoutTransactionCost(amount, PAYOUT_TRANSACTION_COST_PERCENTAGE);
 
-  const { error } = await supabase.from("payout_requests").insert({
-    organizer_id: organizer.id,
-    organizer_name: organizer.name,
-    amount,
-    currency: "USD",
-    status: "pending",
-    payment_method: paymentMethod,
-    payment_details: paymentDetails,
-    transaction_cost: transactionCost,
-  });
+  const { data: inserted, error } = await supabase
+    .from("payout_requests")
+    .insert({
+      organizer_id: organizer.id,
+      organizer_name: organizer.name,
+      amount,
+      currency: "USD",
+      status: "pending",
+      payment_method: paymentMethod,
+      payment_details: paymentDetails,
+      transaction_cost: transactionCost,
+    })
+    .select("id")
+    .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (inserted) {
+    sendPayoutSubmittedEmail({
+      id: inserted.id,
+      organizerId: organizer.id,
+      organizerName: organizer.name,
+      amount,
+      paymentMethod,
+    }).catch(() => {});
+  }
+
   return NextResponse.json({ success: true });
 }

@@ -1,6 +1,6 @@
-import { Resend } from "resend";
 import { renderTicketPng, TicketPngData } from "@/lib/ticket-png";
 import { logError } from "@/lib/error-logger";
+import { sendMail } from "@/lib/email/mailer";
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -54,59 +54,34 @@ export interface TicketEmailResult {
 // Fired right after a ticket is generated for a successful payment.
 // Sends downloadable ticket to buyer's email address. Never throws — the
 // returned result is recorded by the fulfillment orchestrator as proof of
-// delivery. Critical: requires RESEND_API_KEY environment variable to be set.
+// delivery. Goes through lib/email/mailer.ts (Resend, falling back to SMTP).
 export async function sendTicketEmail(ticket: TicketPngData): Promise<TicketEmailResult> {
   if (!ticket.buyerEmail) {
     console.warn("sendTicketEmail: no buyer email on ticket", ticket.id);
     return { sent: false, skipped: true, error: "No buyer email on ticket" };
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.error(
-      "CRITICAL: RESEND_API_KEY not configured — TICKET EMAILS ARE NOT BEING SENT!",
-      "Ticket ID:",
-      ticket.id,
-      "Buyer Email:",
-      ticket.buyerEmail
-    );
-    logError("ticket_email_not_sent", new Error("RESEND_API_KEY missing"), {
-      ticketId: ticket.id,
-      buyerEmail: ticket.buyerEmail,
-      reason: "Email service not configured",
-    });
-    return { sent: false, skipped: true, error: "Email service not configured (RESEND_API_KEY missing)" };
-  }
-
   try {
     const png = await renderTicketPng(ticket);
-    const resend = new Resend(apiKey);
-    const from = process.env.EMAIL_FROM || "E-TicketsZW <pay@eticket.co.zw>";
 
-    const { error } = await resend.emails.send({
-      from,
+    const result = await sendMail({
       to: ticket.buyerEmail,
       subject: `Your ticket for ${ticket.eventTitle}`,
       html: buildEmailHtml(ticket),
-      attachments: [
-        {
-          filename: `ticket-${ticket.id}.png`,
-          content: png,
-        },
-      ],
+      attachments: [{ filename: `ticket-${ticket.id}.png`, content: png }],
     });
 
-    if (error) {
-      logError("ticket_email_send_failed", error, {
+    if (!result.sent) {
+      logError("ticket_email_send_failed", new Error(result.error || "Email send failed"), {
         ticketId: ticket.id,
         buyerEmail: ticket.buyerEmail,
         eventTitle: ticket.eventTitle,
       });
-      console.error("Failed to send ticket email:", error, "to:", ticket.buyerEmail);
-      return { sent: false, error: error.message ?? "Email send failed" };
+      console.error("Failed to send ticket email:", result.error, "to:", ticket.buyerEmail);
+      return { sent: false, error: result.error ?? "Email send failed" };
     }
 
-    console.log("✓ Ticket email sent successfully to:", ticket.buyerEmail, "for ticket:", ticket.id);
+    console.log(`✓ Ticket email sent successfully to: ${ticket.buyerEmail} for ticket: ${ticket.id} (via ${result.via})`);
     return { sent: true };
   } catch (err) {
     logError("ticket_email_generation_failed", err, { ticketId: ticket.id, buyerEmail: ticket.buyerEmail });

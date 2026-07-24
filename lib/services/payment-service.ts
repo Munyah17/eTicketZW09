@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { generateTicket, TicketSoldOutError } from "@/lib/ticket-generator";
 import { sendTicketEmail } from "@/lib/email/send-ticket-email";
 import { sendSaleNotificationEmails } from "@/lib/email/send-sale-notification-emails";
+import { sendPaymentFailedEmail } from "@/lib/email/send-payment-failed-email";
 import { sendTicketWhatsApp } from "@/lib/whatsapp";
 import { logError } from "@/lib/error-logger";
 
@@ -299,6 +300,14 @@ export class PaymentService {
     const payment = await PaymentService.getPayment(reference);
     if (!payment || payment.status === "paid" || payment.status === "failed") return;
     await PaymentService.updatePaymentStatus(reference, "failed");
+
+    const m = (payment.metadata ?? {}) as Record<string, unknown>;
+    sendPaymentFailedEmail({
+      reference,
+      buyerEmail: m.buyerEmail as string | undefined,
+      eventTitle: m.eventTitle as string | undefined,
+      eventId: m.eventId as string | undefined,
+    }).catch(() => {});
   }
 
   static async getPayment(reference: string): Promise<PaymentStatus | undefined> {

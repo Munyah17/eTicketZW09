@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/server-auth";
 import { logAudit } from "@/lib/server-audit-log";
+import { sendEventStatusEmail } from "@/lib/email/send-event-review-notification";
 import type { Event, EventCategory, OrganizerCategory } from "@/lib/types";
 
 const COLS = [
@@ -108,6 +109,10 @@ export async function PATCH(req: NextRequest) {
   if (error) {
     console.error("Admin markup update error:", error.message);
     return NextResponse.json({ error: "Failed to update markup" }, { status: 500 });
+  }
+
+  if (status === "published" || status === "cancelled") {
+    sendEventStatusEmail(eventId, status).catch(() => {});
   }
 
   return NextResponse.json({ success: true });

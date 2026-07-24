@@ -1,31 +1,11 @@
-import { Resend } from "resend";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logError } from "@/lib/error-logger";
 import { GeneratedTicket } from "@/lib/ticket-generator";
 import { PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
+import { sendMail } from "@/lib/email/mailer";
+import { formatMoney, wrapper, row } from "@/lib/email/html";
 
 const SALES_INBOX = "sales@eticket.co.zw";
-
-function formatMoney(amount: number): string {
-  return `$${amount.toFixed(2)}`;
-}
-
-function wrapper(accentColor: string, heading: string, bodyHtml: string): string {
-  return `
-    <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; color: #0f172a;">
-      <div style="background: ${accentColor}; color: #fff; padding: 20px 24px; border-radius: 8px 8px 0 0;">
-        <h1 style="margin: 0; font-size: 18px;">${heading}</h1>
-      </div>
-      <div style="border: 1px solid #e2e8f0; border-top: none; padding: 24px; border-radius: 0 0 8px 8px;">
-        ${bodyHtml}
-      </div>
-    </div>
-  `;
-}
-
-function row(label: string, value: string): string {
-  return `<tr><td style="padding: 6px 0; color: #64748b;">${label}</td><td style="padding: 6px 0; text-align: right; font-weight: 600;">${value}</td></tr>`;
-}
 
 // Fired alongside the buyer's ticket-delivery email whenever a sale
 // completes. Two distinct, role-scoped notifications:
@@ -34,25 +14,8 @@ function row(label: string, value: string): string {
 // The buyer already receives their own confirmation as part of the existing
 // ticket-delivery email (lib/email/send-ticket-email.ts) — intentionally not
 // duplicated here.
-// Critical: requires RESEND_API_KEY environment variable to be set.
+// Goes through lib/email/mailer.ts (Resend, falling back to SMTP).
 export async function sendSaleNotificationEmails(ticket: GeneratedTicket): Promise<void> {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!apiKey) {
-    console.error(
-      "CRITICAL: RESEND_API_KEY not configured — SALE NOTIFICATION EMAILS ARE NOT BEING SENT!",
-      "Ticket ID:",
-      ticket.id,
-      "Event:",
-      ticket.eventTitle
-    );
-    logError("sale_notification_emails_not_sent", new Error("RESEND_API_KEY missing"), {
-      ticketId: ticket.id,
-      eventTitle: ticket.eventTitle,
-      reason: "Email service not configured",
-    });
-    return;
-  }
-
   const admin = createAdminClient();
   const { data: event } = await admin
     .from("events")
@@ -70,9 +33,6 @@ export async function sendSaleNotificationEmails(ticket: GeneratedTicket): Promi
     const { data: profile } = await admin.from("profiles").select("email").eq("id", event.organizer_id).maybeSingle();
     organizerEmail = profile?.email;
   }
-
-  const resend = new Resend(apiKey);
-  const from = process.env.EMAIL_FROM || "E-TicketsZW <pay@eticket.co.zw>";
 
   const adminHtml = wrapper(
     "#0f172a",
@@ -111,22 +71,19 @@ export async function sendSaleNotificationEmails(ticket: GeneratedTicket): Promi
       )
     : null;
 
-  try {
-    await resend.emails.send({ from, to: SALES_INBOX, subject: `New Sale — ${ticket.eventTitle}`, html: adminHtml });
-  } catch (err) {
-    logError("sale_notification_admin_email", err, { ticketId: ticket.id });
+  const adminResult = await sendMail({ to: SALES_INBOX, subject: `New Sale — ${ticket.eventTitle}`, html: adminHtml });
+  if (!adminResult.sent) {
+    logError("sale_notification_admin_email", new Error(adminResult.error || "send failed"), { ticketId: ticket.id });
   }
 
   if (organizerEmail && organizerHtml) {
-    try {
-      await resend.emails.send({
-        from,
-        to: organizerEmail,
-        subject: `You made a sale — ${ticket.eventTitle}`,
-        html: organizerHtml,
-      });
-    } catch (err) {
-      logError("sale_notification_organizer_email", err, { ticketId: ticket.id });
+    const organizerResult = await sendMail({
+      to: organizerEmail,
+      subject: `You made a sale — ${ticket.eventTitle}`,
+      html: organizerHtml,
+    });
+    if (!organizerResult.sent) {
+      logError("sale_notification_organizer_email", new Error(organizerResult.error || "send failed"), { ticketId: ticket.id });
     }
   }
 }
