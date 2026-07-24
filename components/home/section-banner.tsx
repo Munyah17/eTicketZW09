@@ -90,7 +90,7 @@ export function SectionBanner({ position = 1 }: SectionBannerProps) {
             src={banner.image}
             alt={banner.title || "Advertisement"}
             fill
-            className="object-cover"
+            className="object-contain"
           />
           <span className="absolute left-2 top-2 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/90 backdrop-blur">
             Sponsored

@@ -6,6 +6,7 @@ import Autoplay from "embla-carousel-autoplay";
 import { ChevronLeft, ChevronRight, Ticket, Sparkles, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import Image from "next/image";
 import { cn, formatCompactNumber } from "@/lib/utils";
 import { recordBannerImpression } from "@/lib/banner-impressions";
 
@@ -172,15 +173,34 @@ export function HeroSlider() {
           {/* Purchased advertiser slides */}
           {adSlides.map((slide) => (
             <div key={slide.id} className="relative min-w-0 flex-[0_0_100%]">
-              <div
-                className="relative flex min-h-[360px] items-center overflow-hidden bg-foreground/90 sm:min-h-[380px] md:min-h-[500px] lg:min-h-[550px]"
-                style={{
-                  backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.65) 0%, rgba(15,23,42,0.55) 40%, rgba(15,23,42,0.85) 100%), url(${slide.image})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                }}
-              >
-                <div className="mx-auto w-full max-w-7xl px-4 py-8 md:py-12 lg:px-8">
+              <div className="relative flex min-h-[360px] items-center overflow-hidden bg-foreground/90 sm:min-h-[380px] md:min-h-[500px] lg:min-h-[550px]">
+                {/* Blurred, scaled-up cover copy fills the frame with no
+                    empty bars; the sharp foreground copy below (object-contain)
+                    is what's actually visible in full — nothing gets cropped
+                    out regardless of the uploaded image's aspect ratio. */}
+                <div
+                  aria-hidden
+                  className="absolute inset-0 scale-110 bg-cover bg-center blur-2xl brightness-50"
+                  style={{ backgroundImage: `url(${slide.image})` }}
+                />
+                {slide.image && (
+                  <Image
+                    src={slide.image}
+                    alt=""
+                    fill
+                    className="object-contain"
+                    priority
+                  />
+                )}
+                <div
+                  aria-hidden
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(180deg, rgba(15,23,42,0.65) 0%, rgba(15,23,42,0.55) 40%, rgba(15,23,42,0.85) 100%)",
+                  }}
+                />
+                <div className="relative mx-auto w-full max-w-7xl px-4 py-8 md:py-12 lg:px-8">
                   <div className="min-w-0 w-full max-w-2xl">
                     <h1 className="text-3xl font-bold tracking-tight text-balance text-white md:text-4xl lg:text-5xl">
                       {slide.title}

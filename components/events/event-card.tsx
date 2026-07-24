@@ -81,7 +81,7 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
               alt={event.title}
               fill
               sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 90vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              className="object-contain transition-transform duration-300 group-hover:scale-[1.03]"
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">

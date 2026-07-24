@@ -18,16 +18,15 @@ import { Upload, X, Image as ImageIcon, Link as LinkIcon, LayoutTemplate, Layers
 import { Banner } from "@/lib/types";
 import { formatCompactNumber } from "@/lib/utils";
 
-// Target aspect ratios for each banner slot — must track the live component
-// (components/home/hero-slider.tsx, components/home/section-banner.tsx).
-// Section banners are a fixed-height, fluid-width strip, so this is the
-// desktop reference ratio; a generous tolerance below accounts for it
-// cropping slightly differently on narrower screens.
+// Suggested aspect ratios — both banner slots now render with object-contain
+// (components/home/hero-slider.tsx, components/home/section-banner.tsx), so
+// any image displays in full without cropping regardless of its shape. These
+// are shown as a hint for the best fill, not a hard requirement — upload is
+// never blocked on aspect ratio.
 const BANNER_ASPECT: Record<"hero" | "section", { ratio: number; label: string }> = {
   hero: { ratio: 1200 / 400, label: "1200×400px" },
   section: { ratio: 1200 / 190, label: "1200×190px" },
 };
-const ASPECT_TOLERANCE = 0.2; // ±20%
 
 function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
@@ -104,18 +103,8 @@ export default function BannerManagementPage() {
       return;
     }
 
-    const target = BANNER_ASPECT[editingBanner?.type ?? "section"];
     try {
-      const { width, height } = await readImageDimensions(file);
-      const ratio = width / height;
-      const deviation = Math.abs(ratio - target.ratio) / target.ratio;
-      if (deviation > ASPECT_TOLERANCE) {
-        setFileError(
-          `This image is ${width}×${height}px (${ratio.toFixed(2)}:1) — too far from the banner's shape to fit without ` +
-            `cropping out a big chunk of it. Please create a banner at ${target.label} (or the same proportions) and upload that instead.`
-        );
-        return;
-      }
+      await readImageDimensions(file);
     } catch {
       setFileError("Could not read this image file — please try a different one.");
       return;

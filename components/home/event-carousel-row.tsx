@@ -15,6 +15,10 @@ interface EventCarouselRowProps {
   events: Event[];
   cardVariant?: "default" | "compact";
   fastSellingBadge?: boolean;
+  // On mobile only, show 3 stacked cards per swipeable page instead of one
+  // full-width card per page — still a horizontal carousel (swipe between
+  // groups of 3), just denser. Tablet/desktop are unaffected.
+  mobileRows?: number;
 }
 
 const GAP = 16;
@@ -44,6 +48,7 @@ export function EventCarouselRow({
   events,
   cardVariant = "default",
   fastSellingBadge = false,
+  mobileRows,
 }: EventCarouselRowProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
@@ -78,9 +83,21 @@ export function EventCarouselRow({
     : 0;
   const step = cardWidth + GAP;
 
-  const trackWidth = events.length * (cardWidth + GAP) - GAP;
+  // On mobile, when mobileRows is set, each swipeable "slot" is a page of N
+  // stacked cards instead of a single card — same carousel math throughout
+  // (index/offset/swipe), just grouping events into chunks first so a
+  // "slot" renders a vertical stack rather than one EventCard.
+  const useMobileGrid = isMobile && !!mobileRows && mobileRows > 1;
+  const pages: Event[][] = useMobileGrid
+    ? Array.from({ length: Math.ceil(events.length / mobileRows!) }, (_, i) =>
+        events.slice(i * mobileRows!, i * mobileRows! + mobileRows!)
+      )
+    : events.map((e) => [e]);
+  const slotCount = pages.length;
+
+  const trackWidth = slotCount * (cardWidth + GAP) - GAP;
   const maxOffset = Math.max(0, trackWidth - viewportWidth);
-  const maxIndex = Math.max(0, events.length - cardsPerView);
+  const maxIndex = Math.max(0, slotCount - cardsPerView);
 
   const rawOffset = hasPeek ? (index - 0.5) * step : index * step;
   const offset = Math.min(Math.max(rawOffset, 0), maxOffset);
@@ -163,13 +180,21 @@ export function EventCarouselRow({
           className={isDragging ? "flex" : "flex transition-transform duration-300 ease-out"}
           style={{ gap: GAP, transform: `translateX(-${offset - dragDelta}px)` }}
         >
-          {events.map((event) => (
+          {pages.map((page, i) => (
             <div
-              key={event.id}
+              key={page[0]?.id ?? i}
               className="w-full shrink-0 grow-0 sm:w-1/3 lg:w-1/4"
               style={viewportWidth > 0 ? { width: cardWidth, flexBasis: cardWidth } : undefined}
             >
-              <EventCard event={event} variant={cardVariant} fastSelling={fastSellingBadge} />
+              {useMobileGrid ? (
+                <div className="flex flex-col gap-3">
+                  {page.map((event) => (
+                    <EventCard key={event.id} event={event} variant={cardVariant} fastSelling={fastSellingBadge} />
+                  ))}
+                </div>
+              ) : (
+                <EventCard event={page[0]} variant={cardVariant} fastSelling={fastSellingBadge} />
+              )}
             </div>
           ))}
         </div>

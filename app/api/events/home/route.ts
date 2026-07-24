@@ -94,15 +94,17 @@ export async function GET() {
   //     500-ticket show at 40% doesn't lose to a 5-ticket meetup at 100%.
   //   - a real featured image is a cheap, checkable proxy for "polished
   //     listing" — also nudges organizers to actually add one.
-  //   - a decaying freshness boost gives new listings a fair, temporary
-  //     shot at visibility instead of being permanently buried under
-  //     long-established top performers.
+  //   - a decaying freshness boost prioritizes newly-listed events — big
+  //     enough that a just-listed event (near-zero sales so far, since it
+  //     just went up) ranks at or near the top, decaying over ~20 days so
+  //     older listings hand off to sell-through-driven ranking once the
+  //     "just listed" boost fades rather than staying buried forever.
   const featuredScore = (e: Record<string, unknown>) => {
     const total = Number(e.total_tickets) || 0;
     const sold = Number(e.sold_tickets) || 0;
     const sellThrough = total > 0 ? sold / total : 0;
     const daysSinceCreated = (now - new Date(e.created_at as string).getTime()) / (1000 * 60 * 60 * 24);
-    const freshnessBoost = Math.max(0, 15 - daysSinceCreated * 1.5);
+    const freshnessBoost = Math.max(0, 80 - daysSinceCreated * 4);
     const hasImage = !!(e.image as string);
     return sellThrough * 100 + Math.log10(sold + 1) * 8 + (hasImage ? 10 : 0) + freshnessBoost;
   };

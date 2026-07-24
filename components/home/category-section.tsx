@@ -26,6 +26,7 @@ export function FeaturedSection({ events, title = "Featured Events" }: { events:
       subtitle="Trending events you don't want to miss"
       viewAllHref="/allevents"
       events={events}
+      mobileRows={3}
     />
   );
 }
