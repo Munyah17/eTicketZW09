@@ -247,7 +247,7 @@ export default function CreateEventPage() {
         formData.append("image", featuredImage);
         formData.append("eventId", savedEventId);
         try {
-          const res = await fetch("/api/organizer/events/image", {
+          const res = await fetch("/api/creator/events/image", {
             method: "POST",
             body: formData,
           });
@@ -264,7 +264,7 @@ export default function CreateEventPage() {
           );
         }
       }
-      router.push(autoApprove ? "/organizer?created=true" : "/organizer?pendingReview=true");
+      router.push(autoApprove ? "/creator?created=true" : "/creator?pendingReview=true");
     } catch (err) {
       console.error("Create event failed:", err);
       alert("Failed to create event. Please try again.");

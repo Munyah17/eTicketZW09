@@ -18,44 +18,54 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
 const baseSidebarItems = [
-  { name: "Dashboard", href: "/organizer", icon: LayoutDashboard },
-  { name: "My Events", href: "/organizer/events", icon: Calendar },
-  { name: "Ticket Sales", href: "/organizer/sales", icon: Ticket },
-  { name: "Analytics", href: "/organizer/analytics", icon: BarChart3 },
-  { name: "Advertising", href: "/organizer/advertising", icon: Megaphone },
-  { name: "Payouts", href: "/organizer/payouts", icon: CreditCard },
-  { name: "Settings", href: "/organizer/settings", icon: Settings },
+  { name: "Dashboard", href: "/creator", icon: LayoutDashboard },
+  { name: "My Events", href: "/creator/events", icon: Calendar },
+  { name: "Ticket Sales", href: "/creator/sales", icon: Ticket },
+  { name: "Analytics", href: "/creator/analytics", icon: BarChart3 },
+  { name: "Advertising", href: "/creator/advertising", icon: Megaphone },
+  { name: "Payouts", href: "/creator/payouts", icon: CreditCard },
+  { name: "Settings", href: "/creator/settings", icon: Settings },
 ];
 
 // Service Provider passes are scoped to Super Admin and the owning
 // organizer only (not Staff, not regular Admin) — so the nav link is
 // conditional rather than living in the shared base list.
-const servicePassesItem = { name: "Service Passes", href: "/organizer/passes", icon: BadgeCheck };
+const servicePassesItem = { name: "Service Passes", href: "/creator/passes", icon: BadgeCheck };
 
-export default function OrganizerLayout({
+export default function CreatorLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isLoggedIn, isOrganizer, isStaff, isAdmin, isSuperAdmin } = useAuth();
 
-  // Allow organizers, staff, and admins to access the dashboard
-  const canAccessOrganizer = isOrganizer || isStaff || isAdmin;
-  const sidebarItems = isOrganizer || isSuperAdmin ? [...baseSidebarItems, servicePassesItem] : baseSidebarItems;
+  // Admin/Super Admin have organizing tools merged into their own dashboards
+  // (/admin, /super-admin) — they shouldn't land on this separate, simpler
+  // shell at all, so a stray link or bookmark sends them to their own portal
+  // instead of resurrecting the "two dashboards" problem this replaces.
+  useEffect(() => {
+    if (isSuperAdmin) router.replace("/super-admin");
+    else if (isAdmin) router.replace("/admin");
+  }, [isSuperAdmin, isAdmin, router]);
+
+  const canAccessCreator = isOrganizer || isStaff;
+  const sidebarItems = isOrganizer ? [...baseSidebarItems, servicePassesItem] : baseSidebarItems;
 
   if (!isLoggedIn) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
-          <h1 className="text-2xl font-bold">Organizer Access Required</h1>
+          <h1 className="text-2xl font-bold">Creator Access Required</h1>
           <p className="mt-2 text-muted-foreground">
-            Please sign in to access the organizer dashboard.
+            Please sign in to access the creator dashboard.
           </p>
           <div className="mt-6 flex flex-wrap gap-3 justify-center">
             <Link href="/login">
@@ -73,7 +83,11 @@ export default function OrganizerLayout({
     );
   }
 
-  if (!canAccessOrganizer) {
+  if (isAdmin || isSuperAdmin) {
+    return null; // redirecting to their own merged dashboard
+  }
+
+  if (!canAccessCreator) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center max-w-md mx-auto p-6">
@@ -156,7 +170,7 @@ export default function OrganizerLayout({
 
         {/* Create Event Button */}
         <div className="border-t p-4">
-          <Link href="/organizer/create">
+          <Link href="/creator/create">
             <Button className="w-full gap-2 bg-primary hover:bg-primary/90">
               <Plus className="h-4 w-4" />
               Create Event
@@ -188,7 +202,7 @@ export default function OrganizerLayout({
             <Menu className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-lg font-semibold">Organizer Dashboard</h1>
+            <h1 className="text-lg font-semibold">Creator Dashboard</h1>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm">

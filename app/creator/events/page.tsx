@@ -75,7 +75,7 @@ export default function OrganizerEventsPage() {
       const formData = new FormData();
       formData.append("image", file);
       formData.append("eventId", eventId);
-      const res = await fetch("/api/organizer/events/image", {
+      const res = await fetch("/api/creator/events/image", {
         method: "POST",
         body: formData,
       });
@@ -184,7 +184,7 @@ export default function OrganizerEventsPage() {
             Manage and track all your events
           </p>
         </div>
-        <Link href="/organizer/create">
+        <Link href="/creator/create">
           <Button className="gap-2 bg-primary hover:bg-primary/90">
             <Plus className="h-4 w-4" />
             Create Event

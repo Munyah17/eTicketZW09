@@ -38,7 +38,7 @@ const HOUSE_SLIDES: HouseSlide[] = [
     body: "Discover concerts, comedy, sports, and festivals across Zimbabwe — book your tickets in seconds.",
     primaryHref: "/allevents",
     primaryLabel: "Browse Events",
-    secondaryHref: "/organizer/create",
+    secondaryHref: "/creator/create",
     secondaryLabel: "List Your Event",
   },
 ];

@@ -41,7 +41,7 @@ export default function RegisterPage() {
       if (confirm) {
         setNeedsConfirmation(true);
       } else {
-        router.push(role === "organizer" ? "/organizer" : "/");
+        router.push(role === "organizer" ? "/creator" : "/");
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Registration failed";

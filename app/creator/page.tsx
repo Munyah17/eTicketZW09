@@ -88,7 +88,7 @@ export default function OrganizerDashboard() {
               : "Here's what's happening with your events."}
           </p>
         </div>
-        <Link href="/organizer/create">
+        <Link href="/creator/create">
           <Button className="gap-2 bg-primary hover:bg-primary/90">
             <Plus className="h-4 w-4" />
             Create New Event
@@ -107,7 +107,7 @@ export default function OrganizerDashboard() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Your Events</CardTitle>
-          <Link href="/organizer/events">
+          <Link href="/creator/events">
             <Button variant="ghost" size="sm" className="gap-1">
               View All
               <ArrowRight className="h-4 w-4" />
@@ -122,7 +122,7 @@ export default function OrganizerDashboard() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Create your first event to start selling tickets.
               </p>
-              <Link href="/organizer/create" className="mt-4 inline-block">
+              <Link href="/creator/create" className="mt-4 inline-block">
                 <Button className="gap-2 bg-primary hover:bg-primary/90">
                   <Plus className="h-4 w-4" />
                   Create Event
@@ -203,7 +203,7 @@ export default function OrganizerDashboard() {
       {/* Quick Actions */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card className="cursor-pointer transition-all hover:shadow-md">
-          <Link href="/organizer/create">
+          <Link href="/creator/create">
             <CardContent className="flex items-center gap-4 p-6">
               <div className="rounded-lg bg-primary/10 p-3">
                 <Plus className="h-6 w-6 text-primary" />
@@ -217,7 +217,7 @@ export default function OrganizerDashboard() {
         </Card>
 
         <Card className="cursor-pointer transition-all hover:shadow-md">
-          <Link href="/organizer/advertising">
+          <Link href="/creator/advertising">
             <CardContent className="flex items-center gap-4 p-6">
               <div className="rounded-lg bg-warning/10 p-3">
                 <TrendingUp className="h-6 w-6 text-warning" />
@@ -231,7 +231,7 @@ export default function OrganizerDashboard() {
         </Card>
 
         <Card className="cursor-pointer transition-all hover:shadow-md">
-          <Link href="/organizer/payouts">
+          <Link href="/creator/payouts">
             <CardContent className="flex items-center gap-4 p-6">
               <div className="rounded-lg bg-success/10 p-3">
                 <DollarSign className="h-6 w-6 text-success" />

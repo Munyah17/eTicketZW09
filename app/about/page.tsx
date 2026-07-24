@@ -72,7 +72,7 @@ export default function AboutPage() {
                   Browse Events
                 </Button>
               </Link>
-              <Link href="/organizer/create">
+              <Link href="/creator/create">
                 <Button size="lg" variant="outline">
                   List Your Event
                 </Button>
@@ -155,7 +155,7 @@ export default function AboutPage() {
               Get started in minutes.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <Link href="/organizer/create">
+              <Link href="/creator/create">
                 <Button
                   size="lg"
                   className="bg-background text-foreground hover:bg-background/90"

@@ -99,7 +99,7 @@ export default function AdvertisePage() {
               Starting at just ${SECTION_BANNER_PRICE_PER_DAY}/day.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <Link href="/organizer">
+              <Link href="/creator">
                 <Button size="lg" className="gap-2 bg-primary hover:bg-primary/90">
                   <Megaphone className="h-4 w-4" />
                   Start Advertising
@@ -209,7 +209,7 @@ export default function AdvertisePage() {
                       ))}
                     </ul>
 
-                    <Link href="/organizer/advertising" className="block">
+                    <Link href="/creator/advertising" className="block">
                       <Button
                         className={`w-full gap-2 ${
                           banner.name === "Hero Slider"
@@ -279,7 +279,7 @@ export default function AdvertisePage() {
               Join hundreds of successful organizers who use E-TicketsZW advertising to sell out their events.
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-4">
-              <Link href="/organizer/advertising">
+              <Link href="/creator/advertising">
                 <Button
                   size="lg"
                   className="gap-2 bg-background text-foreground hover:bg-background/90"
@@ -288,7 +288,7 @@ export default function AdvertisePage() {
                   Start Advertising
                 </Button>
               </Link>
-              <Link href="/organizer/create">
+              <Link href="/creator/create">
                 <Button
                   size="lg"
                   variant="outline"

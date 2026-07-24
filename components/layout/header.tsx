@@ -23,7 +23,7 @@ import { Logo } from "./logo";
 const navigation = [
   { name: "Home", href: "/" },
   { name: "All Events", href: "/allevents" },
-  { name: "For Organizers", href: "/organizer" },
+  { name: "For Organizers", href: "/creator" },
   { name: "Advertise", href: "/advertise" },
   { name: "About", href: "/about" },
 ];
@@ -91,7 +91,7 @@ export function Header() {
 
           {isLoggedIn ? (
             <>
-              <Link href="/organizer/create">
+              <Link href="/creator/create">
                 <Button size="sm" className="bg-primary hover:bg-primary/90">
                   List Your Event
                 </Button>
@@ -132,33 +132,33 @@ export function Header() {
                     </Link>
                   </DropdownMenuItem>
 
-                  {/* Organizer / Staff links */}
-                  {(isOrganizer || isStaff || isAdmin) && (
+                  {/* Creator / Staff links — admins/super admins get organizing
+                      tools built into their own single dashboard below instead */}
+                  {(isOrganizer || isStaff) && !isAdmin && !isSuperAdmin && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
-                        <Link href="/organizer" className="flex items-center gap-2">
+                        <Link href="/creator" className="flex items-center gap-2">
                           <LayoutDashboard className="h-4 w-4" />
-                          Organizer Dashboard
+                          Creator Dashboard
                         </Link>
                       </DropdownMenuItem>
-                      {(isOrganizer || isStaff || isSuperAdmin) && (
-                        <DropdownMenuItem asChild>
-                          <Link href="/organizer/gate" className="flex items-center gap-2">
-                            <Shield className="h-4 w-4" />
-                            Gate Management
-                          </Link>
-                        </DropdownMenuItem>
-                      )}
+                      <DropdownMenuItem asChild>
+                        <Link href="/creator/gate" className="flex items-center gap-2">
+                          <Shield className="h-4 w-4" />
+                          Gate Management
+                        </Link>
+                      </DropdownMenuItem>
                     </>
                   )}
 
-                  {/* Admin links */}
+                  {/* Admin / Super Admin — one dashboard link, organizing tools
+                      included in it already */}
                   {canAccessAdmin && (
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
-                        <Link href="/admin" className="flex items-center gap-2 text-primary">
+                        <Link href={isSuperAdmin ? "/super-admin" : "/admin"} className="flex items-center gap-2 text-primary">
                           {isSuperAdmin ? <Crown className="h-4 w-4" /> : <Briefcase className="h-4 w-4" />}
                           {isSuperAdmin ? "Super Admin Panel" : "Admin Panel"}
                         </Link>
@@ -248,20 +248,20 @@ export function Header() {
                     Notifications
                   </Link>
                 </DropdownMenuItem>
-                {(isOrganizer || isStaff || isAdmin) && (
+                {(isOrganizer || isStaff) && !isAdmin && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
-                      <Link href="/organizer" className="flex items-center gap-2">
+                      <Link href="/creator" className="flex items-center gap-2">
                         <LayoutDashboard className="h-4 w-4" />
-                        Organizer Dashboard
+                        Creator Dashboard
                       </Link>
                     </DropdownMenuItem>
                   </>
                 )}
                 {canAccessAdmin && (
                   <DropdownMenuItem asChild>
-                    <Link href="/admin" className="flex items-center gap-2 text-primary">
+                    <Link href={isSuperAdmin ? "/super-admin" : "/admin"} className="flex items-center gap-2 text-primary">
                       <Shield className="h-4 w-4" />
                       {isSuperAdmin ? "Super Admin" : "Admin Panel"}
                     </Link>
@@ -333,18 +333,18 @@ export function Header() {
             <div className="my-4 border-t" />
             {isLoggedIn && (
               <>
-                {(isOrganizer || isStaff || isAdmin) && (
+                {(isOrganizer || isStaff) && !isAdmin && (
                   <>
                     <Link
-                      href="/organizer"
+                      href="/creator"
                       className="flex items-center gap-3 px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent transition-colors"
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <LayoutDashboard className="h-4 w-4" />
-                      Organizer Dashboard
+                      Creator Dashboard
                     </Link>
                     <Link
-                      href="/organizer/gate"
+                      href="/creator/gate"
                       className="flex items-center gap-3 px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent transition-colors"
                       onClick={() => setMobileMenuOpen(false)}
                     >
@@ -355,7 +355,7 @@ export function Header() {
                 )}
                 {canAccessAdmin && (
                   <Link
-                    href="/admin"
+                    href={isSuperAdmin ? "/super-admin" : "/admin"}
                     className="flex items-center gap-3 px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent transition-colors text-primary"
                     onClick={() => setMobileMenuOpen(false)}
                   >
@@ -391,7 +391,7 @@ export function Header() {
               </>
             )}
             <div className="mt-4 px-3">
-              <Link href="/organizer/create" onClick={() => setMobileMenuOpen(false)}>
+              <Link href="/creator/create" onClick={() => setMobileMenuOpen(false)}>
                 <Button className="w-full bg-primary hover:bg-primary/90">
                   List Your Event
                 </Button>

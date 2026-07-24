@@ -10,10 +10,10 @@ const footerLinks = {
     { name: "Festivals", href: "/events?category=festival" },
   ],
   organizers: [
-    { name: "List Your Event", href: "/organizer/create" },
-    { name: "Dashboard", href: "/organizer" },
+    { name: "List Your Event", href: "/creator/create" },
+    { name: "Dashboard", href: "/creator" },
     { name: "Advertising", href: "/advertise" },
-    { name: "Payouts", href: "/organizer/payouts" },
+    { name: "Payouts", href: "/creator/payouts" },
   ],
   support: [
     { name: "+263 773 909 307", href: "tel:+263773909307", icon: Phone },

@@ -123,7 +123,7 @@ export function AdvertiseCTA() {
               Start Advertising
             </Button>
           </Link>
-          <Link href="/organizer/create">
+          <Link href="/creator/create">
             <Button size="lg" variant="outline">
               List Your Event Free
             </Button>

@@ -24,9 +24,10 @@ export default function LoginPage() {
   useEffect(() => {
     if (!loading && user) {
       const role = user.role;
-      if (role === "super_admin" || role === "admin") router.push("/admin");
-      else if (role === "organizer") router.push("/organizer");
-      else if (role === "staff") router.push("/organizer");
+      if (role === "super_admin") router.push("/super-admin");
+      else if (role === "admin") router.push("/admin");
+      else if (role === "organizer") router.push("/creator");
+      else if (role === "staff") router.push("/creator");
       else router.push("/");
     }
   }, [user, loading, router]);

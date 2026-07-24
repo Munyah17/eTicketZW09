@@ -22,9 +22,11 @@ const MAINTENANCE_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-// Paths that must stay reachable even in maintenance mode — admin panel (so
-// staff can turn it back off), auth, and the API routes the admin panel needs.
-const MAINTENANCE_BYPASS_PREFIXES = ["/admin", "/login", "/api"];
+// Paths that must stay reachable even in maintenance mode — admin panels (so
+// staff can turn it back off), auth, and the API routes the admin panels
+// need. /creator (organizers) intentionally does NOT bypass, matching
+// today's behavior — organizers see the maintenance page like anyone else.
+const MAINTENANCE_BYPASS_PREFIXES = ["/admin", "/super-admin", "/login", "/api"];
 
 /**
  * Runs on every request.
