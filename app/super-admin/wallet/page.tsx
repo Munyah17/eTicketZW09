@@ -51,7 +51,7 @@ export default function SystemWalletPage() {
             System Wallet
           </h1>
           <p className="text-muted-foreground mt-1">
-            What the platform actually earns — kept separate from total money processed on buyers' behalf.
+            What the platform actually earns — kept separate from total money processed on buyers&apos; behalf.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={load} className="gap-2">
