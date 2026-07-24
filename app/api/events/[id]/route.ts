@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Event, EventCategory, OrganizerCategory } from "@/lib/types";
+import type { Event, EventCategory, OrganizerCategory, EventCustomField } from "@/lib/types";
 
 function toEvent(r: Record<string, unknown>): Event {
   const tts = (r.ticket_types as Record<string, unknown>[] | null) ?? [];
+  const fields = (r.event_custom_fields as Record<string, unknown>[] | null) ?? [];
   return {
     id: r.id as string,
     title: r.title as string,
@@ -31,6 +32,16 @@ function toEvent(r: Record<string, unknown>): Event {
       sold: Number(tt.sold),
       markup: Number(tt.markup) || 0,
     })),
+    customFields: fields
+      .map((f) => ({
+        id: f.id as string,
+        label: f.label as string,
+        fieldType: f.field_type as EventCustomField["fieldType"],
+        options: (f.options as string[] | null) ?? undefined,
+        required: !!f.required,
+        position: Number(f.position) || 0,
+      }))
+      .sort((a, b) => a.position - b.position),
     totalTickets: Number(r.total_tickets) || 0,
     soldTickets: Number(r.sold_tickets) || 0,
     status: r.status as Event["status"],
@@ -51,7 +62,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("events")
-    .select("*, ticket_types(*)")
+    .select("*, ticket_types(*), event_custom_fields(*)")
     .eq("id", id)
     .eq("status", "published")
     .single();

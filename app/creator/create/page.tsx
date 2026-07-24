@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,14 @@ interface TicketTypeForm {
   description: string;
   price: string;
   quantity: string;
+}
+
+interface CustomFieldForm {
+  id: string;
+  label: string;
+  fieldType: "text" | "textarea" | "select" | "checkbox" | "number";
+  options: string; // comma-separated, only used when fieldType === "select"
+  required: boolean;
 }
 
 export default function CreateEventPage() {
@@ -83,6 +92,26 @@ export default function CreateEventPage() {
     setTicketTypes(
       ticketTypes.map((t) => (t.id === id ? { ...t, [field]: value } : t))
     );
+  };
+
+  // Custom Fields — fully optional extra info collected from the buyer at
+  // checkout, for events whose nature needs more than the standard details
+  // (T-shirt size, dietary needs, company name, etc).
+  const [customFields, setCustomFields] = useState<CustomFieldForm[]>([]);
+
+  const addCustomField = () => {
+    setCustomFields([
+      ...customFields,
+      { id: Date.now().toString(), label: "", fieldType: "text", options: "", required: false },
+    ]);
+  };
+
+  const removeCustomField = (id: string) => {
+    setCustomFields(customFields.filter((f) => f.id !== id));
+  };
+
+  const updateCustomField = <K extends keyof CustomFieldForm>(id: string, field: K, value: CustomFieldForm[K]) => {
+    setCustomFields(customFields.map((f) => (f.id === id ? { ...f, [field]: value } : f)));
   };
 
   const handleFeaturedImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -232,6 +261,18 @@ export default function CreateEventPage() {
           quantity: parseInt(t.quantity),
           sold: 0,
         })),
+        customFields: customFields
+          .filter((f) => f.label.trim())
+          .map((f, i) => ({
+            id: "", // will be assigned by DB
+            label: f.label,
+            fieldType: f.fieldType,
+            options: f.fieldType === "select"
+              ? f.options.split(",").map((o) => o.trim()).filter(Boolean)
+              : undefined,
+            required: f.required,
+            position: i,
+          })),
         totalTickets: ticketTypes.reduce((sum, t) => sum + parseInt(t.quantity || "0"), 0),
         soldTickets: 0,
         status: autoApprove ? "published" : "pending_review",
@@ -739,6 +780,82 @@ export default function CreateEventPage() {
               <Plus className="h-4 w-4" />
               Add Another Ticket Type
             </Button>
+
+            {/* Custom Fields — optional, for events that need extra buyer info */}
+            <div className="space-y-3 border-t pt-6">
+              <div>
+                <h4 className="font-medium">Custom Fields (Optional)</h4>
+                <p className="text-sm text-muted-foreground">
+                  Collect extra info from buyers at checkout — e.g. T-shirt size, dietary needs, company name.
+                </p>
+              </div>
+
+              {customFields.map((field) => (
+                <div key={field.id} className="rounded-lg border p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Field</span>
+                    <Button variant="ghost" size="sm" onClick={() => removeCustomField(field.id)} className="text-destructive hover:text-destructive">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label>Field Label *</Label>
+                      <Input
+                        value={field.label}
+                        onChange={(e) => updateCustomField(field.id, "label", e.target.value)}
+                        placeholder="e.g., T-Shirt Size"
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label>Field Type</Label>
+                      <Select
+                        value={field.fieldType}
+                        onValueChange={(v) => updateCustomField(field.id, "fieldType", v as CustomFieldForm["fieldType"])}
+                      >
+                        <SelectTrigger className="mt-1.5">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">Short text</SelectItem>
+                          <SelectItem value="textarea">Long text</SelectItem>
+                          <SelectItem value="number">Number</SelectItem>
+                          <SelectItem value="select">Dropdown</SelectItem>
+                          <SelectItem value="checkbox">Yes/No checkbox</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {field.fieldType === "select" && (
+                    <div>
+                      <Label>Options (comma-separated)</Label>
+                      <Input
+                        value={field.options}
+                        onChange={(e) => updateCustomField(field.id, "options", e.target.value)}
+                        placeholder="e.g., Small, Medium, Large"
+                        className="mt-1.5"
+                      />
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`required-${field.id}`}
+                      checked={field.required}
+                      onCheckedChange={(checked) => updateCustomField(field.id, "required", checked as boolean)}
+                    />
+                    <Label htmlFor={`required-${field.id}`} className="text-sm font-normal cursor-pointer">
+                      Required — buyer must fill this in to complete checkout
+                    </Label>
+                  </div>
+                </div>
+              ))}
+
+              <Button variant="outline" onClick={addCustomField} className="w-full gap-2">
+                <Plus className="h-4 w-4" />
+                Add Custom Field
+              </Button>
+            </div>
 
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => setStep(1)}>

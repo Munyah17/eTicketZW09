@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
       totalPaid: ticket.total_paid,
       currency: ticket.currency,
       purchasedAt: ticket.purchased_at,
+      customFieldResponses: ticket.custom_field_responses ?? {},
     },
   });
 }

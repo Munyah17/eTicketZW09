@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { Event, EventCategory, OrganizerCategory, TicketType } from "./types";
+import { Event, EventCategory, OrganizerCategory, TicketType, EventCustomField } from "./types";
 
 // Notify same-tab listeners (Realtime handles cross-tab)
 function notifyChange(): void {
@@ -10,6 +10,7 @@ function notifyChange(): void {
 
 function dbToEvent(row: Record<string, unknown>): Event {
   const tts = (row.ticket_types as Record<string, unknown>[] | null) || [];
+  const fields = (row.event_custom_fields as Record<string, unknown>[] | null) || [];
   return {
     id: row.id as string,
     title: row.title as string,
@@ -37,6 +38,16 @@ function dbToEvent(row: Record<string, unknown>): Event {
       sold: Number(tt.sold),
       markup: Number(tt.markup) || 0,
     })),
+    customFields: fields
+      .map((f) => ({
+        id: f.id as string,
+        label: f.label as string,
+        fieldType: f.field_type as EventCustomField["fieldType"],
+        options: (f.options as string[] | null) ?? undefined,
+        required: !!f.required,
+        position: Number(f.position) || 0,
+      }))
+      .sort((a, b) => a.position - b.position),
     totalTickets: Number(row.total_tickets) || 0,
     soldTickets: Number(row.sold_tickets) || 0,
     status: row.status as Event["status"],
@@ -88,11 +99,22 @@ function ticketTypeToDbRow(tt: TicketType, eventId: string) {
   };
 }
 
+function customFieldToDbRow(f: EventCustomField, eventId: string) {
+  return {
+    event_id: eventId,
+    label: f.label,
+    field_type: f.fieldType,
+    options: f.options && f.options.length > 0 ? f.options : null,
+    required: f.required,
+    position: f.position,
+  };
+}
+
 export async function getStoredEvents(limit = 50): Promise<Event[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("events")
-    .select("*, ticket_types(*)")
+    .select("*, ticket_types(*), event_custom_fields(*)")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) { console.error("getStoredEvents:", error.message); return []; }
@@ -116,6 +138,12 @@ export async function saveEvent(event: Event): Promise<string> {
     await supabase.from("ticket_types").insert(
       event.ticketTypes.map((tt) => ticketTypeToDbRow(tt, eventId))
     );
+
+    if (event.customFields && event.customFields.length > 0) {
+      await supabase.from("event_custom_fields").insert(
+        event.customFields.map((f) => customFieldToDbRow(f, eventId))
+      );
+    }
   } else {
     eventId = event.id;
     await supabase.from("events").update(eventToDbRow(event)).eq("id", eventId);

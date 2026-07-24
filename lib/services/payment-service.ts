@@ -197,6 +197,7 @@ export class PaymentService {
           seatNumber: m.seatNumber as string | undefined,
           quantity: m.quantity as number | undefined,
           buyerFeeAmount: m.platformFeeAmount as number | undefined,
+          customFieldResponses: m.customFieldResponses as Record<string, string> | undefined,
           amount: opts.amount ?? payment.amount,
           currency: (opts.currency ?? payment.currency).toUpperCase(),
           paymentMethod: opts.paymentMethod,

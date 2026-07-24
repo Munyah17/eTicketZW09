@@ -12,7 +12,7 @@ export async function GET() {
 
   const { data: events, error: eventsError } = await supabase
     .from("events")
-    .select("id, title, category, date, city, total_tickets, sold_tickets, ticket_types(price, sold)")
+    .select("id, title, category, date, city, total_tickets, sold_tickets, ticket_types(price, sold), event_custom_fields(id, label)")
     .eq("organizer_id", user.id);
 
   if (eventsError) return NextResponse.json({ error: eventsError.message }, { status: 500 });

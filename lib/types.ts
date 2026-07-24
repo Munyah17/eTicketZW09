@@ -16,6 +16,7 @@ export interface Event {
   organizerCategory?: OrganizerCategory;
   organizerSubtype?: string;
   ticketTypes: TicketType[];
+  customFields?: EventCustomField[];
   totalTickets: number;
   soldTickets: number;
   status: "draft" | "pending_review" | "published" | "cancelled" | "completed";
@@ -50,6 +51,19 @@ export type EventCategory =
   | "theater"
   | "exhibition"
   | "other";
+
+// Organizer-defined extra info collected from the buyer at checkout, when
+// an event's nature needs more than the standard buyer-details fields
+// (e.g. "T-shirt size", "Dietary requirements", "Company name"). Fully
+// optional — an event with no custom fields behaves exactly as before.
+export interface EventCustomField {
+  id: string;
+  label: string;
+  fieldType: "text" | "textarea" | "select" | "checkbox" | "number";
+  options?: string[]; // only meaningful for fieldType === "select"
+  required: boolean;
+  position: number;
+}
 
 export interface TicketType {
   id: string;
@@ -89,6 +103,7 @@ export interface Ticket {
   isAdmitted: boolean;
   purchasedAt: string;
   saleType: "online" | "gate";
+  customFieldResponses?: Record<string, string>; // keyed by EventCustomField.id
 }
 
 export type PaymentMethod = "ecocash" | "innbucks" | "visa" | "mastercard" | "cash" | "stripe" | "paynow" | "epay";

@@ -8,6 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import { Minus, Plus, Lock, ArrowLeft } from "lucide-react";
@@ -34,6 +42,7 @@ export function TicketPurchaseForm({
   const [buyerEmail, setBuyerEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [idNumber, setIdNumber] = useState("");
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [useAnonymous, setUseAnonymous] = useState(false);
   const [step, setStep] = useState<"details" | "provider" | "processing" | "redirect">("details");
   const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>(null);
@@ -100,8 +109,12 @@ export function TicketPurchaseForm({
     }
   };
 
+  const missingRequiredCustomField = (event.customFields ?? []).some(
+    (f) => f.required && !customFieldValues[f.id]?.trim()
+  );
+
   const handleDetailsSubmit = () => {
-    if (!buyerName || !buyerContact || !buyerEmail) return;
+    if (!buyerName || !buyerContact || !buyerEmail || missingRequiredCustomField) return;
     setStep("provider");
     setPaymentError(null);
   };
@@ -144,6 +157,7 @@ export function TicketPurchaseForm({
             buyerPhone: buyerContact,
             displayName: useAnonymous ? "Anonymous" : displayName || buyerName,
             idNumber,
+            customFieldResponses: customFieldValues,
             // Dollar amount actually charged as the buyer-side service fee —
             // captured now so the wallet ledger reflects what this specific
             // sale really charged, not whatever the fee % happens to be by
@@ -416,6 +430,56 @@ export function TicketPurchaseForm({
                   and admit you at the gate using just your ID.
                 </p>
               </div>
+
+              {(event.customFields ?? []).map((field) => (
+                <div key={field.id}>
+                  <Label htmlFor={`cf-${field.id}`}>
+                    {field.label}
+                    {field.required && " *"}
+                  </Label>
+                  {field.fieldType === "textarea" ? (
+                    <Textarea
+                      id={`cf-${field.id}`}
+                      value={customFieldValues[field.id] || ""}
+                      onChange={(e) => setCustomFieldValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                      className="mt-1.5"
+                    />
+                  ) : field.fieldType === "select" ? (
+                    <Select
+                      value={customFieldValues[field.id] || ""}
+                      onValueChange={(val) => setCustomFieldValues((v) => ({ ...v, [field.id]: val }))}
+                    >
+                      <SelectTrigger className="mt-1.5">
+                        <SelectValue placeholder="Select an option" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(field.options ?? []).map((opt) => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : field.fieldType === "checkbox" ? (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <Checkbox
+                        id={`cf-${field.id}`}
+                        checked={customFieldValues[field.id] === "yes"}
+                        onCheckedChange={(checked) =>
+                          setCustomFieldValues((v) => ({ ...v, [field.id]: checked ? "yes" : "no" }))
+                        }
+                      />
+                      <Label htmlFor={`cf-${field.id}`} className="text-sm font-normal cursor-pointer">Yes</Label>
+                    </div>
+                  ) : (
+                    <Input
+                      id={`cf-${field.id}`}
+                      type={field.fieldType === "number" ? "number" : "text"}
+                      value={customFieldValues[field.id] || ""}
+                      onChange={(e) => setCustomFieldValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                      className="mt-1.5"
+                    />
+                  )}
+                </div>
+              ))}
             </div>
 
             <div className="space-y-2 border-t pt-4 text-sm">
@@ -439,7 +503,7 @@ export function TicketPurchaseForm({
               className="w-full gap-2 bg-primary hover:bg-primary/90"
               size="lg"
               onClick={handleDetailsSubmit}
-              disabled={!buyerName || !buyerContact || !buyerEmail}
+              disabled={!buyerName || !buyerContact || !buyerEmail || missingRequiredCustomField}
             >
               Continue to Payment
             </Button>

@@ -30,6 +30,8 @@ export interface TicketGenerationData {
   // the wallet ledger reflects what was really charged even if the fee
   // percent changes later.
   buyerFeeAmount?: number;
+  // Organizer-defined custom field responses, keyed by EventCustomField.id.
+  customFieldResponses?: Record<string, string>;
 }
 
 export interface GeneratedTicket {
@@ -162,6 +164,7 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     p_requested_qty: data.quantity || 1,
     p_buyer_fee_amount: data.buyerFeeAmount ?? 0,
     p_commission_amount: commissionAmount,
+    p_custom_field_responses: data.customFieldResponses ?? {},
   });
 
   if (error) {

@@ -22,13 +22,16 @@ import {
   Users,
   RefreshCw,
   Download,
+  Info,
 } from "lucide-react";
 import { ExportMenu } from "@/components/ui/export-menu";
 import { DateRangeFilter, inDateRange } from "@/components/ui/date-range-filter";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { ExportColumn } from "@/lib/export-utils";
 
 interface SaleRow {
   id: string;
+  eventId: string;
   eventTitle: string;
   buyerDisplayName: string;
   buyerContact: string;
@@ -38,11 +41,13 @@ interface SaleRow {
   paymentStatus: string;
   purchasedAt: string;
   saleType: "online" | "gate";
+  customFieldResponses: Record<string, string>;
 }
 
 function mapSale(r: Record<string, unknown>): SaleRow {
   return {
     id: r.id as string,
+    eventId: r.event_id as string,
     eventTitle: r.event_title as string,
     buyerDisplayName: (r.buyer_display_name as string) || (r.buyer_name as string),
     buyerContact: r.buyer_contact as string,
@@ -52,6 +57,7 @@ function mapSale(r: Record<string, unknown>): SaleRow {
     paymentStatus: r.payment_status as string,
     purchasedAt: r.purchased_at as string,
     saleType: r.sale_type as "online" | "gate",
+    customFieldResponses: (r.custom_field_responses as Record<string, string>) || {},
   };
 }
 
@@ -61,12 +67,23 @@ export default function OrganizerSalesPage() {
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  // eventId -> (customFieldId -> label), so the Info popover can show
+  // "T-Shirt Size: Large" instead of a raw field ID.
+  const [fieldLabels, setFieldLabels] = useState<Record<string, Record<string, string>>>({});
 
   useEffect(() => {
     fetch("/api/organizer/sales")
       .then((res) => res.json())
       .then((data) => {
         setSales(((data.tickets ?? []) as Record<string, unknown>[]).map(mapSale));
+        const labels: Record<string, Record<string, string>> = {};
+        for (const e of (data.events ?? []) as Record<string, unknown>[]) {
+          const fields = (e.event_custom_fields as { id: string; label: string }[] | null) ?? [];
+          if (fields.length > 0) {
+            labels[e.id as string] = Object.fromEntries(fields.map((f) => [f.id, f.label]));
+          }
+        }
+        setFieldLabels(labels);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -150,19 +167,20 @@ export default function OrganizerSalesPage() {
                   <TableHead className="whitespace-nowrap">Method</TableHead>
                   <TableHead className="whitespace-nowrap">Status</TableHead>
                   <TableHead className="whitespace-nowrap">Date</TableHead>
+                  <TableHead className="whitespace-nowrap">Info</TableHead>
                   <TableHead className="text-right whitespace-nowrap">Download</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={10} className="text-center py-8">
                       <RefreshCw className="h-5 w-5 animate-spin mx-auto text-muted-foreground" />
                     </TableCell>
                   </TableRow>
                 ) : filteredSales.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       No sales found
                     </TableCell>
                   </TableRow>
@@ -196,6 +214,25 @@ export default function OrganizerSalesPage() {
                       </TableCell>
                       <TableCell>
                         {new Date(sale.purchasedAt).toLocaleDateString("en-ZW", { day: "numeric", month: "short" })}
+                      </TableCell>
+                      <TableCell>
+                        {Object.keys(sale.customFieldResponses).length > 0 && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" title="Custom field responses">
+                                <Info className="h-4 w-4 text-primary" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-64 text-sm space-y-1.5">
+                              {Object.entries(sale.customFieldResponses).map(([fieldId, value]) => (
+                                <div key={fieldId}>
+                                  <span className="font-medium">{fieldLabels[sale.eventId]?.[fieldId] ?? "Field"}: </span>
+                                  <span className="text-muted-foreground">{value || "—"}</span>
+                                </div>
+                              ))}
+                            </PopoverContent>
+                          </Popover>
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <a
