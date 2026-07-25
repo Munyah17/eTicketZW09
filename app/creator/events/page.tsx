@@ -33,6 +33,7 @@ import { ExportMenu } from "@/components/ui/export-menu";
 import { DateRangeFilter, inDateRange } from "@/components/ui/date-range-filter";
 import type { ExportColumn } from "@/lib/export-utils";
 import { RestockDialog } from "@/components/events/restock-dialog";
+import { compressImageFile } from "@/lib/image-compress";
 
 export default function OrganizerEventsPage() {
   const { user } = useAuth();
@@ -64,16 +65,18 @@ export default function OrganizerEventsPage() {
       alert("Please select a PNG, JPG, WebP, or GIF image. Other formats (like HEIC from an iPhone) aren't supported yet — try converting or taking a screenshot instead.");
       return;
     }
-    const MAX_SIZE = 20 * 1024 * 1024; // 20MB — matches the events storage bucket limit
-    if (file.size > MAX_SIZE) {
-      alert("Image must be 20MB or smaller");
+    // No fixed size limit — shrink/recompress instead of rejecting; only a
+    // truly unreasonable file gets turned away outright.
+    if (file.size > 100 * 1024 * 1024) {
+      alert("That image is too large to process (over 100MB). Please use a smaller file.");
       return;
     }
 
     setUploadingEventId(eventId);
     try {
+      const compressed = await compressImageFile(file);
       const formData = new FormData();
-      formData.append("image", file);
+      formData.append("image", compressed);
       formData.append("eventId", eventId);
       const res = await fetch("/api/organizer/events/image", {
         method: "POST",

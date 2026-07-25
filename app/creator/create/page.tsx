@@ -20,6 +20,7 @@ import { Plus, Trash2, Calendar, MapPin, Ticket, DollarSign, Info, Video, Image 
 import { EVENT_CATEGORIES, PLATFORM_FEE_PERCENTAGE, Event, EventCategory } from "@/lib/types";
 import { saveEvent } from "@/lib/events-store";
 import { useAuth } from "@/lib/auth-context";
+import { compressImageFile } from "@/lib/image-compress";
 
 interface TicketTypeForm {
   id: string;
@@ -55,6 +56,7 @@ export default function CreateEventPage() {
   // Featured Image
   const [featuredImage, setFeaturedImage] = useState<File | null>(null);
   const [featuredImagePreview, setFeaturedImagePreview] = useState<string | null>(null);
+  const [compressingImage, setCompressingImage] = useState(false);
 
   // Promo Video
   const [promoVideoType, setPromoVideoType] = useState<"video" | "slideshow" | null>(null);
@@ -114,7 +116,7 @@ export default function CreateEventPage() {
     setCustomFields(customFields.map((f) => (f.id === id ? { ...f, [field]: value } : f)));
   };
 
-  const handleFeaturedImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFeaturedImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -130,15 +132,23 @@ export default function CreateEventPage() {
       return;
     }
 
-    // Validate file size (max 20MB)
-    const MAX_SIZE = 20 * 1024 * 1024; // 20MB
-    if (file.size > MAX_SIZE) {
-      alert("Image must be 20MB or smaller");
+    // No fixed size limit — organizers upload everything from phone photos
+    // to camera RAWs-exported-as-JPEG, and any one cutoff is wrong for
+    // someone. Shrink/recompress instead of rejecting; only a truly
+    // unreasonable file (100MB+) gets turned away outright.
+    if (file.size > 100 * 1024 * 1024) {
+      alert("That image is too large to process (over 100MB). Please use a smaller file.");
       return;
     }
 
-    setFeaturedImage(file);
-    setFeaturedImagePreview(URL.createObjectURL(file));
+    setCompressingImage(true);
+    try {
+      const compressed = await compressImageFile(file);
+      setFeaturedImage(compressed);
+      setFeaturedImagePreview(URL.createObjectURL(compressed));
+    } finally {
+      setCompressingImage(false);
+    }
   };
 
   const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -476,7 +486,12 @@ export default function CreateEventPage() {
               <p className="text-sm text-muted-foreground">
                 Upload an attractive cover image for your event that will be displayed on event cards
               </p>
-              {featuredImagePreview ? (
+              {compressingImage ? (
+                <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6">
+                  <Spinner className="h-8 w-8" />
+                  <p className="text-sm text-muted-foreground">Optimizing your image…</p>
+                </div>
+              ) : featuredImagePreview ? (
                 <div className="relative">
                   <img
                     src={featuredImagePreview}
@@ -499,7 +514,7 @@ export default function CreateEventPage() {
                   <Upload className="h-8 w-8 text-muted-foreground" />
                   <div className="text-center">
                     <p className="font-medium">Click to upload or drag and drop</p>
-                    <p className="text-xs text-muted-foreground">PNG, JPG or WebP (max. 5MB)</p>
+                    <p className="text-xs text-muted-foreground">Any size or format (PNG, JPG, WebP, GIF) — we&apos;ll optimize it automatically</p>
                   </div>
                   <input
                     type="file"
