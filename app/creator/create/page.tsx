@@ -296,7 +296,7 @@ export default function CreateEventPage() {
         formData.append("image", featuredImage);
         formData.append("eventId", savedEventId);
         try {
-          const res = await fetch("/api/creator/events/image", {
+          const res = await fetch("/api/organizer/events/image", {
             method: "POST",
             body: formData,
           });

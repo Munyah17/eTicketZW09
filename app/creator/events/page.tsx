@@ -75,7 +75,7 @@ export default function OrganizerEventsPage() {
       const formData = new FormData();
       formData.append("image", file);
       formData.append("eventId", eventId);
-      const res = await fetch("/api/creator/events/image", {
+      const res = await fetch("/api/organizer/events/image", {
         method: "POST",
         body: formData,
       });
