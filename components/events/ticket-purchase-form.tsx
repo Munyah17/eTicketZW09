@@ -59,7 +59,15 @@ export function TicketPurchaseForm({
   // bottom" (it didn't move; the page under it just got shorter). Pulling
   // the card into view on every step change keeps whatever's actionable
   // actually on screen regardless of how tall the previous step was.
+  // Skip the very first run — effects fire on initial mount too, and there's
+  // no prior step to have scrolled away from yet, so it was firing an
+  // unwanted scroll the instant this form (and the page it's on) appeared.
+  const isFirstRender = useRef(true);
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     cardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [step]);
 

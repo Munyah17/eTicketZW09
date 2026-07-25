@@ -93,7 +93,10 @@ export default function ValidatePage() {
   // Re-focus the code field after every scan/reset so an external USB/Bluetooth
   // barcode-scanner "gun" (which just types + Enter) always has somewhere to type.
   useEffect(() => {
-    if (!isCameraOpen) codeInputRef.current?.focus();
+    // preventScroll — without it, the browser's native "scroll focused
+    // element into view" jumped the whole page down to this field on every
+    // mount/refocus, since it sits below other page content.
+    if (!isCameraOpen) codeInputRef.current?.focus({ preventScroll: true });
   }, [validationResult.status, isCameraOpen]);
 
   const runLookup = useCallback(async (code: string) => {
@@ -352,7 +355,6 @@ export default function ValidatePage() {
                   <Input
                     id="ticketCode"
                     ref={codeInputRef}
-                    autoFocus
                     value={ticketCode}
                     onChange={(e) => setTicketCode(e.target.value)}
                     placeholder="Ready to scan — or type the ticket ID"

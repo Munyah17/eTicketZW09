@@ -69,6 +69,14 @@ function SheetContent({
             'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 h-auto border-t',
           className,
         )}
+        onOpenAutoFocus={(e) => {
+          // Radix focuses the first tabbable descendant by DOM order by
+          // default — often a footer button below the fold in a tall
+          // sheet, which reads as the panel/page jumping to its bottom on
+          // open. Leave focus on the content container instead (Tab
+          // trapping inside the sheet still works regardless).
+          e.preventDefault()
+        }}
         {...props}
       >
         {children}

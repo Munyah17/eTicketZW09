@@ -165,7 +165,10 @@ export default function GateManagementPage() {
   // USB/Bluetooth barcode scanner (keyboard-wedge input) can fire repeatedly
   // without staff needing to click back into the field each time.
   useEffect(() => {
-    if (!isScanning && !dialogOpen) manualCodeRef.current?.focus();
+    // preventScroll — without it, the browser's native "scroll focused
+    // element into view" jumped the whole page down to this field on every
+    // mount/refocus, since it sits below other page content.
+    if (!isScanning && !dialogOpen) manualCodeRef.current?.focus({ preventScroll: true });
   }, [isScanning, dialogOpen]);
 
   useEffect(() => {
@@ -483,7 +486,6 @@ export default function GateManagementPage() {
                     <Input
                       id="ticket-code"
                       ref={manualCodeRef}
-                      autoFocus
                       value={manualCode}
                       onChange={(e) => setManualCode(e.target.value)}
                       placeholder="Ready to scan — external scanner or type manually"

@@ -150,12 +150,14 @@
   html {
     overflow-x: hidden;
     overscroll-behavior-x: none;
-    scroll-behavior: smooth;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    html {
-      scroll-behavior: auto;
-    }
+    /* Deliberately NOT scroll-behavior: smooth here — that turns every
+       *implicit* scroll correction (Next.js's own scroll-to-top on
+       navigation, a focused-but-offscreen input, a dialog's initial
+       focus) into a visible, animated jump instead of landing instantly
+       in the right place. Deliberate in-page jumps (e.g. "scroll to the
+       ticket form") already pass behavior: "smooth" directly to
+       scrollIntoView()/scrollTo(), which animates regardless of this
+       CSS property — so removing it only affects the *unwanted* scrolls. */
   }
   * {
     @apply border-border outline-ring/50;
