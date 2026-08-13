@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn, user, loading } = useAuth();
+  const { signIn, logout, user, loading } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,17 +20,24 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect once logged in
+  // This page is for customers and organizers only — Admin and Super Admin
+  // have their own dedicated login pages (/admin/login, /private/login).
+  // A privileged credential signing in here is signed straight back out
+  // rather than redirected, so this page never confirms a privileged
+  // account exists or reveals where its portal lives.
   useEffect(() => {
     if (!loading && user) {
       const role = user.role;
-      if (role === "super_admin") router.push("/super-admin");
-      else if (role === "admin") router.push("/admin");
-      else if (role === "organizer") router.push("/creator");
+      if (role === "admin" || role === "super_admin") {
+        logout();
+        setError("Incorrect email or password.");
+        return;
+      }
+      if (role === "organizer") router.push("/creator");
       else if (role === "staff") router.push("/creator");
       else router.push("/");
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, logout]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

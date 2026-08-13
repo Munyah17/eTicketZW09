@@ -139,7 +139,7 @@ export default function AdminEditEventPage() {
         setSaveError(data.error || "Failed to save changes");
         return;
       }
-      router.push("/super-admin/events");
+      router.push("/private/events");
     } finally {
       setSaving(false);
     }

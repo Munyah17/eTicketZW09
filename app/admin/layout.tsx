@@ -30,7 +30,7 @@ import {
 // Admin's own dashboard — the Operations tools it always had, plus
 // organizing tools (create/manage events) merged in, so there's no
 // separate "Organizer Dashboard" to jump to anymore. Super Admin has its
-// own, separate dashboard at /super-admin (redirected there below) with
+// own, separate dashboard at /private (redirected there below) with
 // everything here plus the super-admin-only tools.
 const adminLinks: AdminShellLink[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard, group: "Operations" },
@@ -66,15 +66,20 @@ export default function AdminLayout({
   const [pendingPayouts, setPendingPayouts] = useState(0);
   const { isSuperAdmin, isAdmin, isLoggedIn, user, logout } = useAuth();
 
+  // /admin/login is a standalone page (its own sign-in form) — it must
+  // never be wrapped in the "Access Required"/AdminShell chrome below, or an
+  // unauthenticated visitor could never actually see the login form.
+  const isAdminLoginPage = pathname === "/admin/login";
+
   // Super Admin outranks this dashboard — it has everything here plus
   // super-admin-only tools, at its own URL. Sending them there instead of
   // letting them use the plain Admin dashboard is what keeps this to one
   // portal per person rather than two. Preserving the sub-path (not just
   // bouncing to the dashboard root) means a stale /admin/events link still
-  // lands them on the equivalent /super-admin/events page.
+  // lands them on the equivalent /private/events page.
   useEffect(() => {
-    if (isSuperAdmin) router.replace(pathname.replace(/^\/admin/, "/super-admin"));
-  }, [isSuperAdmin, pathname, router]);
+    if (isSuperAdmin && !isAdminLoginPage) router.replace(pathname.replace(/^\/admin/, "/private"));
+  }, [isSuperAdmin, isAdminLoginPage, pathname, router]);
 
   useEffect(() => {
     if (!isLoggedIn || !isAdmin) return;
@@ -87,6 +92,10 @@ export default function AdminLayout({
       .catch(() => {});
   }, [isLoggedIn, isAdmin]);
 
+  if (isAdminLoginPage) {
+    return <>{children}</>;
+  }
+
   if (!isLoggedIn) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -94,7 +103,7 @@ export default function AdminLayout({
           <h1 className="text-2xl font-bold">Admin Access Required</h1>
           <p className="mt-2 text-muted-foreground">Please sign in with an admin account to continue.</p>
           <div className="mt-6 flex gap-3 justify-center">
-            <Link href="/login">
+            <Link href="/admin/login">
               <Button>Sign In</Button>
             </Link>
             <Link href="/">
@@ -107,7 +116,7 @@ export default function AdminLayout({
   }
 
   if (isSuperAdmin) {
-    return null; // redirecting to /super-admin
+    return null; // redirecting to /private
   }
 
   if (!isAdmin) {

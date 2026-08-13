@@ -44,6 +44,21 @@ export function isSuperAdminAccount(user: User): boolean {
   return user.email === SUPER_ADMIN_EMAIL;
 }
 
+// Fire-and-forget: tells the server to record an admin/super_admin
+// login/logout in the audit trail. Never blocks or breaks auth if it fails —
+// logging must not be able to lock anyone out.
+async function logAuthEvent(action: "admin.login" | "admin.logout") {
+  try {
+    await fetch("/api/auth/login-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+  } catch {
+    // Best-effort only.
+  }
+}
+
 function dbProfileToUser(profile: Record<string, unknown>): User {
   return {
     id: profile.id as string,
@@ -114,6 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut();
       throw new Error("This account has been suspended. Contact support if you believe this is a mistake.");
     }
+
+    logAuthEvent("admin.login");
   };
 
   const signUp = async (
@@ -137,6 +154,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     const supabase = createClient();
+    await logAuthEvent("admin.logout");
     await supabase.auth.signOut();
     setUser(null);
   };

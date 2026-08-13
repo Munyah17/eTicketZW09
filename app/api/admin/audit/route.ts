@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdmin } from "@/lib/server-auth";
+import { requireSuperAdmin } from "@/lib/server-auth";
 
 export async function GET() {
-  const auth = await requireAdmin();
+  const auth = await requireSuperAdmin();
   if ("error" in auth) return auth.error;
 
   const supabase = createAdminClient();

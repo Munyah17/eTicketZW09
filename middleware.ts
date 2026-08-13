@@ -26,7 +26,12 @@ const MAINTENANCE_HTML = `<!DOCTYPE html>
 // staff can turn it back off), auth, and the API routes the admin panels
 // need. /creator (organizers) intentionally does NOT bypass, matching
 // today's behavior — organizers see the maintenance page like anyone else.
-const MAINTENANCE_BYPASS_PREFIXES = ["/admin", "/super-admin", "/login", "/api"];
+const MAINTENANCE_BYPASS_PREFIXES = ["/admin", "/private", "/login", "/api"];
+
+// The three login surfaces — reachable while logged out, but redirected away
+// from once already signed in as the matching role (handled below).
+const ADMIN_LOGIN_PATH = "/admin/login";
+const PRIVATE_LOGIN_PATH = "/private/login";
 
 /**
  * Runs on every request.
@@ -79,6 +84,32 @@ export async function middleware(request: NextRequest) {
             headers: { "Content-Type": "text/html", "Retry-After": "3600" },
           });
         }
+      }
+    }
+
+    // Real, server-side role gate for the admin/super-admin portals — blocks
+    // the page HTML/JS itself, not just a client-side "Access Denied" flash
+    // after hydration. A Supabase session isn't scoped to which login page
+    // issued it, so this check (not the separate /login, /admin/login,
+    // /private/login pages) is what actually enforces the boundary between
+    // portals.
+    const isAdminPath = path.startsWith("/admin");
+    const isPrivatePath = path.startsWith("/private");
+    const isPortalLoginPath = path === ADMIN_LOGIN_PATH || path === PRIVATE_LOGIN_PATH;
+
+    if ((isAdminPath || isPrivatePath) && !isPortalLoginPath) {
+      const loginPath = isPrivatePath ? PRIVATE_LOGIN_PATH : ADMIN_LOGIN_PATH;
+
+      if (!user) {
+        return NextResponse.redirect(new URL(loginPath, request.url));
+      }
+
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      const role = profile?.role;
+      const allowed = isPrivatePath ? role === "super_admin" : (role === "admin" || role === "super_admin");
+
+      if (!allowed) {
+        return NextResponse.redirect(new URL(loginPath, request.url));
       }
     }
   }

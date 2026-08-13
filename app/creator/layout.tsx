@@ -47,12 +47,12 @@ export default function CreatorLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isLoggedIn, isOrganizer, isStaff, isAdmin, isSuperAdmin } = useAuth();
 
-  // Admin/Super Admin have organizing tools merged into their own dashboards
-  // (/admin, /super-admin) — they shouldn't land on this separate, simpler
-  // shell at all, so a stray link or bookmark sends them to their own portal
-  // instead of resurrecting the "two dashboards" problem this replaces.
+  // Admin has organizing tools merged into its own dashboard (/admin); Super
+  // Admin is a pure director role with no creator features at all. Neither
+  // should land on this separate, simpler shell — a stray link or bookmark
+  // sends them to their own portal instead.
   useEffect(() => {
-    if (isSuperAdmin) router.replace("/super-admin");
+    if (isSuperAdmin) router.replace("/private");
     else if (isAdmin) router.replace("/admin");
   }, [isSuperAdmin, isAdmin, router]);
 

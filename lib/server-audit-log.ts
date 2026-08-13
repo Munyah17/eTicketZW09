@@ -10,6 +10,7 @@ export async function logAudit(params: {
   resourceType: string;
   resourceId?: string;
   details?: Record<string, unknown>;
+  ipAddress?: string;
 }): Promise<void> {
   const supabase = createAdminClient();
   await supabase.from("audit_logs").insert({
@@ -19,5 +20,6 @@ export async function logAudit(params: {
     resource_type: params.resourceType,
     resource_id: params.resourceId ?? null,
     details: params.details ?? {},
+    ip_address: params.ipAddress ?? null,
   });
 }

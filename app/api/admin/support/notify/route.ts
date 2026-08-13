@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
-import { requireAdmin } from "@/lib/server-auth";
+import { requireSuperAdmin } from "@/lib/server-auth";
 import { logAudit } from "@/lib/server-audit-log";
 
 // Sends a real one-off email to a user from the admin Support panel.
 // No-ops (with a clear error) if RESEND_API_KEY isn't configured.
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireSuperAdmin();
   if ("error" in auth) return auth.error;
 
   const body = await req.json();

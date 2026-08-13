@@ -132,8 +132,9 @@ export function Header() {
                     </Link>
                   </DropdownMenuItem>
 
-                  {/* Creator / Staff links — admins/super admins get organizing
-                      tools built into their own single dashboard below instead */}
+                  {/* Creator / Staff links — Admin has organizing tools built
+                      into its own dashboard below instead; Super Admin has
+                      no organizer/creator tooling at all (director role) */}
                   {(isOrganizer || isStaff) && !isAdmin && !isSuperAdmin && (
                     <>
                       <DropdownMenuSeparator />
@@ -158,7 +159,7 @@ export function Header() {
                     <>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem asChild>
-                        <Link href={isSuperAdmin ? "/super-admin" : "/admin"} className="flex items-center gap-2 text-primary">
+                        <Link href={isSuperAdmin ? "/private" : "/admin"} className="flex items-center gap-2 text-primary">
                           {isSuperAdmin ? <Crown className="h-4 w-4" /> : <Briefcase className="h-4 w-4" />}
                           {isSuperAdmin ? "Super Admin Panel" : "Admin Panel"}
                         </Link>
@@ -261,7 +262,7 @@ export function Header() {
                 )}
                 {canAccessAdmin && (
                   <DropdownMenuItem asChild>
-                    <Link href={isSuperAdmin ? "/super-admin" : "/admin"} className="flex items-center gap-2 text-primary">
+                    <Link href={isSuperAdmin ? "/private" : "/admin"} className="flex items-center gap-2 text-primary">
                       <Shield className="h-4 w-4" />
                       {isSuperAdmin ? "Super Admin" : "Admin Panel"}
                     </Link>
@@ -355,7 +356,7 @@ export function Header() {
                 )}
                 {canAccessAdmin && (
                   <Link
-                    href={isSuperAdmin ? "/super-admin" : "/admin"}
+                    href={isSuperAdmin ? "/private" : "/admin"}
                     className="flex items-center gap-3 px-3 py-3 text-sm font-medium rounded-lg hover:bg-accent transition-colors text-primary"
                     onClick={() => setMobileMenuOpen(false)}
                   >

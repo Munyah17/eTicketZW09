@@ -44,12 +44,12 @@ interface AdminShellProps {
   children: React.ReactNode;
 }
 
-// Shared shell for /admin and /super-admin — same grouped sidebar, top bar,
-// and mobile menu, differing only in which links/labels/role each caller
-// passes in. Keeping this in one place is what lets Admin and Super Admin
-// look and behave identically (per user request: "one portal", not two
-// differently-styled dashboards) while still being genuinely separate
-// route trees with their own role gating in each layout.
+// Shared shell for /admin and /private — same grouped sidebar, top bar, and
+// mobile menu, differing only in which links/labels/role each caller passes
+// in. Keeping this in one place gives Admin and Super Admin a consistent
+// look even though their link sets differ (Super Admin has no organizer/
+// creator tooling — see app/private/layout.tsx) and each is a genuinely
+// separate route tree with its own role gating in each layout.
 export function AdminShell({
   links,
   panelLabel,

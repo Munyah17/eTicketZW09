@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdmin } from "@/lib/server-auth";
+import { requireSuperAdmin } from "@/lib/server-auth";
 import { logAudit } from "@/lib/server-audit-log";
 
 // Marks a ticket's payment as refunded. Actual funds reversal happens
 // outside this system (Stripe/Paynow dashboard) — this just records the
 // outcome, same manual-processing pattern as payouts.
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireSuperAdmin();
   if ("error" in auth) return auth.error;
 
   const body = await req.json();

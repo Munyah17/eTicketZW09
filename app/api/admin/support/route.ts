@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdmin } from "@/lib/server-auth";
+import { requireSuperAdmin } from "@/lib/server-auth";
 import { logAudit } from "@/lib/server-audit-log";
 
 export async function GET() {
-  const auth = await requireAdmin();
+  const auth = await requireSuperAdmin();
   if ("error" in auth) return auth.error;
 
   const supabase = createAdminClient();
@@ -20,7 +20,7 @@ export async function GET() {
 const VALID_STATUSES = new Set(["open", "in_progress", "resolved", "closed"]);
 
 export async function PATCH(req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireSuperAdmin();
   if ("error" in auth) return auth.error;
 
   const body = await req.json();

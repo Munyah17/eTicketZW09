@@ -255,7 +255,7 @@ export default function AdminEventsPage() {
                             </>
                           )}
                           {isSuperAdmin && (
-                            <Link href={`/super-admin/events/${event.id}/edit`}>
+                            <Link href={`/private/events/${event.id}/edit`}>
                               <Button size="sm" variant="outline" className="gap-1.5" title="Edit event listing">
                                 <Pencil className="h-3.5 w-3.5" />
                                 Edit

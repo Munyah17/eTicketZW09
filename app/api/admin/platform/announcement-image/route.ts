@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireAdmin } from "@/lib/server-auth";
+import { requireSuperAdmin } from "@/lib/server-auth";
 import { logAudit } from "@/lib/server-audit-log";
 
 // Uploads (or clears) the image for the announcement banner's "ad" mode —
 // reuses the same "banners" storage bucket the hero/section ad slots use.
 export async function POST(req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireSuperAdmin();
   if ("error" in auth) return auth.error;
 
   const form = await req.formData();
