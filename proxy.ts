@@ -38,7 +38,7 @@ const PRIVATE_LOGIN_PATH = "/private/login";
  * Refreshes the Supabase Auth session cookie, and enforces site-wide
  * maintenance mode (Platform Config) for non-admin visitors.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
