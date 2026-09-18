@@ -28,17 +28,17 @@ export function StatCard({
   footer,
 }: StatCardProps) {
   return (
-    <Card className={cn("border-0 shadow-sm", className)}>
+    <Card className={cn("shadow-xs", className)}>
       <CardContent className="p-4">
         <div className="flex items-center gap-3">
           <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", iconClassName)}>
             <Icon className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground">
+            <p className="truncate text-[11.5px] font-medium uppercase tracking-wide text-muted-foreground">
               {label}
             </p>
-            <p className={cn("mt-0.5 text-xl font-mono font-bold", valueClassName)}>{value}</p>
+            <p className={cn("mt-0.5 text-xl font-bold tabular-nums", valueClassName)}>{value}</p>
             {sub && <p className="mt-0.5 truncate text-xs text-muted-foreground">{sub}</p>}
           </div>
         </div>

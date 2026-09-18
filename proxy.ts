@@ -26,12 +26,15 @@ const MAINTENANCE_HTML = `<!DOCTYPE html>
 // staff can turn it back off), auth, and the API routes the admin panels
 // need. /creator (organizers) intentionally does NOT bypass, matching
 // today's behavior — organizers see the maintenance page like anyone else.
-const MAINTENANCE_BYPASS_PREFIXES = ["/admin", "/private", "/login", "/api"];
+const MAINTENANCE_BYPASS_PREFIXES = ["/admin", "/private", "/login", "/super-admin", "/api"];
 
-// The three login surfaces — reachable while logged out, but redirected away
+// The login surfaces — reachable while logged out, but redirected away
 // from once already signed in as the matching role (handled below).
+// /super-admin is the only Super Admin sign-in; /private/login is kept as a
+// redirect for old links/bookmarks.
 const ADMIN_LOGIN_PATH = "/admin/login";
 const PRIVATE_LOGIN_PATH = "/private/login";
+const SUPER_ADMIN_LOGIN_PATH = "/super-admin";
 
 /**
  * Runs on every request.
@@ -93,12 +96,17 @@ export async function proxy(request: NextRequest) {
     // issued it, so this check (not the separate /login, /admin/login,
     // /private/login pages) is what actually enforces the boundary between
     // portals.
+    // Legacy Super Admin login URL — the real sign-in lives at /super-admin.
+    if (path === PRIVATE_LOGIN_PATH) {
+      return NextResponse.redirect(new URL(SUPER_ADMIN_LOGIN_PATH, request.url));
+    }
+
     const isAdminPath = path.startsWith("/admin");
     const isPrivatePath = path.startsWith("/private");
-    const isPortalLoginPath = path === ADMIN_LOGIN_PATH || path === PRIVATE_LOGIN_PATH;
+    const isPortalLoginPath = path === ADMIN_LOGIN_PATH;
 
     if ((isAdminPath || isPrivatePath) && !isPortalLoginPath) {
-      const loginPath = isPrivatePath ? PRIVATE_LOGIN_PATH : ADMIN_LOGIN_PATH;
+      const loginPath = isPrivatePath ? SUPER_ADMIN_LOGIN_PATH : ADMIN_LOGIN_PATH;
 
       if (!user) {
         return NextResponse.redirect(new URL(loginPath, request.url));
@@ -110,6 +118,17 @@ export async function proxy(request: NextRequest) {
 
       if (!allowed) {
         return NextResponse.redirect(new URL(loginPath, request.url));
+      }
+
+      // Super Admin sessions must be two-factor (aal2). A password-only
+      // session (aal1) is sent back to /super-admin, which resumes at the
+      // authenticator step — there is no path into either portal without
+      // the second factor.
+      if (role === "super_admin") {
+        const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (aal?.currentLevel !== "aal2") {
+          return NextResponse.redirect(new URL(SUPER_ADMIN_LOGIN_PATH, request.url));
+        }
       }
     }
   }

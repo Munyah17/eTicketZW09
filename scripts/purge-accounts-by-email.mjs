@@ -7,7 +7,7 @@
 
 import { createAdminClient, printTable } from "./_admin-client.mjs";
 
-const PROTECTED_EMAIL = "munyamuzvidziwa19@gmail.com";
+const PROTECTED_EMAIL = "munyah777@gmail.com";
 
 const args = process.argv.slice(2);
 const confirm = args.includes("--confirm");

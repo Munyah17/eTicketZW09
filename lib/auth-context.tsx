@@ -38,7 +38,7 @@ const AuthContext = createContext<AuthContextType>({
   canAccessAdmin: false,
 });
 
-export const SUPER_ADMIN_EMAIL = "munyamuzvidziwa19@gmail.com";
+export const SUPER_ADMIN_EMAIL = "munyah777@gmail.com";
 
 export function isSuperAdminAccount(user: User): boolean {
   return user.email === SUPER_ADMIN_EMAIL;
