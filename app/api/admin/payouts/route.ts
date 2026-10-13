@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/server-auth";
 import { logAudit } from "@/lib/server-audit-log";
@@ -59,7 +59,7 @@ export async function PATCH(req: NextRequest) {
   });
 
   if (status === "approved" || status === "declined") {
-    sendPayoutStatusEmail(payoutId, status, declineReason).catch(() => {});
+    after(() => sendPayoutStatusEmail(payoutId, status, declineReason).catch(() => {}));
   }
 
   return NextResponse.json({ success: true });

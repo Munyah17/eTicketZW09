@@ -6,7 +6,7 @@ import { sendMail } from "@/lib/email/mailer";
 import { formatMoney, wrapper, row } from "@/lib/email/html";
 import { getSuperAdminEmails } from "@/lib/email/recipients";
 
-const SALES_INBOX = "sales@eticket.co.zw";
+const OPS_INBOX = process.env.NOTIFICATIONS_INBOX || "notifications@globalspaceweb.co.zw";
 
 // Fired alongside the buyer's ticket-delivery email whenever a sale
 // completes. Two distinct, role-scoped notifications:
@@ -76,7 +76,7 @@ export async function sendSaleNotificationEmails(ticket: GeneratedTicket): Promi
 
   const superAdminEmails = await getSuperAdminEmails();
   const adminResult = await sendMail({
-    to: SALES_INBOX,
+    to: OPS_INBOX,
     subject: `New Sale — ${ticket.eventTitle}`,
     html: adminHtml,
     replyTo: superAdminEmails,

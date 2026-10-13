@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { after } from "next/server";
 import https from "node:https";
 // @ts-ignore - Paynow SDK doesn't have TypeScript types
 import { Paynow } from "paynow";
@@ -302,12 +303,14 @@ export class PaymentService {
     await PaymentService.updatePaymentStatus(reference, "failed");
 
     const m = (payment.metadata ?? {}) as Record<string, unknown>;
-    sendPaymentFailedEmail({
-      reference,
-      buyerEmail: m.buyerEmail as string | undefined,
-      eventTitle: m.eventTitle as string | undefined,
-      eventId: m.eventId as string | undefined,
-    }).catch(() => {});
+    after(() =>
+      sendPaymentFailedEmail({
+        reference,
+        buyerEmail: m.buyerEmail as string | undefined,
+        eventTitle: m.eventTitle as string | undefined,
+        eventId: m.eventId as string | undefined,
+      }).catch(() => {})
+    );
   }
 
   static async getPayment(reference: string): Promise<PaymentStatus | undefined> {

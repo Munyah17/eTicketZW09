@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MINIMUM_PAYOUT, PAYOUT_TRANSACTION_COST_PERCENTAGE } from "@/lib/types";
@@ -112,13 +112,15 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   if (inserted) {
-    sendPayoutSubmittedEmail({
-      id: inserted.id,
-      organizerId: organizer.id,
-      organizerName: organizer.name,
-      amount,
-      paymentMethod,
-    }).catch(() => {});
+    after(() =>
+      sendPayoutSubmittedEmail({
+        id: inserted.id,
+        organizerId: organizer.id,
+        organizerName: organizer.name,
+        amount,
+        paymentMethod,
+      }).catch(() => {})
+    );
   }
 
   return NextResponse.json({ success: true });

@@ -14,7 +14,10 @@ interface FailedPaymentInfo {
 // would only find out by noticing nothing arrived. Best-effort: skipped
 // silently if there's no buyer email or event context to link back to.
 export async function sendPaymentFailedEmail(info: FailedPaymentInfo): Promise<void> {
-  if (!info.buyerEmail) return;
+  // No buyer email → send to the ops inbox instead of dropping the alert —
+  // a failed payment is a lost sale and must never leave the admin blind.
+  const opsInbox = process.env.NOTIFICATIONS_INBOX || "notifications@globalspaceweb.co.zw";
+  const recipient = info.buyerEmail || opsInbox;
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://eticket.co.zw";
   const retryUrl = info.eventId ? `${baseUrl}/events/${info.eventId}` : baseUrl;
@@ -40,7 +43,7 @@ export async function sendPaymentFailedEmail(info: FailedPaymentInfo): Promise<v
   );
 
   const result = await sendMail({
-    to: info.buyerEmail,
+    to: recipient,
     subject: info.eventTitle ? `Your payment for ${info.eventTitle} didn't go through` : "Your payment didn't go through",
     html,
   });
