@@ -111,7 +111,7 @@ export default function PrivateLayout({
           <h1 className="text-2xl font-bold">Super Admin Access Required</h1>
           <p className="mt-2 text-muted-foreground">Please sign in with a super admin account to continue.</p>
           <div className="mt-6 flex gap-3 justify-center">
-            <Link href="/private/login">
+            <Link href="/super-admin">
               <Button>Sign In</Button>
             </Link>
             <Link href="/">

@@ -74,11 +74,25 @@ export default function AdminLayout({
   // Super Admin outranks this dashboard — it has everything here plus
   // super-admin-only tools, at its own URL. Sending them there instead of
   // letting them use the plain Admin dashboard is what keeps this to one
-  // portal per person rather than two. Preserving the sub-path (not just
-  // bouncing to the dashboard root) means a stale /admin/events link still
-  // lands them on the equivalent /private/events page.
+  // portal per person rather than two. Organizer-shaped pages have no
+  // /private twin — they map to the creator portal (super admin has full
+  // organiser access), so a stale /admin/* link can never 404.
+  const SUPER_ADMIN_DESTINATIONS: Record<string, string> = {
+    "/admin/create-event": "/creator/create",
+    "/admin/my-events": "/creator/events",
+    "/admin/my-events-overview": "/creator",
+    "/admin/ticket-sales": "/creator/sales",
+    "/admin/organizer-analytics": "/creator/analytics",
+    "/admin/advertising": "/creator/advertising",
+    "/admin/my-payouts": "/creator/payouts",
+    "/admin/organizer-staff": "/creator/staff",
+    "/admin/gate": "/creator/gate",
+    "/admin/organizer-settings": "/creator/settings",
+  };
   useEffect(() => {
-    if (isSuperAdmin && !isAdminLoginPage) router.replace(pathname.replace(/^\/admin/, "/private"));
+    if (isSuperAdmin && !isAdminLoginPage) {
+      router.replace(SUPER_ADMIN_DESTINATIONS[pathname] ?? pathname.replace(/^\/admin/, "/private"));
+    }
   }, [isSuperAdmin, isAdminLoginPage, pathname, router]);
 
   useEffect(() => {

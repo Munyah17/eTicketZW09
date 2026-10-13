@@ -103,7 +103,28 @@ export async function proxy(request: NextRequest) {
 
     const isAdminPath = path.startsWith("/admin");
     const isPrivatePath = path.startsWith("/private");
+    const isCreatorPath = path.startsWith("/creator");
     const isPortalLoginPath = path === ADMIN_LOGIN_PATH;
+
+    // /creator gets the same server-side role gate as the portals — the
+    // client layout alone still shipped the page + JS to anyone before
+    // hydration decided otherwise.
+    if (isCreatorPath) {
+      if (!user) {
+        return NextResponse.redirect(new URL("/login", request.url));
+      }
+      const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+      const role = profile?.role;
+      // Staff are gate crew — their only surface is /validate (cross-
+      // organizer code lookup). Every /creator page presumes an organizer
+      // identity, so they go straight to the scanner.
+      if (role === "staff") {
+        return NextResponse.redirect(new URL("/validate", request.url));
+      }
+      if (role !== "organizer" && role !== "super_admin") {
+        return NextResponse.redirect(new URL("/", request.url));
+      }
+    }
 
     if ((isAdminPath || isPrivatePath) && !isPortalLoginPath) {
       const loginPath = isPrivatePath ? SUPER_ADMIN_LOGIN_PATH : ADMIN_LOGIN_PATH;

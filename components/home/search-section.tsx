@@ -59,7 +59,7 @@ export function SearchSection() {
     if (searchQuery) params.set("q", searchQuery);
     if (category) params.set("category", category);
     if (city) params.set("city", city);
-    router.push(`/events?${params.toString()}`);
+    router.push(`/allevents?${params.toString()}`);
   };
 
   const handleSearch = (e: React.FormEvent) => {
@@ -157,7 +157,7 @@ export function SearchSection() {
               key={cat.value}
               variant="outline"
               size="sm"
-              onClick={() => router.push(`/events?category=${cat.value}`)}
+              onClick={() => router.push(`/allevents?category=${cat.value}`)}
               className="rounded-full"
             >
               {cat.label}

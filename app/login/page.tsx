@@ -41,7 +41,7 @@ export default function LoginPage() {
         return;
       }
       if (role === "organizer") router.push("/creator");
-      else if (role === "staff") router.push("/creator");
+      else if (role === "staff") router.push("/validate");
       else router.push("/");
     }
   }, [user, loading, router, logout]);

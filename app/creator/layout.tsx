@@ -50,9 +50,12 @@ export default function CreatorLayout({
   // Admin has organizing tools merged into its own dashboard (/admin) and is
   // sent there. Super Admin gets full organiser access by design — the
   // platform owner must be able to do everything an organizer can do.
+  // Staff are gate crew: their only surface is /validate — every creator
+  // page presumes an organizer identity and renders empty for them.
   useEffect(() => {
     if (isAdmin && !isSuperAdmin) router.replace("/admin");
-  }, [isSuperAdmin, isAdmin, router]);
+    else if (isStaff) router.replace("/validate");
+  }, [isSuperAdmin, isAdmin, isStaff, router]);
 
   const canAccessCreator = isOrganizer || isStaff || isSuperAdmin;
   const sidebarItems = isOrganizer || isSuperAdmin ? [...baseSidebarItems, servicePassesItem] : baseSidebarItems;
