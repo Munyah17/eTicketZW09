@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft, Ticket, LogIn, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Ticket, LogIn, Eye, EyeOff, MailCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,6 +20,9 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [needsConfirm, setNeedsConfirm] = useState(false);
+  const [resendMsg, setResendMsg] = useState("");
+  const [resending, setResending] = useState(false);
 
   // This page is for customers and organizers only — Admin and Super Admin
   // have their own dedicated login pages (/admin/login, /private/login).
@@ -49,10 +53,27 @@ export default function LoginPage() {
       // redirect handled by useEffect above
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Login failed";
-      setError(msg.includes("Invalid login credentials") ? "Incorrect email or password." : msg);
+      if (/email not confirmed/i.test(msg)) {
+        setNeedsConfirm(true);
+        setError("Please confirm your email address before signing in.");
+      } else {
+        setError(msg.includes("Invalid login credentials") ? "Incorrect email or password." : msg);
+      }
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Self-serve recovery when the confirmation email never arrived — spam,
+  // a filter, or a silent drop. GoTrue's resend endpoint re-fires the
+  // branded confirmation mail for unconfirmed accounts.
+  const handleResend = async () => {
+    setResending(true);
+    setResendMsg("");
+    const supabase = createClient();
+    const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+    setResendMsg(error ? `Couldn't resend: ${error.message}` : "Confirmation email resent — check inbox and spam.");
+    setResending(false);
   };
 
   if (loading) return null;
@@ -122,6 +143,20 @@ export default function LoginPage() {
                 <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {error}
                 </p>
+              )}
+
+              {needsConfirm && (
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 space-y-2">
+                  <p>Didn&apos;t get the email? It may be in Spam or Promotions — or we can send it again.</p>
+                  <Button
+                    type="button" variant="outline" size="sm" className="w-full"
+                    onClick={handleResend} disabled={resending}
+                  >
+                    <MailCheck className="mr-2 h-4 w-4" />
+                    {resending ? "Resending…" : "Resend confirmation email"}
+                  </Button>
+                  {resendMsg && <p className="text-xs">{resendMsg}</p>}
+                </div>
               )}
 
               <Button type="submit" className="w-full" disabled={isSubmitting}>
