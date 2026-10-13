@@ -47,17 +47,15 @@ export default function CreatorLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { isLoggedIn, isOrganizer, isStaff, isAdmin, isSuperAdmin } = useAuth();
 
-  // Admin has organizing tools merged into its own dashboard (/admin); Super
-  // Admin is a pure director role with no creator features at all. Neither
-  // should land on this separate, simpler shell — a stray link or bookmark
-  // sends them to their own portal instead.
+  // Admin has organizing tools merged into its own dashboard (/admin) and is
+  // sent there. Super Admin gets full organiser access by design — the
+  // platform owner must be able to do everything an organizer can do.
   useEffect(() => {
-    if (isSuperAdmin) router.replace("/private");
-    else if (isAdmin) router.replace("/admin");
+    if (isAdmin && !isSuperAdmin) router.replace("/admin");
   }, [isSuperAdmin, isAdmin, router]);
 
-  const canAccessCreator = isOrganizer || isStaff;
-  const sidebarItems = isOrganizer ? [...baseSidebarItems, servicePassesItem] : baseSidebarItems;
+  const canAccessCreator = isOrganizer || isStaff || isSuperAdmin;
+  const sidebarItems = isOrganizer || isSuperAdmin ? [...baseSidebarItems, servicePassesItem] : baseSidebarItems;
 
   if (!isLoggedIn) {
     return (
@@ -83,7 +81,7 @@ export default function CreatorLayout({
     );
   }
 
-  if (isAdmin || isSuperAdmin) {
+  if (isAdmin && !isSuperAdmin) {
     return null; // redirecting to their own merged dashboard
   }
 
