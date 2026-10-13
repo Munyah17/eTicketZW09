@@ -38,7 +38,7 @@ const roleLabels: Record<UserRole, string> = {
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { user, isLoggedIn, logout, isSuperAdmin, isAdmin, isOrganizer, isStaff, canAccessAdmin } = useAuth();
+  const { user, isLoggedIn, loading: authLoading, logout, isSuperAdmin, isAdmin, isOrganizer, isStaff, canAccessAdmin } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -89,7 +89,12 @@ export function Header() {
             <Moon className="h-4 w-4 text-muted-foreground" />
           </div>
 
-          {isLoggedIn ? (
+          {authLoading ? (
+            // Session still resolving — never flash a "Sign In" CTA at a
+            // logged-in user: clicking it during the flash lands them on a
+            // page that may sign them out, which looks like being "thrown out".
+            <div className="h-9 w-24 animate-pulse rounded-md bg-muted" />
+          ) : isLoggedIn ? (
             <>
               <Link href="/creator/create">
                 <Button size="sm" className="bg-primary hover:bg-primary/90">
@@ -217,7 +222,9 @@ export function Header() {
             <Moon className="h-4 w-4 text-muted-foreground" />
           </div>
 
-          {isLoggedIn ? (
+          {authLoading ? (
+            <div className="h-9 w-9 animate-pulse rounded-full bg-muted" />
+          ) : isLoggedIn ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild className="lg:hidden">
                 <Button variant="ghost" size="icon">

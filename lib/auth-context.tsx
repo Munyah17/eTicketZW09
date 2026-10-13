@@ -80,13 +80,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = useCallback(async (userId: string) => {
+  const fetchProfile = useCallback(async (userId: string, attempt = 0) => {
     const supabase = createClient();
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
-      .single();
+      .maybeSingle();
     // Suspension can be applied to an already-active session — catch it here
     // too, not just at sign-in, so it takes effect on the next page load.
     if (profile?.is_suspended) {
@@ -95,7 +95,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    if (profile) setUser(dbProfileToUser(profile));
+    if (profile) {
+      setUser(dbProfileToUser(profile));
+      setLoading(false);
+      return;
+    }
+    // The session is valid but the profile read failed (network blip, slow
+    // mobile link, PostgREST hiccup). Retrying briefly is better than showing
+    // a logged-out UI — which sends users into a sign-in loop while their
+    // session is actually fine.
+    if (error && attempt < 3) {
+      setTimeout(() => { fetchProfile(userId, attempt + 1); }, 800 * (attempt + 1));
+      return;
+    }
     setLoading(false);
   }, []);
 

@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn, logout, user, loading } = useAuth();
+  const { signIn, user, loading } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,23 +28,19 @@ export default function LoginPage() {
   const [forgotSending, setForgotSending] = useState(false);
 
   // This page is for customers and organizers only — Admin and Super Admin
-  // have their own dedicated login pages (/admin/login, /private/login).
-  // A privileged credential signing in here is signed straight back out
-  // rather than redirected, so this page never confirms a privileged
-  // account exists or reveals where its portal lives.
+  // have their own dedicated sign-in surfaces. A privileged SESSION landing
+  // here is sent to its own portal rather than signed out — force-logging
+  // them out turned every stray redirect to /login into a real sign-out.
   useEffect(() => {
     if (!loading && user) {
       const role = user.role;
-      if (role === "admin" || role === "super_admin") {
-        logout();
-        setError("Incorrect email or password.");
-        return;
-      }
+      if (role === "super_admin") { router.push("/super-admin"); return; }
+      if (role === "admin") { router.push("/admin"); return; }
       if (role === "organizer") router.push("/creator");
       else if (role === "staff") router.push("/validate");
       else router.push("/");
     }
-  }, [user, loading, router, logout]);
+  }, [user, loading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

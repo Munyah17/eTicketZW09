@@ -45,7 +45,7 @@ export default function CreatorLayout({
   const pathname = usePathname();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { isLoggedIn, isOrganizer, isStaff, isAdmin, isSuperAdmin } = useAuth();
+  const { isLoggedIn, isOrganizer, isStaff, isAdmin, isSuperAdmin, loading } = useAuth();
 
   // Admin has organizing tools merged into its own dashboard (/admin) and is
   // sent there. Super Admin gets full organiser access by design — the
@@ -59,6 +59,18 @@ export default function CreatorLayout({
 
   const canAccessCreator = isOrganizer || isStaff || isSuperAdmin;
   const sidebarItems = isOrganizer || isSuperAdmin ? [...baseSidebarItems, servicePassesItem] : baseSidebarItems;
+
+  // Wait for the session to resolve before deciding access — on slow
+  // connections isLoggedIn is briefly false even with a valid session, and
+  // showing the sign-in splash during that window sends users into a
+  // bounce loop (sign in → back here → splash → sign in…).
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
+  }
 
   if (!isLoggedIn) {
     return (
