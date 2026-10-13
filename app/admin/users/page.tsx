@@ -53,6 +53,7 @@ export default function UsersPage() {
   const [manageUser, setManageUser] = useState<UserType | null>(null);
   const [editName, setEditName] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const [editRole, setEditRole] = useState("customer");
   const [editVerified, setEditVerified] = useState("no");
   const [editEmail, setEditEmail] = useState("");
   const [newPass, setNewPass] = useState("");
@@ -177,20 +178,35 @@ export default function UsersPage() {
     setManageUser(u);
     setEditName(u.name);
     setEditPhone(u.phone);
+    setEditRole(u.role);
     setEditVerified(u.verified ? "yes" : "no");
-    setEditEmail("");
+    setEditEmail(u.email);
     setNewPass("");
     setManageMsg("");
   };
 
-  const saveProfile = async () => {
+  // One Save covers every editable field: profile fields via PATCH,
+  // then the auth-side email change only if the email actually changed.
+  const saveAll = async () => {
     if (!manageUser) return;
     const res = await fetch("/api/admin/users", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: manageUser.id, name: editName, phone: editPhone, verified: editVerified === "yes" }),
+      body: JSON.stringify({
+        userId: manageUser.id,
+        name: editName,
+        phone: editPhone,
+        role: editRole,
+        verified: editVerified === "yes",
+      }),
     });
-    if (await reportIfFailed(res, "Failed to save changes.")) { setManageMsg("Profile saved."); reload(); }
+    if (!(await reportIfFailed(res, "Failed to save changes."))) return;
+    if (editEmail.trim().toLowerCase() !== manageUser.email.toLowerCase()) {
+      await doAction("change-email", { email: editEmail.trim() });
+      return;
+    }
+    setManageMsg("Saved.");
+    reload();
   };
 
   const doAction = async (action: string, payload: Record<string, unknown> = {}) => {
@@ -417,7 +433,7 @@ export default function UsersPage() {
               <SlidersHorizontal className="h-5 w-5 text-primary" /> Manage Account
             </DialogTitle>
             <DialogDescription>
-              {manageUser?.email} · {manageUser?.role}
+              {manageUser?.email}
               {manageUser?.lastSignInAt
                 ? ` · last sign-in ${new Date(manageUser.lastSignInAt).toLocaleString()}`
                 : " · never signed in"}
@@ -426,9 +442,9 @@ export default function UsersPage() {
 
           {manageMsg && <p className="text-sm bg-muted px-3 py-2 rounded-lg">{manageMsg}</p>}
 
-          {/* Profile */}
+          {/* Account details — one form, one Save */}
           <div className="space-y-3 rounded-lg border p-4">
-            <p className="text-sm font-medium">Profile</p>
+            <p className="text-sm font-medium">Account details</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Name</Label>
@@ -438,9 +454,18 @@ export default function UsersPage() {
                 <Label>Phone</Label>
                 <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
               </div>
-            </div>
-            <div className="flex items-end gap-3">
-              <div className="space-y-1.5 flex-1">
+              <div className="space-y-1.5">
+                <Label>Role</Label>
+                <Select value={editRole} onValueChange={setEditRole}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="customer">Customer</SelectItem>
+                    <SelectItem value="organizer">Organizer</SelectItem>
+                    <SelectItem value="staff">Staff</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
                 <Label>Verified</Label>
                 <Select value={editVerified} onValueChange={setEditVerified}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -450,25 +475,16 @@ export default function UsersPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={saveProfile}>Save</Button>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Sign-in email</Label>
+              <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
             </div>
           </div>
 
-          {/* Sign-in email */}
+          {/* Email & access tools */}
           <div className="space-y-3 rounded-lg border p-4">
-            <p className="text-sm font-medium">Sign-in email</p>
-            <div className="flex gap-2">
-              <Input placeholder="new-email@example.com" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
-              <Button variant="outline" disabled={acting || !editEmail.includes("@")} onClick={() => doAction("change-email", { email: editEmail })}>
-                Change
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">Updated instantly — no confirmation required.</p>
-          </div>
-
-          {/* Account actions */}
-          <div className="space-y-3 rounded-lg border p-4">
-            <p className="text-sm font-medium">Account actions</p>
+            <p className="text-sm font-medium">Email &amp; access tools</p>
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline" size="sm" disabled={acting || !!manageUser?.emailConfirmedAt}
@@ -488,14 +504,21 @@ export default function UsersPage() {
                   : <MailWarning className="h-3.5 w-3.5 mr-1" />}
                 {manageUser?.emailConfirmedAt ? "Email confirmed" : "Confirm email"}
               </Button>
+              <Button variant="outline" size="sm" disabled={acting} onClick={() => doAction("force-signout")}>
+                <UserX className="h-3.5 w-3.5 mr-1" /> Sign out everywhere
+              </Button>
             </div>
             <div className="flex gap-2 pt-1">
               <Input type="password" placeholder="New password (8+ chars)" value={newPass} onChange={(e) => setNewPass(e.target.value)} />
               <Button variant="outline" disabled={acting || newPass.length < 8} onClick={() => doAction("set-password", { password: newPass })}>
-                <ShieldCheck className="h-3.5 w-3.5 mr-1" /> Set
+                <ShieldCheck className="h-3.5 w-3.5 mr-1" /> Set password
               </Button>
             </div>
           </div>
+
+          <DialogFooter>
+            <Button onClick={saveAll} disabled={acting}>Save changes</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

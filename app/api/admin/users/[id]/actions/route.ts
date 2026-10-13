@@ -8,7 +8,7 @@ import { logAudit } from "@/lib/server-audit-log";
 // boundary as /api/admin/users: only organizer/staff/customer accounts, so
 // an Admin can never touch a peer's or Super Admin's auth record here.
 const MANAGEABLE_ROLES = new Set(["organizer", "staff", "customer"]);
-const ACTIONS = ["resend-confirmation", "send-password-reset", "set-password", "confirm-email", "change-email"] as const;
+const ACTIONS = ["resend-confirmation", "send-password-reset", "set-password", "confirm-email", "change-email", "force-signout"] as const;
 type Action = (typeof ACTIONS)[number];
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -68,6 +68,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       const { error: pErr } = await supabase.from("profiles").update({ verified: true }).eq("id", id);
       if (pErr) return NextResponse.json({ error: pErr.message }, { status: 500 });
+      break;
+    }
+    case "force-signout": {
+      const { error } = await supabase.auth.admin.signOut(id, "global");
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       break;
     }
     case "change-email": {
