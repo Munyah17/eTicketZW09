@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { sendSignupNotification } from "@/lib/email/send-signup-notification";
 
 // GoTrue after_user_created hook target — fires server-side after every new
@@ -19,13 +19,16 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as { user?: HookUser };
   const user = body.user;
-  if (user?.email) {
-    sendSignupNotification({
-      email: user.email,
-      name: user.user_metadata?.name,
-      role: user.user_metadata?.role,
-      success: true,
-    }).catch(() => {});
+  const email = user?.email;
+  if (email) {
+    after(() =>
+      sendSignupNotification({
+        email,
+        name: user.user_metadata?.name,
+        role: user.user_metadata?.role,
+        success: true,
+      }).catch(() => {})
+    );
   }
 
   return NextResponse.json({ success: true });

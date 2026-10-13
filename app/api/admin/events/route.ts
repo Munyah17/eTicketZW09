@@ -1,4 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/server-auth";
 import { logAudit } from "@/lib/server-audit-log";
@@ -112,9 +113,10 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (status === "published" || status === "cancelled") {
-    sendEventStatusEmail(eventId, status).catch(() => {});
+    after(() => sendEventStatusEmail(eventId, status).catch(() => {}));
   }
 
+  revalidateTag("events", "max");
   return NextResponse.json({ success: true });
 }
 
@@ -193,5 +195,6 @@ export async function DELETE(req: NextRequest) {
     details: { title: event.title },
   });
 
+  revalidateTag("events", "max");
   return NextResponse.json({ success: true });
 }

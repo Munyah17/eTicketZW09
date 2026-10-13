@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { sendSignupNotification } from "@/lib/email/send-signup-notification";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -17,6 +17,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "invalid email" }, { status: 400 });
   }
 
-  sendSignupNotification({ email, success: false, reason }).catch(() => {});
+  after(() => sendSignupNotification({ email, success: false, reason }).catch(() => {}));
   return NextResponse.json({ success: true });
 }

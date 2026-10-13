@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sendEventSubmittedEmail } from "@/lib/email/send-event-review-notification";
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true }); // not the caller's event — nothing to notify
   }
 
-  sendEventSubmittedEmail(eventId).catch(() => {});
+  after(() => sendEventSubmittedEmail(eventId).catch(() => {}));
   // New listing — bust the public events cache so it shows up on the
   // homepage and /allevents right away instead of up to 60s later.
   revalidateTag("events", "max");
