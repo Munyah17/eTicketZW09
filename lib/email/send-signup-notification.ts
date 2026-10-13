@@ -39,7 +39,7 @@ export async function sendSignupNotification(input: SignupNotificationInput): Pr
   );
 
   const result = await sendMail({
-    to: superAdminEmails,
+    to: [...new Set([...superAdminEmails, "sales@eticket.co.zw"])],
     subject: input.success ? `New signup — ${input.email}` : `Signup failed — ${input.email}`,
     html,
     replyTo: superAdminEmails,
