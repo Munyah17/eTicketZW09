@@ -15,6 +15,7 @@ export type AuditAction =
   | "banner.upload" | "banner.update" | "banner.clear"
   | "support.status_change"
   | "payment.manual_confirm" | "payment.manual_decline"
+  | "super_admin.promote" | "super_admin.demote" | "super_admin.delete"
   | "admin.login" | "admin.logout";
 
 export const ACTION_LABELS: Record<AuditAction, string> = {
@@ -49,6 +50,9 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   "support.status_change": "Updated support ticket",
   "payment.manual_confirm": "Manually confirmed payment",
   "payment.manual_decline": "Manually declined payment",
+  "super_admin.promote": "Promoted to Super Admin",
+  "super_admin.demote": "Demoted Super Admin",
+  "super_admin.delete": "Deleted Super Admin account",
   "admin.login": "Admin login",
   "admin.logout": "Admin logout",
 };
