@@ -237,6 +237,10 @@ export interface User {
   isSuspended?: boolean;
   createdAt: string;
   password?: string;
+  // Auth-side state joined in by /api/admin/users — present only on the
+  // user-management surface, not on session-user objects.
+  emailConfirmedAt?: string | null;
+  lastSignInAt?: string | null;
 }
 
 export interface GateSale {

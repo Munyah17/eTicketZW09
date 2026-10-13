@@ -16,6 +16,7 @@ import {
 import {
   User, Search, Plus, Trash2, UserX, UserCheck,
   RefreshCw, Users, AlertTriangle, Briefcase,
+  SlidersHorizontal, MailCheck, MailWarning, KeyRound, ShieldCheck, Send,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { User as UserType, UserRole } from "@/lib/types";
@@ -49,6 +50,15 @@ export default function UsersPage() {
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
 
+  const [manageUser, setManageUser] = useState<UserType | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editVerified, setEditVerified] = useState("no");
+  const [editEmail, setEditEmail] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [manageMsg, setManageMsg] = useState("");
+  const [acting, setActing] = useState(false);
+
   const reload = useCallback(async () => {
     setLoading(true);
     try {
@@ -65,6 +75,8 @@ export default function UsersPage() {
         isSuspended: Boolean(r.is_suspended),
         createdAt: (r.created_at as string) ?? "",
         organizerId: (r.organizer_id as string | undefined),
+        emailConfirmedAt: (r.email_confirmed_at as string | null) ?? null,
+        lastSignInAt: (r.last_sign_in_at as string | null) ?? null,
       }));
       setUsers(mapped);
     } finally {
@@ -161,6 +173,40 @@ export default function UsersPage() {
     }
   };
 
+  const openManage = (u: UserType) => {
+    setManageUser(u);
+    setEditName(u.name);
+    setEditPhone(u.phone);
+    setEditVerified(u.verified ? "yes" : "no");
+    setEditEmail("");
+    setNewPass("");
+    setManageMsg("");
+  };
+
+  const saveProfile = async () => {
+    if (!manageUser) return;
+    const res = await fetch("/api/admin/users", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: manageUser.id, name: editName, phone: editPhone, verified: editVerified === "yes" }),
+    });
+    if (await reportIfFailed(res, "Failed to save changes.")) { setManageMsg("Profile saved."); reload(); }
+  };
+
+  const doAction = async (action: string, payload: Record<string, unknown> = {}) => {
+    if (!manageUser) return;
+    setActing(true);
+    const res = await fetch(`/api/admin/users/${manageUser.id}/actions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setManageMsg(res.ok ? "Done." : json.error || "Action failed.");
+    setActing(false);
+    if (res.ok) reload();
+  };
+
   const counts = {
     total: users.length,
     organizers: users.filter(u => u.role === "organizer").length,
@@ -242,6 +288,7 @@ export default function UsersPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium text-sm truncate">{u.name}</p>
                       {u.isSuspended && <Badge variant="destructive" className="text-[10px] px-1.5 py-0">Suspended</Badge>}
+                      {!u.emailConfirmedAt && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-300 text-amber-700">Unconfirmed</Badge>}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                     <p className="text-xs text-muted-foreground">{u.phone || "—"} · Joined {new Date(u.createdAt).toLocaleDateString()}</p>
@@ -255,6 +302,11 @@ export default function UsersPage() {
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0 flex-wrap">
+                  <Button size="sm" variant="outline" onClick={() => openManage(u)} title="Manage account">
+                    <SlidersHorizontal className="h-4 w-4" />
+                    <span className="ml-1 text-xs hidden sm:inline">Manage</span>
+                  </Button>
+
                   <Button
                     size="sm" variant="ghost"
                     className={u.isSuspended ? "text-emerald-600 hover:text-emerald-700" : "text-amber-600 hover:text-amber-700"}
@@ -354,6 +406,96 @@ export default function UsersPage() {
             <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => confirmDelete && handleDelete(confirmDelete)}>Delete Permanently</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Manage Account Dialog */}
+      <Dialog open={!!manageUser} onOpenChange={() => setManageUser(null)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <SlidersHorizontal className="h-5 w-5 text-primary" /> Manage Account
+            </DialogTitle>
+            <DialogDescription>
+              {manageUser?.email} · {manageUser?.role}
+              {manageUser?.lastSignInAt
+                ? ` · last sign-in ${new Date(manageUser.lastSignInAt).toLocaleString()}`
+                : " · never signed in"}
+            </DialogDescription>
+          </DialogHeader>
+
+          {manageMsg && <p className="text-sm bg-muted px-3 py-2 rounded-lg">{manageMsg}</p>}
+
+          {/* Profile */}
+          <div className="space-y-3 rounded-lg border p-4">
+            <p className="text-sm font-medium">Profile</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Name</Label>
+                <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Phone</Label>
+                <Input value={editPhone} onChange={(e) => setEditPhone(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex items-end gap-3">
+              <div className="space-y-1.5 flex-1">
+                <Label>Verified</Label>
+                <Select value={editVerified} onValueChange={setEditVerified}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="yes">Verified</SelectItem>
+                    <SelectItem value="no">Unverified</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={saveProfile}>Save</Button>
+            </div>
+          </div>
+
+          {/* Sign-in email */}
+          <div className="space-y-3 rounded-lg border p-4">
+            <p className="text-sm font-medium">Sign-in email</p>
+            <div className="flex gap-2">
+              <Input placeholder="new-email@example.com" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+              <Button variant="outline" disabled={acting || !editEmail.includes("@")} onClick={() => doAction("change-email", { email: editEmail })}>
+                Change
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Updated instantly — no confirmation required.</p>
+          </div>
+
+          {/* Account actions */}
+          <div className="space-y-3 rounded-lg border p-4">
+            <p className="text-sm font-medium">Account actions</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline" size="sm" disabled={acting || !!manageUser?.emailConfirmedAt}
+                onClick={() => doAction("resend-confirmation")}
+              >
+                <Send className="h-3.5 w-3.5 mr-1" /> Resend confirmation
+              </Button>
+              <Button variant="outline" size="sm" disabled={acting} onClick={() => doAction("send-password-reset")}>
+                <KeyRound className="h-3.5 w-3.5 mr-1" /> Send reset email
+              </Button>
+              <Button
+                variant="outline" size="sm" disabled={acting || !!manageUser?.emailConfirmedAt}
+                onClick={() => doAction("confirm-email")}
+              >
+                {manageUser?.emailConfirmedAt
+                  ? <MailCheck className="h-3.5 w-3.5 mr-1" />
+                  : <MailWarning className="h-3.5 w-3.5 mr-1" />}
+                {manageUser?.emailConfirmedAt ? "Email confirmed" : "Confirm email"}
+              </Button>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Input type="password" placeholder="New password (8+ chars)" value={newPass} onChange={(e) => setNewPass(e.target.value)} />
+              <Button variant="outline" disabled={acting || newPass.length < 8} onClick={() => doAction("set-password", { password: newPass })}>
+                <ShieldCheck className="h-3.5 w-3.5 mr-1" /> Set
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 

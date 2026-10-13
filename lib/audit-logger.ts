@@ -5,7 +5,7 @@
 // on the server.
 export type AuditAction =
   | "user.create" | "user.delete" | "user.suspend" | "user.activate"
-  | "user.role_change" | "user.password_reset"
+  | "user.role_change" | "user.update" | "user.password_reset"
   | "staff.create" | "staff.update" | "staff.remove"
   | "event.publish" | "event.unpublish" | "event.delete" | "event.markup_change" | "event.edit"
   | "payout.approve" | "payout.decline" | "payout.manual"
@@ -24,6 +24,7 @@ export const ACTION_LABELS: Record<AuditAction, string> = {
   "user.suspend": "Suspended user",
   "user.activate": "Activated user",
   "user.role_change": "Changed user role",
+  "user.update": "Updated user profile",
   "user.password_reset": "Reset user password",
   "staff.create": "Added admin staff",
   "staff.update": "Updated admin staff",

@@ -21,7 +21,20 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ users: data ?? [] });
+
+  // Merge auth-side state — confirmation + last sign-in — so the UI can show
+  // "unconfirmed" and offer resend without a second round-trip per user.
+  const { data: usersPage } = await supabase.auth.admin.listUsers({ perPage: 1000 });
+  const authById = new Map(
+    (usersPage?.users ?? []).map((u) => [
+      u.id,
+      { email_confirmed_at: u.email_confirmed_at ?? null, last_sign_in_at: u.last_sign_in_at ?? null },
+    ])
+  );
+
+  return NextResponse.json({
+    users: (data ?? []).map((p) => ({ ...p, ...authById.get(p.id) })),
+  });
 }
 
 export async function POST(request: NextRequest) {
@@ -82,7 +95,7 @@ export async function PATCH(request: NextRequest) {
   if ("error" in auth) return auth.error;
 
   const body = await request.json();
-  const { userId, role, is_suspended } = body;
+  const { userId, role, is_suspended, name, phone, verified } = body;
 
   if (!userId) return NextResponse.json({ error: "userId is required" }, { status: 400 });
 
@@ -101,6 +114,9 @@ export async function PATCH(request: NextRequest) {
     updates.role = role;
   }
   if (is_suspended !== undefined) updates.is_suspended = Boolean(is_suspended);
+  if (name !== undefined) updates.name = String(name).trim();
+  if (phone !== undefined) updates.phone = String(phone).trim();
+  if (verified !== undefined) updates.verified = Boolean(verified);
 
   const { error } = await supabase.from("profiles").update(updates).eq("id", userId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -108,7 +124,9 @@ export async function PATCH(request: NextRequest) {
   await logAudit({
     actorId: auth.user.id,
     actorEmail: auth.user.email,
-    action: is_suspended !== undefined ? (is_suspended ? "user.suspend" : "user.activate") : "user.role_change",
+    action: is_suspended !== undefined
+      ? (is_suspended ? "user.suspend" : "user.activate")
+      : role !== undefined ? "user.role_change" : "user.update",
     resourceType: "profile",
     resourceId: userId,
     details: updates,
