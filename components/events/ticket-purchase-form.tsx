@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
-import { Minus, Plus, Lock, ArrowLeft } from "lucide-react";
+import { Minus, Plus, Lock, ArrowLeft, Users, ShieldCheck, Baby } from "lucide-react";
 import { Event, PaymentProvider } from "@/lib/types";
 import { PaymentProviders } from "@/components/payment/payment-providers";
 import { useAuth } from "@/lib/auth-context";
@@ -44,6 +44,13 @@ export function TicketPurchaseForm({
   const [idNumber, setIdNumber] = useState("");
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [useAnonymous, setUseAnonymous] = useState(false);
+  // Group admission — one ticket can admit a whole party (family events).
+  // admitCount = adults + children + seniors; the gate sees the split.
+  const [receiverName, setReceiverName] = useState("");
+  const [adults, setAdults] = useState(1);
+  const [children, setChildren] = useState(0);
+  const [seniors, setSeniors] = useState(0);
+  const [attendees, setAttendees] = useState<{ name: string; idNumber: string; ageGroup: string; address: string }[]>([]);
   const [step, setStep] = useState<"details" | "provider" | "processing" | "redirect">("details");
   const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
@@ -121,8 +128,27 @@ export function TicketPurchaseForm({
     (f) => f.required && !customFieldValues[f.id]?.trim()
   );
 
+  const admitCount = Math.max(1, adults + children + seniors);
+  const hasKids = children > 0;
+  // When kids under 18 are on the ticket, every attendee's details are
+  // required — names, ID numbers, and a residential address. This is what
+  // lets gate staff reunite a lost child with their party.
+  const attendeesIncomplete = hasKids && attendees.some((a) => !a.name.trim() || !a.idNumber.trim() || !a.address.trim());
+
+  // Keep the attendees array sized to the party — one row per person.
+  useEffect(() => {
+    if (!hasKids) { setAttendees([]); return; }
+    setAttendees((prev) => {
+      const next = Array.from({ length: admitCount }, (_, i) => {
+        const ageGroup = i < adults ? "adult" : i < adults + children ? "child" : "senior";
+        return prev[i] ? { ...prev[i], ageGroup } : { name: "", idNumber: "", ageGroup, address: "" };
+      });
+      return next;
+    });
+  }, [admitCount, hasKids, adults, children]);
+
   const handleDetailsSubmit = () => {
-    if (!buyerName || !buyerContact || !buyerEmail || missingRequiredCustomField) return;
+    if (!buyerName || !buyerContact || !buyerEmail || missingRequiredCustomField || attendeesIncomplete) return;
     setStep("provider");
     setPaymentError(null);
   };
@@ -165,6 +191,10 @@ export function TicketPurchaseForm({
             buyerPhone: buyerContact,
             displayName: useAnonymous ? "Anonymous" : displayName || buyerName,
             idNumber,
+            receiverName: receiverName || undefined,
+            admitCount,
+            partyComposition: { adults, children, seniors },
+            attendees: hasKids ? attendees : [],
             customFieldResponses: customFieldValues,
             // Dollar amount actually charged as the buyer-side service fee —
             // captured now so the wallet ledger reflects what this specific
@@ -439,6 +469,100 @@ export function TicketPurchaseForm({
                 </p>
               </div>
 
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+                <Label htmlFor="receiverName" className="flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-primary" />
+                  Buying for someone else? Their name
+                  <span className="ml-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">Optional</span>
+                </Label>
+                <Input
+                  id="receiverName"
+                  value={receiverName}
+                  onChange={(e) => setReceiverName(e.target.value)}
+                  placeholder="Receiver's name (leave blank if it's for you)"
+                  className="mt-1.5"
+                />
+                <p className="mt-1.5 text-xs font-medium text-primary/80">
+                  Completely optional — you can stay anonymous. This is ONLY used to verify the right
+                  person if the ticket ever gets lost.
+                </p>
+              </div>
+
+              {/* Group admission — one ticket admitting a party (families).
+                  The gate sees exactly how many adults/kids/seniors to let in. */}
+              <div className="rounded-lg border p-3 space-y-3">
+                <div className="flex items-center gap-1.5">
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm font-medium">How many people does this ticket admit?</p>
+                </div>
+                {([
+                  { label: "Adults", value: adults, set: setAdults, min: 0 },
+                  { label: "Children (under 18)", value: children, set: setChildren, min: 0 },
+                  { label: "Seniors", value: seniors, set: setSeniors, min: 0 },
+                ] as const).map(({ label, value, set, min }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-sm">{label}</span>
+                    <div className="flex items-center gap-2">
+                      <Button type="button" variant="outline" size="icon" className="h-7 w-7"
+                        onClick={() => set(Math.max(min, value - 1))} disabled={value <= min}>
+                        <Minus className="h-3 w-3" />
+                      </Button>
+                      <span className="w-6 text-center text-sm font-medium">{value}</span>
+                      <Button type="button" variant="outline" size="icon" className="h-7 w-7"
+                        onClick={() => set(Math.min(20, value + 1))}>
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  This ticket admits <span className="font-semibold text-foreground">{admitCount}</span>{" "}
+                  {admitCount === 1 ? "person" : "people"} at the gate.
+                </p>
+              </div>
+
+              {hasKids && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Baby className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                      Children are on this ticket — we need every attendee&apos;s details. This is for
+                      child safety: if a child gets separated at the event, staff can reunite them
+                      with your party fast. Kids also get tagged wristbands at the gate.
+                    </p>
+                  </div>
+                  {attendees.map((a, i) => (
+                    <div key={i} className="space-y-2 rounded-md border bg-background p-2.5">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {a.ageGroup === "child" ? `Child ${i - adults + 1}` : a.ageGroup === "senior" ? `Senior ${i - adults - children + 1}` : `Adult ${i + 1}`}
+                      </p>
+                      <Input
+                        value={a.name}
+                        onChange={(e) => setAttendees((prev) => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                        placeholder="Full name *"
+                      />
+                      <Input
+                        value={a.idNumber}
+                        onChange={(e) => setAttendees((prev) => prev.map((x, j) => j === i ? { ...x, idNumber: e.target.value } : x))}
+                        placeholder={a.ageGroup === "child" ? "Birth certificate / ID number *" : "ID number *"}
+                      />
+                      <Input
+                        value={a.address}
+                        onChange={(e) => setAttendees((prev) => prev.map((x, j) => j === i ? { ...x, address: e.target.value } : x))}
+                        placeholder="Residential address *"
+                      />
+                    </div>
+                  ))}
+                  <div className="flex items-start gap-2">
+                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                    <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80">
+                      Required only because children are attending — kept private, used solely for
+                      safety and admission management.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {(event.customFields ?? []).map((field) => (
                 <div key={field.id}>
                   <Label htmlFor={`cf-${field.id}`}>
@@ -511,7 +635,7 @@ export function TicketPurchaseForm({
               className="w-full gap-2 bg-primary hover:bg-primary/90"
               size="lg"
               onClick={handleDetailsSubmit}
-              disabled={!buyerName || !buyerContact || !buyerEmail || missingRequiredCustomField}
+              disabled={!buyerName || !buyerContact || !buyerEmail || missingRequiredCustomField || attendeesIncomplete}
             >
               Continue to Payment
             </Button>

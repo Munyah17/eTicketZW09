@@ -11,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 // only audience allowed to see them (the admin Platform Config page reads
 // this same endpoint). Checkout gets computed dollar amounts instead, from
 // POST /api/checkout/quote, never the raw rate.
-const SENSITIVE_FIELDS = ["service_fee_percent", "organizer_commission_percent"] as const;
+const SENSITIVE_FIELDS = ["service_fee_percent", "service_fee_fixed", "organizer_commission_percent"] as const;
 
 export async function GET() {
   const admin = createAdminClient();

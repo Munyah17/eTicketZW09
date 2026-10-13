@@ -292,13 +292,13 @@ export default function CreateEventPage() {
 
       const savedEventId = await saveEvent(newEvent);
 
-      if (!autoApprove) {
-        fetch("/api/events/notify-submitted", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ eventId: savedEventId }),
-        }).catch(() => {});
-      }
+      // Notify on EVERY submission — auto-approved or pending review — so
+      // super admins and the creator both get an email either way.
+      fetch("/api/events/notify-submitted", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventId: savedEventId }),
+      }).catch(() => {});
 
       // Upload featured image if provided
       if (featuredImage) {

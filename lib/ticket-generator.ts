@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logError } from "@/lib/error-logger";
 import { validationUrl } from "@/lib/ticket-png";
+import { generateTicketNumber } from "@/lib/ticket-number";
 
 export interface TicketGenerationData {
   paymentId: string;
@@ -23,7 +24,19 @@ export interface TicketGenerationData {
   quantity?: number;
   displayName?: string;
   idNumber?: string;
-  seatNumber?: string;
+  seatNumber?: string | null;
+  // Who the ticket is FOR when bought on behalf of someone else — optional
+  // by design (anonymity is allowed); only used for lost-ticket checks.
+  receiverName?: string;
+  // Group admission: one ticket admitting N people (family events).
+  admitCount?: number;
+  partyComposition?: { adults?: number; children?: number; seniors?: number };
+  // Per-attendee details — required by checkout when the party includes
+  // children under 18 (child safety), optional otherwise.
+  attendees?: { name: string; idNumber?: string; ageGroup?: string; address?: string }[];
+  // Groups every ticket minted under one payment_reference — powers the
+  // batch barcode that pulls up each individual ticket at the gate.
+  batchId?: string;
   // Dollar amount of the buyer-side service fee actually charged on this
   // sale (platform_config.service_fee_percent applied at checkout time) —
   // passed through from payment metadata rather than recomputed here, so
@@ -59,6 +72,13 @@ export interface GeneratedTicket {
   purchasedAt: string;
   saleType: "online" | "gate";
   seatNumber?: string | null;
+  idNumber?: string | null;
+  ticketNumber?: string | null;
+  batchId?: string | null;
+  receiverName?: string | null;
+  admitCount?: number;
+  partyComposition?: Record<string, number>;
+  attendees?: { name: string; idNumber?: string; ageGroup?: string; address?: string }[];
 }
 
 // Thrown when create_ticket_with_capacity_check() finds the ticket type
@@ -90,6 +110,8 @@ async function resolveCommissionPercent(eventId: string): Promise<number> {
 export async function generateTicket(data: TicketGenerationData): Promise<GeneratedTicket> {
   const ticketId = uuidv4();
   const qrCode = await generateQRCode(ticketId);
+  const ticketNumber = generateTicketNumber();
+  const batchId = data.batchId || uuidv4();
 
   const ticket: GeneratedTicket = {
     id: ticketId,
@@ -116,6 +138,13 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     purchasedAt: new Date().toISOString(),
     saleType: "online",
     seatNumber: data.seatNumber || null,
+    idNumber: data.idNumber || null,
+    ticketNumber,
+    batchId,
+    receiverName: data.receiverName || null,
+    admitCount: data.admitCount || 1,
+    partyComposition: (data.partyComposition ?? {}) as Record<string, number>,
+    attendees: data.attendees ?? [],
   };
 
   // Commission is the organizer's cut being taken, so it must be based on
@@ -165,11 +194,24 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     p_buyer_fee_amount: data.buyerFeeAmount ?? 0,
     p_commission_amount: commissionAmount,
     p_custom_field_responses: data.customFieldResponses ?? {},
+    p_ticket_number: ticketNumber,
+    p_batch_id: batchId,
+    p_receiver_name: data.receiverName || null,
+    p_admit_count: data.admitCount || 1,
+    p_party_composition: data.partyComposition ?? {},
+    p_attendees: data.attendees ?? [],
   });
 
   if (error) {
     if (error.message?.includes("SOLD_OUT")) {
       throw new TicketSoldOutError(data.ticketTypeId, error.message);
+    }
+    // Ticket-number collision — the 5-char random tail hit an existing row.
+    // ~60M combos makes this vanishingly rare; one retry with a fresh number
+    // is the correct response, not a failure.
+    if (error.message?.includes("ticket_number")) {
+      logError("ticket_number_collision", error, { ticketId, ticketNumber });
+      return generateTicket({ ...data, batchId });
     }
     logError("ticket_persist", error, { ticketId, paymentReference: data.paymentId });
     throw new Error(`Failed to persist ticket: ${error.message}`);
@@ -205,6 +247,13 @@ function dbRowToGeneratedTicket(row: Record<string, unknown>): GeneratedTicket {
     purchasedAt: row.purchased_at as string,
     saleType: row.sale_type as "online" | "gate",
     seatNumber: (row.seat_number as string | null) ?? null,
+    idNumber: (row.id_number as string | null) ?? null,
+    ticketNumber: (row.ticket_number as string | null) ?? null,
+    batchId: (row.batch_id as string | null) ?? null,
+    receiverName: (row.receiver_name as string | null) ?? null,
+    admitCount: Number(row.admit_count) || 1,
+    partyComposition: (row.party_composition as Record<string, number>) ?? {},
+    attendees: (row.attendees as { name: string; idNumber?: string; ageGroup?: string; address?: string }[]) ?? [],
   };
 }
 

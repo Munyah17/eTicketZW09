@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/server-auth";
 import { logAudit } from "@/lib/server-audit-log";
@@ -36,6 +37,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       details: { type: existing.type, position: existing.position },
     });
 
+    revalidateTag("banners", "max");
     return NextResponse.json({ success: true });
   }
 
@@ -78,5 +80,6 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     details: { type: existing.type, position: existing.position, title: updates.title, link: updates.link },
   });
 
+  revalidateTag("banners", "max");
   return NextResponse.json({ success: true });
 }

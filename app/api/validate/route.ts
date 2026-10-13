@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isUuid, normalizeTicketCode } from "@/lib/validation";
+import { looksLikeTicketNumber, normalizeTicketNumber } from "@/lib/ticket-number";
 
 // Ticket admission control — restricted to staff/organizer/admin accounts.
 // This searches across ALL tickets platform-wide (no event/organizer scope),
@@ -26,15 +27,16 @@ export async function POST(req: NextRequest) {
   if ("error" in auth) return auth.error;
 
   const body = await req.json();
-  const { action, code, ticketId } = body;
+  const { action, code, ticketId, batchId } = body;
   const admin = createAdminClient();
 
   if (action === "lookup") {
     if (!code) return NextResponse.json({ error: "code is required" }, { status: 400 });
 
     // Scanned QR codes arrive as a validation URL (current) or JSON (legacy);
-    // manual entry arrives as a raw uuid or national ID number. Normalize all
-    // of them down to the identifier before building the filter.
+    // manual entry arrives as a raw uuid, national ID number, or the printed
+    // ET-DDMMYY-XXXXX ticket number. Normalize all of them down to the
+    // identifier before building the filter.
     const normalized = normalizeTicketCode(code);
 
     // id is a uuid column — only include it in the OR filter when the
@@ -43,9 +45,11 @@ export async function POST(req: NextRequest) {
     // is also searchable so staff can admit someone on a lost/forgotten
     // ticket using just their ID — .limit(1) covers the (rare) case where
     // two tickets share an ID number, picking the most recent purchase.
-    const filter = isUuid(normalized)
-      ? `id.eq.${normalized},id_number.eq.${normalized}`
-      : `id_number.eq.${normalized}`;
+    // ticket_number is the human-facing code printed on the ticket.
+    const filters = ["id_number.eq." + normalized];
+    if (isUuid(normalized)) filters.push(`id.eq.${normalized}`);
+    if (looksLikeTicketNumber(normalized)) filters.push(`ticket_number.eq.${normalizeTicketNumber(normalized)}`);
+    const filter = filters.join(",");
 
     const { data: tickets } = await admin
       .from("tickets")
@@ -66,6 +70,52 @@ export async function POST(req: NextRequest) {
       });
     }
     return NextResponse.json({ status: "valid", ticket, message: "Ticket is valid! Allow entry." });
+  }
+
+  // Batch barcode scan — every ticket minted under one payment shares a
+  // batch_id, so one scan lists the whole purchase. Each ticket in the
+  // response is still validated/admitted individually.
+  if (action === "lookup_batch") {
+    if (!batchId) return NextResponse.json({ error: "batchId is required" }, { status: 400 });
+
+    const { data: tickets } = await admin
+      .from("tickets")
+      .select("*")
+      .eq("batch_id", batchId)
+      .order("purchased_at", { ascending: true });
+
+    if (!tickets?.length) {
+      return NextResponse.json({ status: "invalid", message: "No tickets found for this batch." });
+    }
+    return NextResponse.json({ status: "batch", tickets, message: `${tickets.length} ticket(s) in this batch.` });
+  }
+
+  // Admit every remaining ticket in a batch at once — the family-arrives-
+  // together fast path. Individual admission still uses mark_used.
+  if (action === "mark_batch_used") {
+    if (!batchId) return NextResponse.json({ error: "batchId is required" }, { status: 400 });
+
+    const now = new Date().toISOString();
+    const { data: tickets, error } = await admin
+      .from("tickets")
+      .update({
+        validated: true,
+        validated_at: now,
+        validated_by: auth.userId,
+        is_admitted: true,
+        admitted_at: now,
+        admitted_by: auth.userId,
+      })
+      .eq("batch_id", batchId)
+      .eq("validated", false)
+      .select();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({
+      status: "used",
+      tickets,
+      message: `${tickets?.length ?? 0} ticket(s) admitted.`,
+    });
   }
 
   if (action === "mark_used") {

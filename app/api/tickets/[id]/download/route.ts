@@ -29,11 +29,19 @@ export async function GET(
     buyerName: ticket.buyer_name,
     buyerDisplayName: ticket.buyer_display_name,
     buyerEmail: ticket.buyer_email,
+    buyerContact: ticket.buyer_contact,
+    idNumber: ticket.id_number,
+    receiverName: ticket.receiver_name,
     totalPaid: Number(ticket.total_paid),
     currency: ticket.currency,
     paymentMethod: ticket.payment_method,
     purchasedAt: ticket.purchased_at,
     seatNumber: ticket.seat_number,
+    ticketNumber: ticket.ticket_number,
+    batchId: ticket.batch_id,
+    admitCount: ticket.admit_count,
+    partyComposition: ticket.party_composition,
+    attendees: ticket.attendees,
   });
 
   return new NextResponse(png, {

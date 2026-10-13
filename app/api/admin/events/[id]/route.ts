@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireSuperAdmin } from "@/lib/server-auth";
 import { logAudit } from "@/lib/server-audit-log";
@@ -179,5 +180,6 @@ export async function PATCH(
     details: { title: body.title ?? existing.title, organizerId: existing.organizer_id, fields: Object.keys(updates) },
   });
 
+  revalidateTag("events", "max");
   return NextResponse.json({ success: true });
 }

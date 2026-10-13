@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin } from "@/lib/server-auth";
-import { PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
-import { calculatePlatformFee } from "@/lib/pricing";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -21,6 +19,7 @@ export async function GET() {
     { data: recentEvents },
     { data: recentOrganizers },
     { data: recentUsers },
+    { data: ledgerRows },
   ] = await Promise.all([
     supabase.from("events").select("*", { count: "exact", head: true }),
     supabase.from("profiles").select("*", { count: "exact", head: true }).eq("role", "organizer"),
@@ -46,6 +45,10 @@ export async function GET() {
       .select("id, name, email, role, created_at")
       .order("created_at", { ascending: false })
       .limit(5),
+    // Actual buyer-side fees recorded per sale — the platform's real
+    // earnings, immune to rate changes after the fact (unlike estimating
+    // from the current percent, which also can't see the fixed component).
+    supabase.from("wallet_ledger").select("buyer_fee_amount"),
   ]);
 
   const publishedIds = (pubData ?? []).map((e) => e.id as string);
@@ -62,7 +65,7 @@ export async function GET() {
     grossRevenue = (ttRows ?? []).reduce((s, tt) => s + Number(tt.price) * Number(tt.sold), 0);
   }
 
-  const platformFees = calculatePlatformFee(grossRevenue, PLATFORM_FEE_PERCENTAGE);
+  const platformFees = (ledgerRows ?? []).reduce((s, r) => s + Number(r.buyer_fee_amount), 0);
 
   return NextResponse.json({
     totalEvents: totalEvents ?? 0,

@@ -9,6 +9,7 @@ import {
   UpcomingSection,
 } from "@/components/home/category-section";
 import { SectionBanner } from "@/components/home/section-banner";
+import type { BannerRow } from "@/lib/public-events";
 
 type HomeSections = {
   featured: Event[];
@@ -40,9 +41,18 @@ const CATEGORY_ORDER: EventCategory[] = [
   "workshop", "festival", "theater", "exhibition", "other",
 ];
 
-export function EventSections() {
-  const [sections, setSections] = useState<HomeSections>(EMPTY);
-  const [loaded, setLoaded] = useState(false);
+export function EventSections({
+  initialData,
+  banners = [],
+}: {
+  initialData?: HomeSections;
+  banners?: BannerRow[];
+}) {
+  // SSR'd data arrives as initialData — first paint already has events,
+  // no "Loading events…" flash. The client still refetches on
+  // eticket:events-updated so post-purchase/admin changes refresh live.
+  const [sections, setSections] = useState<HomeSections>(initialData ?? EMPTY);
+  const [loaded, setLoaded] = useState(!!initialData);
   // Distinct from "loaded with zero events" — a fetch failure must never
   // render as "No Events Yet", which reads to visitors as the platform
   // being empty instead of a transient loading hiccup.
@@ -66,10 +76,12 @@ export function EventSections() {
   }, []);
 
   useEffect(() => {
-    load();
+    if (!initialData) load();
     window.addEventListener("eticket:events-updated", load);
     return () => window.removeEventListener("eticket:events-updated", load);
-  }, [load]);
+  }, [load, initialData]);
+
+  const bannerAt = (position: number) => banners.find((b) => b.position === position) ?? null;
 
   if (!loaded) {
     return (
@@ -122,27 +134,27 @@ export function EventSections() {
       {sections.featured.length > 0 && (
         <>
           <FeaturedSection events={sections.featured} />
-          <SectionBanner position={1} />
+          <SectionBanner position={1} banner={bannerAt(1)} />
         </>
       )}
       {sections.bestSelling.length > 0 && (
         <>
           <BestSellingSection events={sections.bestSelling} />
-          <SectionBanner position={2} />
+          <SectionBanner position={2} banner={bannerAt(2)} />
         </>
       )}
       {CATEGORY_ORDER.map((category, i) =>
         sections[category].length > 0 ? (
           <Fragment key={category}>
             <CategorySection category={category} events={sections[category]} />
-            <SectionBanner position={i + 3} />
+            <SectionBanner position={i + 3} banner={bannerAt(i + 3)} />
           </Fragment>
         ) : null
       )}
       {sections.comingSoon.length > 0 && (
         <>
           <UpcomingSection events={sections.comingSoon} />
-          <SectionBanner position={13} />
+          <SectionBanner position={13} banner={bannerAt(13)} />
         </>
       )}
     </>

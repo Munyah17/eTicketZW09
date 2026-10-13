@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { after } from "next/server";
 import https from "node:https";
+import { revalidateTag } from "next/cache";
 // @ts-ignore - Paynow SDK doesn't have TypeScript types
 import { Paynow } from "paynow";
 import Stripe from "stripe";
@@ -9,6 +10,7 @@ import { generateTicket, TicketSoldOutError } from "@/lib/ticket-generator";
 import { sendTicketEmail } from "@/lib/email/send-ticket-email";
 import { sendSaleNotificationEmails } from "@/lib/email/send-sale-notification-emails";
 import { sendPaymentFailedEmail } from "@/lib/email/send-payment-failed-email";
+import { sendFailedPurchaseAlert } from "@/lib/failed-purchase-alert";
 import { sendTicketWhatsApp } from "@/lib/whatsapp";
 import { logError } from "@/lib/error-logger";
 
@@ -200,6 +202,13 @@ export class PaymentService {
           quantity: m.quantity as number | undefined,
           buyerFeeAmount: m.platformFeeAmount as number | undefined,
           customFieldResponses: m.customFieldResponses as Record<string, string> | undefined,
+          receiverName: m.receiverName as string | undefined,
+          admitCount: m.admitCount as number | undefined,
+          partyComposition: m.partyComposition as { adults?: number; children?: number; seniors?: number } | undefined,
+          attendees: m.attendees as { name: string; idNumber?: string; ageGroup?: string; address?: string }[] | undefined,
+          // All tickets minted under one payment share the payment's id as
+          // their batch — that's what the batch barcode pulls up at the gate.
+          batchId: payment.id,
           amount: opts.amount ?? payment.amount,
           currency: (opts.currency ?? payment.currency).toUpperCase(),
           paymentMethod: opts.paymentMethod,
@@ -289,6 +298,10 @@ export class PaymentService {
       console.log("✓ Step 7/7: Sale notifications sent");
 
       console.log(issued ? "✅ FULFILLMENT COMPLETE — TICKET ISSUED:" : "⚠️ FULFILLMENT INCOMPLETE — TICKET NOT ISSUED:", reference, ticket.id);
+
+      // sold_tickets changed — bust the public events cache so sell-through
+      // ordering (Featured / Best Selling) and sold-out states stay honest.
+      revalidateTag("events", "max");
     } catch (error) {
       logError("confirmPaid_workflow_failed", error, { reference, paymentMethod: opts.paymentMethod });
       console.error("❌ FULFILLMENT FAILED for payment", reference, error);
@@ -311,6 +324,23 @@ export class PaymentService {
         eventId: m.eventId as string | undefined,
       }).catch(() => {})
     );
+
+    // A failed payment is a lost sale — alert the super admins (email +
+    // SMS) so failures are seen in seconds, not discovered from missing
+    // revenue. Only fires for ticket purchases (eventId in metadata).
+    if (m.eventId) {
+      after(() => sendFailedPurchaseAlert({
+        reference,
+        eventTitle: m.eventTitle as string | undefined,
+        buyerEmail: m.buyerEmail as string | undefined,
+        buyerPhone: m.buyerPhone as string | undefined,
+        provider: payment.provider,
+        amount: payment.amount,
+        currency: payment.currency,
+        reason: payment.error || "Payment failed or was cancelled",
+        stage: "payment",
+      }).catch(() => {}));
+    }
   }
 
   static async getPayment(reference: string): Promise<PaymentStatus | undefined> {

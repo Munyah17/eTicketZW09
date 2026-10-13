@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PaymentService, PaymentInitiateRequest } from "@/lib/services/payment-service";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { calculatePlatformFee, calculateTotalWithFee } from "@/lib/pricing";
+import { PLATFORM_FEE_PERCENTAGE, PLATFORM_FEE_FIXED } from "@/lib/types";
+import { sendFailedPurchaseAlert } from "@/lib/failed-purchase-alert";
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,9 +47,51 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "EcoCash payments are currently disabled" }, { status: 503 });
     }
 
+    // Never trust the browser for money math. The amount charged and the
+    // platform fee recorded in metadata both used to arrive from the client
+    // verbatim — a tampered request could undercharge itself or zero the
+    // fee. Recompute both server-side from the ticket type's real price and
+    // the live platform_config rates (percent + fixed).
+    if (body.ticket_type_id) {
+      const quantity = Math.max(1, Number(body.metadata?.quantity) || 1);
+      const { data: ticketType } = await supabase
+        .from("ticket_types")
+        .select("price")
+        .eq("id", body.ticket_type_id)
+        .maybeSingle();
+
+      if (!ticketType) {
+        return NextResponse.json({ error: "Unknown ticket type" }, { status: 400 });
+      }
+
+      const subtotal = Number(ticketType.price) * quantity;
+      const feePercent = Number(platformConfig?.service_fee_percent ?? PLATFORM_FEE_PERCENTAGE);
+      const feeFixed = Number(platformConfig?.service_fee_fixed ?? PLATFORM_FEE_FIXED);
+      const fee = calculatePlatformFee(subtotal, feePercent, feeFixed);
+
+      body.amount = calculateTotalWithFee(subtotal, feePercent, feeFixed);
+      body.metadata = { ...(body.metadata ?? {}), quantity, platformFeeAmount: fee };
+    }
+
     const result = await PaymentService.initiatePayment(body);
 
     if (!result.success) {
+      // A ticket purchase that can't even initiate is a lost sale — alert
+      // the super admins (email + SMS) so a gateway outage or bad config
+      // is never discovered days later from missing revenue.
+      if (body.ticket_type_id) {
+        sendFailedPurchaseAlert({
+          reference: result.reference,
+          eventTitle: body.metadata?.eventTitle as string | undefined,
+          buyerEmail: body.metadata?.buyerEmail as string | undefined,
+          buyerPhone: body.metadata?.buyerPhone as string | undefined,
+          provider: body.provider,
+          amount: body.amount,
+          currency: body.currency,
+          reason: result.error || "Payment initiation failed",
+          stage: "initiation",
+        }).catch(() => {});
+      }
       return NextResponse.json(
         { error: result.error || "Payment initiation failed" },
         { status: 400 }

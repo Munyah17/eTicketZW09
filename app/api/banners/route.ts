@@ -1,22 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { getBanners } from "@/lib/public-events";
 
 // Public — powers the homepage hero slider and section banners. Only
-// "active" slots (i.e. an admin has uploaded an image) are ever returned.
+// "active" slots are ever returned. Served from the shared cached layer
+// (60s, tag-invalidated on banner mutations) — every SectionBanner on the
+// homepage used to trigger its own uncached Supabase query; repeat hits
+// now skip the DB entirely.
 export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get("type");
   if (type !== "hero" && type !== "section") {
     return NextResponse.json({ error: "type must be 'hero' or 'section'" }, { status: 400 });
   }
 
-  const supabase = createAdminClient();
-  const { data, error } = await supabase
-    .from("banners")
-    .select("id, type, position, image, link, title, impressions")
-    .eq("type", type)
-    .eq("status", "active")
-    .order("position", { ascending: true });
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ banners: data ?? [] });
+  try {
+    const banners = await getBanners(type);
+    return NextResponse.json({ banners });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to fetch banners";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

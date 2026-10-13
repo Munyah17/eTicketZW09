@@ -20,6 +20,7 @@ import { ANNOUNCEMENT_AD_PRICE_PER_2_WEEKS } from "@/lib/types";
 
 interface PlatformConfig {
   service_fee_percent: number;
+  service_fee_fixed: number;
   organizer_commission_percent: number;
   new_registrations: boolean;
   new_organizer_signups: boolean;
@@ -47,6 +48,7 @@ export default function PlatformPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [feeInput, setFeeInput] = useState("10");
+  const [fixedInput, setFixedInput] = useState("0");
   const [commissionInput, setCommissionInput] = useState("5");
   const [adFile, setAdFile] = useState<File | null>(null);
   const [adPreview, setAdPreview] = useState<string | null>(null);
@@ -60,6 +62,7 @@ export default function PlatformPage() {
       setConfig(json.config);
       setOriginal(json.config);
       setFeeInput(String(json.config.service_fee_percent));
+      setFixedInput(String(json.config.service_fee_fixed ?? 0));
       setCommissionInput(String(json.config.organizer_commission_percent));
     } finally {
       setLoading(false);
@@ -84,12 +87,14 @@ export default function PlatformPage() {
     setSaving(true);
     try {
       const fee = parseFloat(feeInput);
+      const fixed = parseFloat(fixedInput);
       const commission = parseFloat(commissionInput);
       const res = await fetch("/api/admin/platform", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           service_fee_percent: isNaN(fee) ? 10 : Math.min(Math.max(fee, 0), 50),
+          service_fee_fixed: isNaN(fixed) ? 0 : Math.min(Math.max(fixed, 0), 100),
           organizer_commission_percent: isNaN(commission) ? 5 : Math.min(Math.max(commission, 0), 50),
           new_registrations: config.new_registrations,
           new_organizer_signups: config.new_organizer_signups,
@@ -162,6 +167,7 @@ export default function PlatformPage() {
     if (original) {
       setConfig(original);
       setFeeInput(String(original.service_fee_percent));
+      setFixedInput(String(original.service_fee_fixed ?? 0));
       setCommissionInput(String(original.organizer_commission_percent));
     }
     setSaved(false);
@@ -200,17 +206,17 @@ export default function PlatformPage() {
             </div>
           </CardHeader>
           <CardContent className="pt-4 space-y-4">
-            <p className="text-sm text-muted-foreground">Percentage added to every ticket sale as platform revenue. Read live by checkout — changes apply to the next purchase.</p>
+            <p className="text-sm text-muted-foreground">Added to every order as platform revenue — a percentage of the subtotal, a fixed amount, or both at once. Buyers only ever see the combined total as &quot;Processing Fee&quot;; the structure is never shown. Read live by checkout — changes apply to the next purchase.</p>
             <div className="flex items-end gap-3">
               <div className="flex-1 space-y-1.5">
-                <Label htmlFor="fee">Fee Percentage</Label>
+                <Label htmlFor="fee">Percentage</Label>
                 <div className="relative">
                   <Input
                     id="fee"
                     type="number"
                     min="0"
                     max="50"
-                    step="0.5"
+                    step="0.1"
                     value={feeInput}
                     onChange={e => setFeeInput(e.target.value)}
                     className="pr-8"
@@ -218,9 +224,27 @@ export default function PlatformPage() {
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">%</span>
                 </div>
               </div>
+              <div className="flex-1 space-y-1.5">
+                <Label htmlFor="fee-fixed">Fixed Amount</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                  <Input
+                    id="fee-fixed"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.05"
+                    value={fixedInput}
+                    onChange={e => setFixedInput(e.target.value)}
+                    className="pl-6"
+                  />
+                </div>
+              </div>
               <div className="pb-1">
-                <p className="text-xs text-muted-foreground">For a $100 ticket</p>
-                <p className="text-lg font-mono font-bold text-emerald-600">+${((parseFloat(feeInput) || 0)).toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground">On a $100 order</p>
+                <p className="text-lg font-mono font-bold text-emerald-600">
+                  +${((parseFloat(feeInput) || 0) + (parseFloat(fixedInput) || 0)).toFixed(2)}
+                </p>
               </div>
             </div>
           </CardContent>

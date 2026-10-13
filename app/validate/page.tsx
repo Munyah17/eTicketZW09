@@ -26,11 +26,20 @@ import {
   ShieldAlert,
   Camera,
   IdCard,
+  Users,
+  Baby,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 
 type ValidationStatus = "idle" | "scanning" | "valid" | "invalid" | "used";
+
+interface AttendeeRow {
+  name: string;
+  idNumber?: string;
+  ageGroup?: string;
+  address?: string;
+}
 
 interface TicketRow {
   id: string;
@@ -43,8 +52,15 @@ interface TicketRow {
   buyer_name: string;
   buyer_contact: string;
   id_number?: string;
+  receiver_name?: string | null;
+  ticket_number?: string | null;
+  batch_id?: string | null;
+  admit_count?: number;
+  party_composition?: { adults?: number; children?: number; seniors?: number };
+  attendees?: AttendeeRow[];
   total_paid: number;
   payment_method: string;
+  validated?: boolean;
   validated_at?: string;
 }
 
@@ -78,16 +94,22 @@ export default function ValidatePage() {
   const [isValidating, setIsValidating] = useState(false);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [codeParam, setCodeParam] = useState<string | null>(null);
+  const [batchParam, setBatchParam] = useState<string | null>(null);
+  const [batchResult, setBatchResult] = useState<{ batchId: string; tickets: TicketRow[] } | null>(null);
   const [publicCheck, setPublicCheck] = useState<PublicCheckResult | null>(null);
   const codeInputRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<{ stop: () => void } | null>(null);
   const autoLookupDone = useRef(false);
 
-  // Ticket QR codes encode /validate?code=<ticket-id>. Read it on mount
-  // (plain window.location to keep the page statically prerenderable).
+  // Ticket QR codes encode /validate?code=<ticket-id>; batch barcodes encode
+  // /validate?batch=<batch-id>. Read both on mount (plain window.location to
+  // keep the page statically prerenderable).
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("code");
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("code");
+    const batch = params.get("batch");
     if (code) setCodeParam(code);
+    if (batch) setBatchParam(batch);
   }, []);
 
   // Re-focus the code field after every scan/reset so an external USB/Bluetooth
@@ -99,8 +121,39 @@ export default function ValidatePage() {
     if (!isCameraOpen) codeInputRef.current?.focus({ preventScroll: true });
   }, [validationResult.status, isCameraOpen]);
 
+  const runBatchLookup = useCallback(async (batchId: string) => {
+    if (!batchId.trim()) return;
+    setIsValidating(true);
+    setValidationResult({ status: "scanning" });
+    try {
+      const res = await fetch("/api/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "lookup_batch", batchId: batchId.trim() }),
+      });
+      const json = await res.json();
+      if (json.status === "batch") {
+        setBatchResult({ batchId: batchId.trim(), tickets: json.tickets });
+        setValidationResult({ status: "idle" });
+      } else {
+        setValidationResult({ status: "invalid", message: json.message });
+      }
+    } finally {
+      setIsValidating(false);
+    }
+  }, []);
+
   const runLookup = useCallback(async (code: string) => {
     if (!code.trim()) return;
+
+    // A scanned batch barcode arrives as the batch URL — route it to the
+    // batch flow instead of the single-ticket lookup.
+    const batchMatch = code.match(/[?&]batch=([0-9a-fA-F-]{36})/);
+    if (batchMatch) {
+      runBatchLookup(batchMatch[1]);
+      return;
+    }
+
     setIsValidating(true);
     setValidationResult({ status: "scanning" });
 
@@ -119,7 +172,7 @@ export default function ValidatePage() {
     } finally {
       setIsValidating(false);
     }
-  }, []);
+  }, [runBatchLookup]);
 
   const handleValidate = () => runLookup(ticketCode);
 
@@ -127,22 +180,28 @@ export default function ValidatePage() {
   // automatically; everyone else gets a read-only public confirmation check.
   const isStaff = !authLoading && isLoggedIn && !!user && AUTHORIZED_ROLES.has(user.role);
   useEffect(() => {
-    if (!codeParam || authLoading || autoLookupDone.current) return;
+    if (authLoading || autoLookupDone.current) return;
+    if (!codeParam && !batchParam) return;
     autoLookupDone.current = true;
     if (isStaff) {
-      setTicketCode(codeParam);
-      runLookup(codeParam);
-    } else {
+      if (batchParam) {
+        runBatchLookup(batchParam);
+      } else if (codeParam) {
+        setTicketCode(codeParam);
+        runLookup(codeParam);
+      }
+    } else if (codeParam) {
       fetch(`/api/tickets/check?code=${encodeURIComponent(codeParam)}`)
         .then((res) => res.json())
         .then((json) => setPublicCheck(json))
         .catch(() => setPublicCheck({ status: "invalid", message: "Could not check this ticket. Please try again." }));
     }
-  }, [codeParam, authLoading, isStaff, runLookup]);
+  }, [codeParam, batchParam, authLoading, isStaff, runLookup, runBatchLookup]);
 
   const handleReset = () => {
     setTicketCode("");
     setValidationResult({ status: "idle" });
+    setBatchResult(null);
   };
 
   const handleMarkAsUsed = async () => {
@@ -154,6 +213,41 @@ export default function ValidatePage() {
     });
     const json = await res.json();
     setValidationResult({ status: "used", ticket: json.ticket, message: json.message });
+  };
+
+  // Admit one ticket inside a batch result — updates that row in place.
+  const handleAdmitBatchTicket = async (ticketId: string) => {
+    const res = await fetch("/api/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "mark_used", ticketId }),
+    });
+    const json = await res.json();
+    if (json.ticket) {
+      setBatchResult((prev) => prev && ({
+        ...prev,
+        tickets: prev.tickets.map((t) => (t.id === ticketId ? json.ticket : t)),
+      }));
+    }
+  };
+
+  // Admit every remaining ticket in the batch — the family-arrives-together
+  // fast path.
+  const handleAdmitAllBatch = async () => {
+    if (!batchResult) return;
+    const res = await fetch("/api/validate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "mark_batch_used", batchId: batchResult.batchId }),
+    });
+    const json = await res.json();
+    if (json.tickets) {
+      const admitted = new Map((json.tickets as TicketRow[]).map((t) => [t.id, t]));
+      setBatchResult((prev) => prev && ({
+        ...prev,
+        tickets: prev.tickets.map((t) => admitted.get(t.id) ?? { ...t, validated: true }),
+      }));
+    }
   };
 
   const stopCamera = useCallback(() => {
@@ -443,10 +537,51 @@ export default function ValidatePage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Ticket className="h-4 w-4 text-muted-foreground" />
                     <Badge>{validationResult.ticket.ticket_type_name}</Badge>
+                    {validationResult.ticket.ticket_number && (
+                      <Badge variant="outline" className="font-mono">
+                        {validationResult.ticket.ticket_number}
+                      </Badge>
+                    )}
                   </div>
+
+                  {/* Group admission — the gate needs the headcount and the
+                      adults/kids/seniors split at a glance. */}
+                  {(validationResult.ticket.admit_count ?? 1) > 1 && (
+                    <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
+                      <div className="flex items-center gap-2 font-medium">
+                        <Users className="h-4 w-4 text-primary" />
+                        Admits {validationResult.ticket.admit_count} people
+                      </div>
+                      {validationResult.ticket.party_composition && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {[
+                            validationResult.ticket.party_composition.adults ? `${validationResult.ticket.party_composition.adults} adult(s)` : null,
+                            validationResult.ticket.party_composition.children ? `${validationResult.ticket.party_composition.children} child(ren)` : null,
+                            validationResult.ticket.party_composition.seniors ? `${validationResult.ticket.party_composition.seniors} senior(s)` : null,
+                          ].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
+                      {(validationResult.ticket.attendees?.length ?? 0) > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center gap-2 text-xs font-medium text-amber-600">
+                            <Baby className="h-3.5 w-3.5" />
+                            Attendee list (children on ticket — verify each name)
+                          </div>
+                          {validationResult.ticket.attendees!.map((a, i) => (
+                            <div key={i} className="rounded-md border bg-background px-3 py-2 text-xs">
+                              <span className="font-medium">{a.name}</span>
+                              <span className="text-muted-foreground">
+                                {" · "}{a.ageGroup}{a.idNumber ? ` · ID ${a.idNumber}` : ""}{a.address ? ` · ${a.address}` : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   <div className="rounded-lg border p-4">
                     <h4 className="font-medium">Ticket Holder</h4>
@@ -466,6 +601,12 @@ export default function ValidatePage() {
                         <IdCard className="h-4 w-4 text-muted-foreground" />
                         <span>ID Number: {validationResult.ticket.id_number || "Not provided"}</span>
                       </div>
+                      {validationResult.ticket.receiver_name && (
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-muted-foreground" />
+                          <span>Receiver: {validationResult.ticket.receiver_name}</span>
+                        </div>
+                      )}
                       <div className="flex items-center gap-2">
                         <CreditCard className="h-4 w-4 text-muted-foreground" />
                         <span>
@@ -513,6 +654,76 @@ export default function ValidatePage() {
                   </Button>
                 </CardContent>
               )}
+            </Card>
+          )}
+
+          {/* ── Batch result — one barcode scan pulled up every ticket in
+              the purchase; each admits individually or all at once ── */}
+          {batchResult && (
+            <Card className="mt-6 border-primary/40">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5 text-primary" />
+                  Batch — {batchResult.tickets.length} ticket(s) in this order
+                </CardTitle>
+                <CardDescription>
+                  Admit each person as they arrive, or admit everyone remaining at once.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {batchResult.tickets.map((t) => (
+                  <div key={t.id} className="rounded-lg border p-4 space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{t.buyer_display_name || t.buyer_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {t.ticket_type_name}
+                          {t.ticket_number ? ` · ${t.ticket_number}` : ""}
+                          {t.receiver_name ? ` · for ${t.receiver_name}` : ""}
+                        </p>
+                      </div>
+                      {t.validated ? (
+                        <Badge variant="outline" className="border-warning text-warning">Admitted</Badge>
+                      ) : (
+                        <Button size="sm" onClick={() => handleAdmitBatchTicket(t.id)} className="gap-1.5 bg-success hover:bg-success/90 text-success-foreground">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          Admit{(t.admit_count ?? 1) > 1 ? ` ${t.admit_count}` : ""}
+                        </Button>
+                      )}
+                    </div>
+                    {(t.admit_count ?? 1) > 1 && (
+                      <p className="text-xs text-muted-foreground">
+                        Admits {t.admit_count}
+                        {t.party_composition && ` — ${[
+                          t.party_composition.adults ? `${t.party_composition.adults} adult(s)` : null,
+                          t.party_composition.children ? `${t.party_composition.children} child(ren)` : null,
+                          t.party_composition.seniors ? `${t.party_composition.seniors} senior(s)` : null,
+                        ].filter(Boolean).join(", ")}`}
+                      </p>
+                    )}
+                    {(t.attendees?.length ?? 0) > 0 && (
+                      <div className="space-y-1">
+                        {t.attendees!.map((a, i) => (
+                          <p key={i} className="text-xs text-muted-foreground">
+                            {a.name} · {a.ageGroup}{a.idNumber ? ` · ID ${a.idNumber}` : ""}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <div className="flex gap-3 pt-1">
+                  {batchResult.tickets.some((t) => !t.validated) && (
+                    <Button onClick={handleAdmitAllBatch} className="flex-1 gap-2 bg-success hover:bg-success/90 text-success-foreground">
+                      <CheckCircle2 className="h-4 w-4" />
+                      Admit All Remaining
+                    </Button>
+                  )}
+                  <Button variant="outline" onClick={handleReset} className="flex-1">
+                    Done — Validate Another
+                  </Button>
+                </div>
+              </CardContent>
             </Card>
           )}
 

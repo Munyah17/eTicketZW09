@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
+import Stripe from "stripe";
 import { PaymentService } from "@/lib/services/payment-service";
 import { logError } from "@/lib/error-logger";
 
@@ -81,6 +82,23 @@ export async function POST(req: NextRequest) {
 
       if (payment.status === "paid" || payment.status === "failed") {
         console.log("Payment already processed:", reference, payment.status);
+        return NextResponse.json({ received: true });
+      }
+
+      // Provider-side verification — same "never trust the webhook body"
+      // rule as Paynow's pollStatus. The signature check above is the first
+      // line, but when STRIPE_WEBHOOK_SECRET isn't configured yet this API
+      // lookup is what actually proves the session is real and paid before
+      // a ticket is minted.
+      const stripeKey = process.env.STRIPE_SECRET_KEY;
+      if (!stripeKey) {
+        logError("stripe_webhook_no_secret_key", new Error("STRIPE_SECRET_KEY not set — cannot verify session"), { reference });
+        return NextResponse.json({ error: "Cannot verify payment" }, { status: 500 });
+      }
+      const stripe = new Stripe(stripeKey, { apiVersion: "2026-05-27.dahlia" });
+      const liveSession = await stripe.checkout.sessions.retrieve(session.id);
+      if (liveSession.payment_status !== "paid") {
+        console.log("Stripe session not paid per API:", session.id, liveSession.payment_status);
         return NextResponse.json({ received: true });
       }
 

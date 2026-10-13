@@ -7,43 +7,37 @@ import { ArrowRight, Eye, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatCompactNumber } from "@/lib/utils";
 import { recordBannerImpression } from "@/lib/banner-impressions";
+import type { BannerRow } from "@/lib/public-events";
 
 interface SectionBannerProps {
   position?: number;
+  // Server-fetched banner for this slot. Three states:
+  //   BannerRow  — render it, no fetch
+  //   null       — parent checked, nothing at this position, no fetch
+  //   undefined  — not provided, self-fetch (admin preview path)
+  banner?: BannerRow | null;
 }
 
-interface BannerData {
-  id: string;
-  position: number;
-  image?: string;
-  link?: string;
-  title?: string;
-  impressions: number;
-}
-
-export function SectionBanner({ position = 1 }: SectionBannerProps) {
-  const [banner, setBanner] = useState<BannerData | null>(null);
+export function SectionBanner({ position = 1, banner: bannerProp }: SectionBannerProps) {
+  const [fetched, setFetched] = useState<BannerRow | null>(null);
   const rootRef = useRef<HTMLElement>(null);
 
+  // Only self-fetch when the parent didn't hand us the banner data — the
+  // homepage passes the whole section-banner array down so 13 slots don't
+  // each fire their own request.
   useEffect(() => {
+    if (bannerProp !== undefined) return;
     fetch("/api/banners?type=section")
       .then((res) => res.json())
       .then((data) => {
-        const banners = (data.banners ?? []) as Record<string, unknown>[];
+        const banners = (data.banners ?? []) as BannerRow[];
         const match = banners.find((b) => b.position === position);
-        if (match) {
-          setBanner({
-            id: match.id as string,
-            position: match.position as number,
-            image: match.image as string | undefined,
-            link: match.link as string | undefined,
-            title: match.title as string | undefined,
-            impressions: Number(match.impressions) || 0,
-          });
-        }
+        if (match) setFetched(match);
       })
       .catch(() => {});
-  }, [position]);
+  }, [position, bannerProp]);
+
+  const banner = bannerProp !== undefined ? bannerProp : fetched;
 
   // Only counts as a marketing impression once the banner actually scrolls
   // into view, not just when it's fetched.

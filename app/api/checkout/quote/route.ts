@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculatePlatformFee, calculateTotalWithFee } from "@/lib/pricing";
-import { PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
+import { PLATFORM_FEE_PERCENTAGE, PLATFORM_FEE_FIXED } from "@/lib/types";
 
 // Computes the buyer-facing processing fee server-side and returns only the
 // resulting dollar amounts — never the rate itself. The rate is a trade
@@ -18,14 +18,15 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminClient();
   const { data: config } = await supabase
     .from("platform_config")
-    .select("service_fee_percent")
+    .select("service_fee_percent, service_fee_fixed")
     .eq("id", 1)
     .maybeSingle();
 
   const feePercent = Number(config?.service_fee_percent ?? PLATFORM_FEE_PERCENTAGE);
+  const feeFixed = Number(config?.service_fee_fixed ?? PLATFORM_FEE_FIXED);
 
   return NextResponse.json({
-    fee: calculatePlatformFee(subtotal, feePercent),
-    total: calculateTotalWithFee(subtotal, feePercent),
+    fee: calculatePlatformFee(subtotal, feePercent, feeFixed),
+    total: calculateTotalWithFee(subtotal, feePercent, feeFixed),
   });
 }

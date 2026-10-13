@@ -3,12 +3,16 @@
 // three slightly-different copies of the same percentage math is exactly
 // the kind of thing that quietly drifts out of sync.
 
-export function calculatePlatformFee(basePrice: number, feePercent: number): number {
-  return basePrice * (feePercent / 100);
+// Buyer-side service fee = percentage of the subtotal PLUS an optional
+// fixed amount per order (e.g. 1.8% + $0.50). Either component can be 0.
+// Buyers only ever see the combined "Processing Fee" total — never the
+// rate or the split.
+export function calculatePlatformFee(basePrice: number, feePercent: number, feeFixed = 0): number {
+  return basePrice * (feePercent / 100) + feeFixed;
 }
 
-export function calculateTotalWithFee(basePrice: number, feePercent: number): number {
-  return basePrice + calculatePlatformFee(basePrice, feePercent);
+export function calculateTotalWithFee(basePrice: number, feePercent: number, feeFixed = 0): number {
+  return basePrice + calculatePlatformFee(basePrice, feePercent, feeFixed);
 }
 
 export function calculatePayoutTransactionCost(amount: number, costPercent: number): number {

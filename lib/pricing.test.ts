@@ -19,6 +19,15 @@ describe("calculatePlatformFee", () => {
   it("returns 0 when the fee percent is 0", () => {
     expect(calculatePlatformFee(100, 0)).toBe(0);
   });
+
+  it("adds the fixed amount on top of the percentage", () => {
+    // 1.8% of $100 + $0.50 fixed = $2.30
+    expect(calculatePlatformFee(100, 1.8, 0.5)).toBeCloseTo(2.3, 2);
+  });
+
+  it("supports a fixed-only fee when the percent is 0", () => {
+    expect(calculatePlatformFee(100, 0, 0.5)).toBe(0.5);
+  });
 });
 
 describe("calculateTotalWithFee", () => {
@@ -28,6 +37,10 @@ describe("calculateTotalWithFee", () => {
 
   it("matches base price when fee percent is 0", () => {
     expect(calculateTotalWithFee(75, 0)).toBe(75);
+  });
+
+  it("includes the fixed amount in the total", () => {
+    expect(calculateTotalWithFee(100, 1.8, 0.5)).toBeCloseTo(102.3, 2);
   });
 });
 

@@ -239,3 +239,34 @@ admin sale notifications.
 6. Organizer event **editing** doesn't exist (the old Edit button was dead UI).
    Featured-image add/replace is now available on My Events; full event editing is
    a future feature.
+
+---
+
+## Supabase project migration (2026-10-12): blafzslsinnhpztwmflt ? vrfyggskselkolmtwmil
+
+Plan-change migration to a fresh project. Old project exported via the
+dashboard (db_cluster pg_dump + storage objects zip); restored through the
+Management API query endpoint since no DB password is held
+(`scripts/_slice-dump.mjs` splits the dump into public-schema DDL +
+COPY?INSERT data, `scripts/_sb-query.mjs` runs it, `scripts/_restore-storage.mjs`
+recreates buckets + uploads objects via the Storage API).
+
+- **Data**: full fidelity — 4 auth users/identities, all 18 public tables
+  (144 audit_logs, 43 payments, 22 banners, 3 events, 3 ticket_types,
+  1 ticket, platform_config, etc.), 35 storage objects across `banners` +
+  `events` buckets. Stale sessions/refresh tokens intentionally dropped
+  (invalid under the new JWT secret anyway — users log in fresh; passwords
+  carry over via `encrypted_password`).
+- **Schema**: all public types/tables/functions/triggers/RLS policies
+  replayed from the dump; `on_auth_user_created` trigger recreated;
+  `supabase_migrations.schema_migrations` history preserved; migration
+  `20260919000000_ticket_number_and_party` applied on top (was unapplied
+  on the old DB).
+- **Config**: `.env.local` repointed (URL, anon, service_role, project ref,
+  PAT). GoTrue project config patched via Management API — `site_url`
+  eticket.co.zw, redirect allow-list (prod + localhost:3000/4000), custom
+  SMTP via the cPanel `info@eticket.co.zw` mailbox (built-in mailer caps at
+  ~2 emails/hr). TOTP MFA enabled by default.
+- **Still manual**: Vercel env vars must be updated to the new credentials
+  and redeployed. Any other Supabase dashboard-only config from the old
+  project (backup schedule, org settings) isn't carried by the dump.

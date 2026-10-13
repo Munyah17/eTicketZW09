@@ -5,6 +5,7 @@ import { logAudit } from "@/lib/server-audit-log";
 
 const ALLOWED_FIELDS = new Set([
   "service_fee_percent",
+  "service_fee_fixed",
   "organizer_commission_percent",
   "new_registrations",
   "new_organizer_signups",
@@ -39,6 +40,10 @@ export async function PATCH(req: NextRequest) {
   if ("service_fee_percent" in updates) {
     const fee = Number(updates.service_fee_percent);
     updates.service_fee_percent = isNaN(fee) ? 10 : Math.min(Math.max(fee, 0), 50);
+  }
+  if ("service_fee_fixed" in updates) {
+    const fixed = Number(updates.service_fee_fixed);
+    updates.service_fee_fixed = isNaN(fixed) ? 0 : Math.min(Math.max(fixed, 0), 100);
   }
   if ("organizer_commission_percent" in updates) {
     const commission = Number(updates.organizer_commission_percent);
