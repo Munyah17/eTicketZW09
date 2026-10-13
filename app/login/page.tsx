@@ -23,6 +23,9 @@ export default function LoginPage() {
   const [needsConfirm, setNeedsConfirm] = useState(false);
   const [resendMsg, setResendMsg] = useState("");
   const [resending, setResending] = useState(false);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState("");
+  const [forgotSending, setForgotSending] = useState(false);
 
   // This page is for customers and organizers only — Admin and Super Admin
   // have their own dedicated login pages (/admin/login, /private/login).
@@ -74,6 +77,20 @@ export default function LoginPage() {
     const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
     setResendMsg(error ? `Couldn't resend: ${error.message}` : "Confirmation email resent — check inbox and spam.");
     setResending(false);
+  };
+
+  // Forgot-password — sends the branded recovery email; the link lands on
+  // /reset-password where the user sets a new password.
+  const handleForgot = async () => {
+    if (!email.includes("@")) { setForgotMsg("Enter your account email above first."); return; }
+    setForgotSending(true);
+    setForgotMsg("");
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setForgotMsg(error ? `Couldn't send: ${error.message}` : "Reset link sent — check inbox and spam.");
+    setForgotSending(false);
   };
 
   if (loading) return null;
@@ -164,6 +181,27 @@ export default function LoginPage() {
                   <><LogIn className="mr-2 h-4 w-4" />Sign In</>
                 )}
               </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => { setForgotOpen((v) => !v); setForgotMsg(""); }}
+                  className="text-sm text-muted-foreground underline-offset-4 hover:underline hover:text-foreground"
+                >
+                  Forgot password?
+                </button>
+                {forgotOpen && (
+                  <div className="mt-3 rounded-md border px-3 py-3 text-left space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      We&apos;ll send a reset link to the email entered above.
+                    </p>
+                    <Button type="button" variant="outline" size="sm" className="w-full" onClick={handleForgot} disabled={forgotSending}>
+                      {forgotSending ? "Sending…" : "Send reset link"}
+                    </Button>
+                    {forgotMsg && <p className="text-xs text-muted-foreground">{forgotMsg}</p>}
+                  </div>
+                )}
+              </div>
             </form>
           </CardContent>
         </Card>

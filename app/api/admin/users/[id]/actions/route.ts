@@ -48,9 +48,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       break;
     }
     case "send-password-reset": {
-      const r = await fetch(`${projectUrl}/auth/v1/recover`, {
-        method: "POST", headers: authHeaders, body: JSON.stringify({ email: target.email }),
-      });
+      const r = await fetch(
+        `${projectUrl}/auth/v1/recover?redirect_to=${encodeURIComponent("https://eticket.co.zw/reset-password")}`,
+        { method: "POST", headers: authHeaders, body: JSON.stringify({ email: target.email }) }
+      );
       if (!r.ok) return NextResponse.json({ error: `Reset email failed: ${await r.text()}` }, { status: 502 });
       break;
     }
