@@ -3,7 +3,7 @@ import { logError } from "@/lib/error-logger";
 import { sendMail } from "@/lib/email/mailer";
 import { formatMoney, wrapper, row } from "@/lib/email/html";
 
-const OPS_INBOX = process.env.NOTIFICATIONS_INBOX || "notifications@globalspaceweb.co.zw";
+const SALES_INBOX = "sales@eticket.co.zw";
 
 interface PayoutInfo {
   id: string;
@@ -30,7 +30,7 @@ export async function sendPayoutSubmittedEmail(payout: PayoutInfo): Promise<void
     `
   );
 
-  const result = await sendMail({ to: OPS_INBOX, subject: `Payout requested — ${payout.organizerName}`, html });
+  const result = await sendMail({ to: SALES_INBOX, subject: `Payout requested — ${payout.organizerName}`, html });
   if (!result.sent) {
     logError("payout_submitted_email_failed", new Error(result.error || "send failed"), { payoutId: payout.id });
   }
