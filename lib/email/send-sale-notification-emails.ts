@@ -1,9 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logError } from "@/lib/error-logger";
 import { GeneratedTicket } from "@/lib/ticket-generator";
-import { PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
+import { PLATFORM_FEE_PERCENTAGE, PLATFORM_FEE_FIXED } from "@/lib/types";
 import { sendMail } from "@/lib/email/mailer";
 import { formatMoney, wrapper, row } from "@/lib/email/html";
+import { getSuperAdminEmails } from "@/lib/email/recipients";
 
 const SALES_INBOX = "sales@eticket.co.zw";
 
@@ -23,9 +24,11 @@ export async function sendSaleNotificationEmails(ticket: GeneratedTicket): Promi
     .eq("id", ticket.eventId)
     .maybeSingle();
 
-  const { data: config } = await admin.from("platform_config").select("service_fee_percent").eq("id", 1).maybeSingle();
+  const { data: config } = await admin.from("platform_config").select("service_fee_percent, service_fee_fixed").eq("id", 1).maybeSingle();
   const feePercent = Number(config?.service_fee_percent ?? PLATFORM_FEE_PERCENTAGE);
-  const basePrice = ticket.totalPaid / (1 + feePercent / 100);
+  const feeFixed = Number(config?.service_fee_fixed ?? PLATFORM_FEE_FIXED);
+  // totalPaid = base + base*pct/100 + fixed  →  base = (totalPaid − fixed) / (1 + pct/100)
+  const basePrice = (ticket.totalPaid - feeFixed) / (1 + feePercent / 100);
   const platformFee = ticket.totalPaid - basePrice;
 
   let organizerEmail: string | undefined;
@@ -71,7 +74,13 @@ export async function sendSaleNotificationEmails(ticket: GeneratedTicket): Promi
       )
     : null;
 
-  const adminResult = await sendMail({ to: SALES_INBOX, subject: `New Sale — ${ticket.eventTitle}`, html: adminHtml });
+  const superAdminEmails = await getSuperAdminEmails();
+  const adminResult = await sendMail({
+    to: SALES_INBOX,
+    subject: `New Sale — ${ticket.eventTitle}`,
+    html: adminHtml,
+    replyTo: superAdminEmails,
+  });
   if (!adminResult.sent) {
     logError("sale_notification_admin_email", new Error(adminResult.error || "send failed"), { ticketId: ticket.id });
   }
@@ -81,6 +90,7 @@ export async function sendSaleNotificationEmails(ticket: GeneratedTicket): Promi
       to: organizerEmail,
       subject: `You made a sale — ${ticket.eventTitle}`,
       html: organizerHtml,
+      replyTo: superAdminEmails,
     });
     if (!organizerResult.sent) {
       logError("sale_notification_organizer_email", new Error(organizerResult.error || "send failed"), { ticketId: ticket.id });

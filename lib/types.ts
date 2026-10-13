@@ -335,6 +335,7 @@ export const EVENT_CATEGORIES: { value: EventCategory; label: string }[] = [
 ];
 
 export const PLATFORM_FEE_PERCENTAGE = 10;
+export const PLATFORM_FEE_FIXED = 0;
 export const HERO_BANNER_PRICE_PER_DAY = 10;
 export const SECTION_BANNER_PRICE_PER_DAY = 5;
 export const ANNOUNCEMENT_AD_PRICE_PER_2_WEEKS = 50;

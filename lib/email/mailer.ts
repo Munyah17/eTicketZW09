@@ -1,4 +1,3 @@
-import { Resend } from "resend";
 import nodemailer from "nodemailer";
 import { logError } from "@/lib/error-logger";
 
@@ -8,68 +7,39 @@ export interface MailAttachment {
 }
 
 export interface SendMailInput {
-  to: string;
+  to: string | string[];
   subject: string;
   html: string;
+  replyTo?: string | string[];
   attachments?: MailAttachment[];
 }
 
 export interface SendMailResult {
   sent: boolean;
-  via?: "resend" | "smtp";
+  via?: "smtp";
   error?: string;
 }
 
-// Resend's sending domain has never been verified (open risk — see memory:
-// eticketzw-open-risks), so it can silently fail or restrict delivery.
-// Every email in this app goes through here: try Resend first (cheap, fast,
-// already wired), and if it's unconfigured or the send itself fails, fall
-// back to the SMTP mailbox instead of just giving up. Nothing upstream
-// needs to know which transport actually delivered it.
+// Single transport: the project's own cPanel mailbox over SMTP. No third-party
+// relay — if this fails, the error is ours to see, not a platform's to hide.
+// From is always the authenticated mailbox (cPanel rejects anything else),
+// dressed with the platform display name.
 export async function sendMail(input: SendMailInput): Promise<SendMailResult> {
-  const resendKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || "E-TicketsZW <pay@eticket.co.zw>";
-
-  if (resendKey) {
-    try {
-      const resend = new Resend(resendKey);
-      const { error } = await resend.emails.send({
-        from,
-        to: input.to,
-        subject: input.subject,
-        html: input.html,
-        attachments: input.attachments,
-      });
-      if (!error) return { sent: true, via: "resend" };
-      logError("resend_send_failed", error, { to: input.to, subject: input.subject });
-    } catch (err) {
-      logError("resend_send_threw", err, { to: input.to, subject: input.subject });
-    }
-  }
-
-  const smtpResult = await sendViaSmtp(input);
-  if (smtpResult.sent) return smtpResult;
-
-  return {
-    sent: false,
-    error: smtpResult.error || (resendKey ? "Resend failed and SMTP is not configured" : "No email transport configured"),
-  };
-}
-
-async function sendViaSmtp(input: SendMailInput): Promise<SendMailResult> {
   const host = process.env.SMTP_HOST;
   const user = process.env.SMTP_USER;
   const password = process.env.SMTP_PASSWORD;
   if (!host || !user || !password) {
     return { sent: false, error: "SMTP is not configured" };
   }
-
-  // Deliberately its own "from", independent of EMAIL_FROM (which governs
-  // Resend's identity) — most SMTP servers, cPanel mailboxes especially,
-  // reject or flag a send whose From address doesn't match the
-  // authenticated account, so this fallback must always send as the
-  // mailbox it actually authenticated with.
   const from = process.env.SMTP_FROM || `E-TicketsZW <${user}>`;
+
+  // Every notification the platform sends is mirrored to the ops inbox —
+  // ticket deliveries, sale alerts, payout notices, failure alerts, all of
+  // it — so there's always a complete record of what actually went out.
+  // Skipped only when the ops inbox is already the direct recipient.
+  const opsInbox = process.env.NOTIFICATIONS_INBOX || "notifications@globalspaceweb.co.zw";
+  const toList = Array.isArray(input.to) ? input.to : [input.to];
+  const bcc = toList.includes(opsInbox) ? undefined : opsInbox;
 
   const port = Number(process.env.SMTP_PORT) || 465;
   try {
@@ -83,8 +53,10 @@ async function sendViaSmtp(input: SendMailInput): Promise<SendMailResult> {
     await transport.sendMail({
       from,
       to: input.to,
+      bcc,
       subject: input.subject,
       html: input.html,
+      replyTo: input.replyTo,
       attachments: input.attachments,
     });
 

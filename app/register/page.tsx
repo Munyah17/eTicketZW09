@@ -45,6 +45,11 @@ export default function RegisterPage() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Registration failed";
+      fetch("/api/notifications/signup-failed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), reason: msg }),
+      }).catch(() => {});
       setError(msg.includes("already registered") ? "This email is already registered. Try signing in." : msg);
     } finally {
       setIsSubmitting(false);

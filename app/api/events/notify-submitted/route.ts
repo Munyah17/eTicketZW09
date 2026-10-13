@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { sendEventSubmittedEmail } from "@/lib/email/send-event-review-notification";
 
-// Fired by the create-event page right after a new event lands in
-// pending_review (auto-approve off), so Admin gets notified without
-// having to poll the Events & Markups page.
+// Fired by the create-event page right after ANY new event is saved —
+// pending_review or auto-approved — so a new listing never lands without
+// the super admins and the creator both getting an email.
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -17,15 +18,18 @@ export async function POST(req: NextRequest) {
   // notifications for events that aren't the caller's own.
   const { data: event } = await supabase
     .from("events")
-    .select("title, organizer_name, status")
+    .select("id")
     .eq("id", eventId)
     .eq("organizer_id", user.id)
     .maybeSingle();
 
-  if (!event || event.status !== "pending_review") {
-    return NextResponse.json({ success: true }); // nothing to notify, not an error
+  if (!event) {
+    return NextResponse.json({ success: true }); // not the caller's event — nothing to notify
   }
 
-  sendEventSubmittedEmail(eventId, event.title, event.organizer_name).catch(() => {});
+  sendEventSubmittedEmail(eventId).catch(() => {});
+  // New listing — bust the public events cache so it shows up on the
+  // homepage and /allevents right away instead of up to 60s later.
+  revalidateTag("events", "max");
   return NextResponse.json({ success: true });
 }
