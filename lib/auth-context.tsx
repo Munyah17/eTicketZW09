@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { User, UserRole, OrganizerCategory } from "./types";
 
@@ -80,6 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchProfileRef = useRef<((userId: string, attempt?: number) => Promise<void>) | null>(null);
+
   const fetchProfile = useCallback(async (userId: string, attempt = 0) => {
     const supabase = createClient();
     const { data: profile, error } = await supabase
@@ -105,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // a logged-out UI — which sends users into a sign-in loop while their
     // session is actually fine.
     if (error && attempt < 3) {
-      setTimeout(() => { fetchProfile(userId, attempt + 1); }, 800 * (attempt + 1));
+      setTimeout(() => { fetchProfileRef.current?.(userId, attempt + 1); }, 800 * (attempt + 1));
       return;
     }
     // After all retries fail, log the error but keep the session if auth is still valid
@@ -117,6 +119,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setLoading(false);
   }, []);
+
+  fetchProfileRef.current = fetchProfile;
 
   useEffect(() => {
     const supabase = createClient();
