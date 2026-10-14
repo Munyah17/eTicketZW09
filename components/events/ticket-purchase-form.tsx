@@ -44,6 +44,7 @@ export function TicketPurchaseForm({
   const [idNumber, setIdNumber] = useState("");
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
   const [useAnonymous, setUseAnonymous] = useState(false);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
   // Group admission — one ticket can admit a whole party (family events).
   // admitCount = adults + children + seniors; the gate sees the split.
   const [receiverName, setReceiverName] = useState("");
@@ -122,6 +123,14 @@ export function TicketPurchaseForm({
     if (newQuantity >= 1 && newQuantity <= Math.min(available, 10)) {
       setQuantity(newQuantity);
     }
+  };
+
+  const handleFieldBlur = (fieldName: string) => {
+    setTouched(prev => ({ ...prev, [fieldName]: true }));
+  };
+
+  const getFieldError = (fieldName: string, value: string, isRequired: boolean) => {
+    return isRequired && touched[fieldName] && !value ? "This field is required" : "";
   };
 
   const missingRequiredCustomField = (event.customFields ?? []).some(
@@ -408,9 +417,13 @@ export function TicketPurchaseForm({
                   id="buyerName"
                   value={buyerName}
                   onChange={(e) => setBuyerName(e.target.value)}
+                  onBlur={() => handleFieldBlur("buyerName")}
                   placeholder="Enter your full name"
-                  className="mt-1.5"
+                  className={`mt-1.5 ${getFieldError("buyerName", buyerName, true) ? "border-destructive" : ""}`}
                 />
+                {getFieldError("buyerName", buyerName, true) && (
+                  <p className="mt-1 text-xs text-destructive">{getFieldError("buyerName", buyerName, true)}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="buyerEmail">Email Address *</Label>
@@ -419,9 +432,13 @@ export function TicketPurchaseForm({
                   type="email"
                   value={buyerEmail}
                   onChange={(e) => setBuyerEmail(e.target.value)}
+                  onBlur={() => handleFieldBlur("buyerEmail")}
                   placeholder="you@example.com"
-                  className="mt-1.5"
+                  className={`mt-1.5 ${getFieldError("buyerEmail", buyerEmail, true) ? "border-destructive" : ""}`}
                 />
+                {getFieldError("buyerEmail", buyerEmail, true) && (
+                  <p className="mt-1 text-xs text-destructive">{getFieldError("buyerEmail", buyerEmail, true)}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="buyerContact">Phone Number *</Label>
@@ -429,9 +446,13 @@ export function TicketPurchaseForm({
                   id="buyerContact"
                   value={buyerContact}
                   onChange={(e) => setBuyerContact(e.target.value)}
+                  onBlur={() => handleFieldBlur("buyerContact")}
                   placeholder="+263 7X XXX XXXX"
-                  className="mt-1.5"
+                  className={`mt-1.5 ${getFieldError("buyerContact", buyerContact, true) ? "border-destructive" : ""}`}
                 />
+                {getFieldError("buyerContact", buyerContact, true) && (
+                  <p className="mt-1 text-xs text-destructive">{getFieldError("buyerContact", buyerContact, true)}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="displayName">Display Name on Ticket</Label>
@@ -563,55 +584,63 @@ export function TicketPurchaseForm({
                 </div>
               )}
 
-              {(event.customFields ?? []).map((field) => (
-                <div key={field.id}>
-                  <Label htmlFor={`cf-${field.id}`}>
-                    {field.label}
-                    {field.required && " *"}
-                  </Label>
-                  {field.fieldType === "textarea" ? (
-                    <Textarea
-                      id={`cf-${field.id}`}
-                      value={customFieldValues[field.id] || ""}
-                      onChange={(e) => setCustomFieldValues((v) => ({ ...v, [field.id]: e.target.value }))}
-                      className="mt-1.5"
-                    />
-                  ) : field.fieldType === "select" ? (
-                    <Select
-                      value={customFieldValues[field.id] || ""}
-                      onValueChange={(val) => setCustomFieldValues((v) => ({ ...v, [field.id]: val }))}
-                    >
-                      <SelectTrigger className="mt-1.5">
-                        <SelectValue placeholder="Select an option" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(field.options ?? []).map((opt) => (
-                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : field.fieldType === "checkbox" ? (
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <Checkbox
+              {(event.customFields ?? []).map((field) => {
+                const fieldError = getFieldError(`cf-${field.id}`, customFieldValues[field.id] || "", field.required);
+                return (
+                  <div key={field.id}>
+                    <Label htmlFor={`cf-${field.id}`}>
+                      {field.label}
+                      {field.required && " *"}
+                    </Label>
+                    {field.fieldType === "textarea" ? (
+                      <Textarea
                         id={`cf-${field.id}`}
-                        checked={customFieldValues[field.id] === "yes"}
-                        onCheckedChange={(checked) =>
-                          setCustomFieldValues((v) => ({ ...v, [field.id]: checked ? "yes" : "no" }))
-                        }
+                        value={customFieldValues[field.id] || ""}
+                        onChange={(e) => setCustomFieldValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                        onBlur={() => handleFieldBlur(`cf-${field.id}`)}
+                        className={`mt-1.5 ${fieldError ? "border-destructive" : ""}`}
                       />
-                      <Label htmlFor={`cf-${field.id}`} className="text-sm font-normal cursor-pointer">Yes</Label>
-                    </div>
-                  ) : (
-                    <Input
-                      id={`cf-${field.id}`}
-                      type={field.fieldType === "number" ? "number" : "text"}
-                      value={customFieldValues[field.id] || ""}
-                      onChange={(e) => setCustomFieldValues((v) => ({ ...v, [field.id]: e.target.value }))}
-                      className="mt-1.5"
-                    />
-                  )}
-                </div>
-              ))}
+                    ) : field.fieldType === "select" ? (
+                      <Select
+                        value={customFieldValues[field.id] || ""}
+                        onValueChange={(val) => setCustomFieldValues((v) => ({ ...v, [field.id]: val }))}
+                      >
+                        <SelectTrigger className={`mt-1.5 ${fieldError ? "border-destructive" : ""}`}>
+                          <SelectValue placeholder="Select an option" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(field.options ?? []).map((opt) => (
+                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : field.fieldType === "checkbox" ? (
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <Checkbox
+                          id={`cf-${field.id}`}
+                          checked={customFieldValues[field.id] === "yes"}
+                          onCheckedChange={(checked) =>
+                            setCustomFieldValues((v) => ({ ...v, [field.id]: checked ? "yes" : "no" }))
+                          }
+                        />
+                        <Label htmlFor={`cf-${field.id}`} className="text-sm font-normal cursor-pointer">Yes</Label>
+                      </div>
+                    ) : (
+                      <Input
+                        id={`cf-${field.id}`}
+                        type={field.fieldType === "number" ? "number" : "text"}
+                        value={customFieldValues[field.id] || ""}
+                        onChange={(e) => setCustomFieldValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                        onBlur={() => handleFieldBlur(`cf-${field.id}`)}
+                        className={`mt-1.5 ${fieldError ? "border-destructive" : ""}`}
+                      />
+                    )}
+                    {fieldError && (
+                      <p className="mt-1 text-xs text-destructive">{fieldError}</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="space-y-2 border-t pt-4 text-sm">

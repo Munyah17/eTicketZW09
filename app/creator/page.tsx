@@ -17,12 +17,12 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getOrganizerEvents } from "@/lib/events-store";
-import { PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
 import { Event } from "@/lib/types";
 
 export default function OrganizerDashboard() {
   const { user } = useAuth();
   const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
+  const [platformFeePercent, setPlatformFeePercent] = useState(10);
 
   const loadEvents = useCallback(async () => {
     if (user) {
@@ -31,19 +31,32 @@ export default function OrganizerDashboard() {
     }
   }, [user]);
 
+  const loadPlatformConfig = useCallback(async () => {
+    try {
+      const res = await fetch("/api/platform-config");
+      const json = await res.json();
+      if (json.config?.service_fee_percent) {
+        setPlatformFeePercent(json.config.service_fee_percent);
+      }
+    } catch (e) {
+      console.error("Failed to load platform config", e);
+    }
+  }, []);
+
   useEffect(() => {
     loadEvents();
+    loadPlatformConfig();
     const refresh = () => { loadEvents(); };
     window.addEventListener("eticket:events-updated", refresh);
     return () => window.removeEventListener("eticket:events-updated", refresh);
-  }, [loadEvents]);
+  }, [loadEvents, loadPlatformConfig]);
 
   const totalTicketsSold = organizerEvents.reduce((sum, e) => sum + e.soldTickets, 0);
   const totalRevenue = organizerEvents.reduce((sum, e) => {
     return sum + e.ticketTypes.reduce((typeSum, t) => typeSum + t.sold * t.price, 0);
   }, 0);
-  const platformFees = totalRevenue * (PLATFORM_FEE_PERCENTAGE / 100);
-  const netRevenue = totalRevenue - platformFees;
+  const serviceFees = totalRevenue * (platformFeePercent / 100);
+  const netRevenue = totalRevenue - serviceFees;
 
   const stats = [
     {
@@ -64,7 +77,7 @@ export default function OrganizerDashboard() {
       title: "Gross Revenue",
       value: `$${totalRevenue.toFixed(2)}`,
       icon: DollarSign,
-      sub: totalRevenue > 0 ? `Platform fee: $${platformFees.toFixed(2)}` : "No revenue yet",
+      sub: totalRevenue > 0 ? `Service fee: $${serviceFees.toFixed(2)}` : "No revenue yet",
       iconClassName: "bg-warning/10 text-warning",
     },
     {

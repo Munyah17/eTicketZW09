@@ -67,6 +67,13 @@ export async function GET() {
 
   const platformFees = (ledgerRows ?? []).reduce((s, r) => s + Number(r.buyer_fee_amount), 0);
 
+  // Fetch platform config for the current fee percentage
+  const { data: platformConfig } = await supabase
+    .from("platform_config")
+    .select("service_fee_percent")
+    .eq("id", 1)
+    .maybeSingle();
+
   return NextResponse.json({
     totalEvents: totalEvents ?? 0,
     publishedEvents,
@@ -76,5 +83,6 @@ export async function GET() {
     organizerCount: organizerCount ?? 0,
     recentEvents: recentEvents ?? [],
     recentOrganizers: recentOrganizers ?? [],
+    platformFeePercent: platformConfig?.service_fee_percent ?? 10,
   });
 }

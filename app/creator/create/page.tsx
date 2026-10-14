@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Plus, Trash2, Calendar, MapPin, Ticket, DollarSign, Info, Video, Image as ImageIcon, Upload, X, Film } from "lucide-react";
-import { EVENT_CATEGORIES, PLATFORM_FEE_PERCENTAGE, Event, EventCategory } from "@/lib/types";
+import { EVENT_CATEGORIES, Event, EventCategory } from "@/lib/types";
 import { saveEvent } from "@/lib/events-store";
 import { useAuth } from "@/lib/auth-context";
 import { compressImageFile } from "@/lib/image-compress";
@@ -43,6 +43,23 @@ export default function CreateEventPage() {
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [platformFeePercent, setPlatformFeePercent] = useState(10);
+
+  // Fetch platform configuration for the actual fee percentage
+  useEffect(() => {
+    fetch("/api/platform-config")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.config?.service_fee_percent) {
+          setPlatformFeePercent(data.config.service_fee_percent);
+        }
+      })
+      .catch(() => {
+        // Fallback to 10% if fetch fails
+        setPlatformFeePercent(10);
+      });
+  }, []);
 
   // Event Details
   const [title, setTitle] = useState("");
@@ -337,6 +354,14 @@ export default function CreateEventPage() {
     (t) => t.name && t.price && t.quantity
   );
 
+  const handleFieldBlur = (fieldName: string) => {
+    setTouched(prev => ({ ...prev, [fieldName]: true }));
+  };
+
+  const getFieldError = (fieldName: string, value: string) => {
+    return touched[fieldName] && !value ? "This field is required" : "";
+  };
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       {/* Header */}
@@ -393,9 +418,13 @@ export default function CreateEventPage() {
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                onBlur={() => handleFieldBlur("title")}
                 placeholder="e.g., Comedy Night with John"
-                className="mt-1.5"
+                className={`mt-1.5 ${getFieldError("title", title) ? "border-destructive" : ""}`}
               />
+              {getFieldError("title", title) && (
+                <p className="mt-1 text-xs text-destructive">{getFieldError("title", title)}</p>
+              )}
             </div>
 
             <div>
@@ -404,15 +433,19 @@ export default function CreateEventPage() {
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                onBlur={() => handleFieldBlur("description")}
                 placeholder="Describe your event, what attendees can expect..."
-                className="mt-1.5 min-h-[120px]"
+                className={`mt-1.5 min-h-[120px] ${getFieldError("description", description) ? "border-destructive" : ""}`}
               />
+              {getFieldError("description", description) && (
+                <p className="mt-1 text-xs text-destructive">{getFieldError("description", description)}</p>
+              )}
             </div>
 
             <div>
               <Label htmlFor="category">Category *</Label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="mt-1.5">
+                <SelectTrigger className={`mt-1.5 ${getFieldError("category", category) ? "border-destructive" : ""}`}>
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -423,6 +456,9 @@ export default function CreateEventPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {getFieldError("category", category) && (
+                <p className="mt-1 text-xs text-destructive">{getFieldError("category", category)}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -433,8 +469,12 @@ export default function CreateEventPage() {
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="mt-1.5"
+                  onBlur={() => handleFieldBlur("date")}
+                  className={`mt-1.5 ${getFieldError("date", date) ? "border-destructive" : ""}`}
                 />
+                {getFieldError("date", date) && (
+                  <p className="mt-1 text-xs text-destructive">{getFieldError("date", date)}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="time">Time *</Label>
@@ -443,8 +483,12 @@ export default function CreateEventPage() {
                   type="time"
                   value={time}
                   onChange={(e) => setTime(e.target.value)}
-                  className="mt-1.5"
+                  onBlur={() => handleFieldBlur("time")}
+                  className={`mt-1.5 ${getFieldError("time", time) ? "border-destructive" : ""}`}
                 />
+                {getFieldError("time", time) && (
+                  <p className="mt-1 text-xs text-destructive">{getFieldError("time", time)}</p>
+                )}
               </div>
             </div>
 
@@ -455,14 +499,18 @@ export default function CreateEventPage() {
                   id="venue"
                   value={venue}
                   onChange={(e) => setVenue(e.target.value)}
+                  onBlur={() => handleFieldBlur("venue")}
                   placeholder="e.g., Harare International Conference Centre"
-                  className="mt-1.5"
+                  className={`mt-1.5 ${getFieldError("venue", venue) ? "border-destructive" : ""}`}
                 />
+                {getFieldError("venue", venue) && (
+                  <p className="mt-1 text-xs text-destructive">{getFieldError("venue", venue)}</p>
+                )}
               </div>
               <div>
                 <Label htmlFor="city">City *</Label>
                 <Select value={city} onValueChange={setCity}>
-                  <SelectTrigger className="mt-1.5">
+                  <SelectTrigger className={`mt-1.5 ${getFieldError("city", city) ? "border-destructive" : ""}`}>
                     <SelectValue placeholder="Select city" />
                   </SelectTrigger>
                   <SelectContent>
@@ -474,6 +522,9 @@ export default function CreateEventPage() {
                     <SelectItem value="Masvingo">Masvingo</SelectItem>
                   </SelectContent>
                 </Select>
+                {getFieldError("city", city) && (
+                  <p className="mt-1 text-xs text-destructive">{getFieldError("city", city)}</p>
+                )}
               </div>
             </div>
 
@@ -685,13 +736,13 @@ export default function CreateEventPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Platform Fee Notice */}
+            {/* Service Fee Notice */}
             <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4">
               <Info className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               <div className="text-sm">
-                <p className="font-medium">Platform Fee: {PLATFORM_FEE_PERCENTAGE}%</p>
+                <p className="font-medium">Service Fee: {platformFeePercent}%</p>
                 <p className="text-muted-foreground">
-                  E-TicketsZW charges a {PLATFORM_FEE_PERCENTAGE}% service fee on each ticket sale.
+                  E-TicketsZW charges a {platformFeePercent}% service fee on each ticket sale.
                   This covers payment processing, platform maintenance, and marketing support.
                 </p>
               </div>
@@ -726,9 +777,13 @@ export default function CreateEventPage() {
                         onChange={(e) =>
                           updateTicketType(ticketType.id, "name", e.target.value)
                         }
+                        onBlur={() => handleFieldBlur(`ticket-${ticketType.id}-name`)}
                         placeholder="e.g., General, VIP, VVIP"
-                        className="mt-1.5"
+                        className={`mt-1.5 ${touched[`ticket-${ticketType.id}-name`] && !ticketType.name ? "border-destructive" : ""}`}
                       />
+                      {touched[`ticket-${ticketType.id}-name`] && !ticketType.name && (
+                        <p className="mt-1 text-xs text-destructive">This field is required</p>
+                      )}
                     </div>
                     <div>
                       <Label>Description</Label>
@@ -754,10 +809,14 @@ export default function CreateEventPage() {
                           onChange={(e) =>
                             updateTicketType(ticketType.id, "price", e.target.value)
                           }
+                          onBlur={() => handleFieldBlur(`ticket-${ticketType.id}-price`)}
                           placeholder="0.00"
-                          className="pl-9"
+                          className={`pl-9 ${touched[`ticket-${ticketType.id}-price`] && !ticketType.price ? "border-destructive" : ""}`}
                         />
                       </div>
+                      {touched[`ticket-${ticketType.id}-price`] && !ticketType.price && (
+                        <p className="mt-1 text-xs text-destructive">This field is required</p>
+                      )}
                     </div>
                     <div>
                       <Label>Quantity *</Label>
@@ -767,9 +826,13 @@ export default function CreateEventPage() {
                         onChange={(e) =>
                           updateTicketType(ticketType.id, "quantity", e.target.value)
                         }
+                        onBlur={() => handleFieldBlur(`ticket-${ticketType.id}-quantity`)}
                         placeholder="100"
-                        className="mt-1.5"
+                        className={`mt-1.5 ${touched[`ticket-${ticketType.id}-quantity`] && !ticketType.quantity ? "border-destructive" : ""}`}
                       />
+                      {touched[`ticket-${ticketType.id}-quantity`] && !ticketType.quantity && (
+                        <p className="mt-1 text-xs text-destructive">This field is required</p>
+                      )}
                     </div>
                   </div>
 
@@ -781,7 +844,7 @@ export default function CreateEventPage() {
                           $
                           {(
                             parseFloat(ticketType.price) *
-                            (1 + PLATFORM_FEE_PERCENTAGE / 100)
+                            (1 + platformFeePercent / 100)
                           ).toFixed(2)}
                         </strong>
                       </p>
@@ -963,7 +1026,7 @@ export default function CreateEventPage() {
             <div className="rounded-lg bg-secondary/50 p-4 text-sm text-muted-foreground">
               <p>
                 By publishing this event, you agree to E-TicketsZW&apos;s terms of service
-                and acknowledge the {PLATFORM_FEE_PERCENTAGE}% platform fee on all ticket
+                and acknowledge the {platformFeePercent}% service fee on all ticket
                 sales.
               </p>
             </div>

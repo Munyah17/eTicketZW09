@@ -108,6 +108,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(() => { fetchProfile(userId, attempt + 1); }, 800 * (attempt + 1));
       return;
     }
+    // After all retries fail, log the error but keep the session if auth is still valid
+    console.error("Failed to fetch user profile after retries:", error);
+    // Check if auth session is still valid before signing out
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      setUser(null);
+    }
     setLoading(false);
   }, []);
 

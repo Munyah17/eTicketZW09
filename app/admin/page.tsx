@@ -20,7 +20,6 @@ import {
   CreditCard,
   RefreshCw,
 } from "lucide-react";
-import { PLATFORM_FEE_PERCENTAGE } from "@/lib/types";
 
 type RecentEvent = {
   id: string;
@@ -48,6 +47,7 @@ type Stats = {
   organizerCount: number;
   recentEvents: RecentEvent[];
   recentOrganizers: RecentOrganizer[];
+  platformFeePercent?: number;
 };
 
 const EMPTY: Stats = {
@@ -64,11 +64,21 @@ const EMPTY: Stats = {
 export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats>(EMPTY);
   const [loading, setLoading] = useState(true);
+  const [pendingPayouts, setPendingPayouts] = useState(0);
+  const [platformFeePercent, setPlatformFeePercent] = useState(10);
 
   const loadStats = useCallback(async () => {
+    setLoading(true);
     try {
       const res = await fetch("/api/admin/stats");
-      if (res.ok) setStats(await res.json());
+      const json = await res.json();
+      setStats(json);
+      setPendingPayouts(json.pendingPayouts || 0);
+      if (json.platformFeePercent !== undefined) {
+        setPlatformFeePercent(json.platformFeePercent);
+      }
+    } catch (e) {
+      console.error("Failed to load stats", e);
     } finally {
       setLoading(false);
     }
@@ -76,12 +86,11 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadStats();
-    window.addEventListener("eticket:events-updated", loadStats);
-    return () => window.removeEventListener("eticket:events-updated", loadStats);
+    const interval = setInterval(loadStats, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
   }, [loadStats]);
 
   const { grossRevenue, platformFees, totalTicketsSold, publishedEvents, totalEvents, organizerCount } = stats;
-  const pendingPayouts = 0;
 
   const kpis = [
     {
@@ -125,8 +134,8 @@ export default function AdminDashboard() {
       light: "bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
     },
     {
-      title: "Platform Fee",
-      value: `${PLATFORM_FEE_PERCENTAGE}%`,
+      title: "Service Fee",
+      value: `${platformFeePercent}%`,
       sub: "Applied to all ticket sales",
       icon: TrendingUp,
       accent: "bg-sky-500",
