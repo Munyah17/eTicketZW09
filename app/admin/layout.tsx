@@ -93,7 +93,7 @@ export default function AdminLayout({
     if (isSuperAdmin && !isAdminLoginPage) {
       router.replace(SUPER_ADMIN_DESTINATIONS[pathname] ?? pathname.replace(/^\/admin/, "/private"));
     }
-  }, [isSuperAdmin, isAdminLoginPage, pathname, router]);
+  }, [isSuperAdmin, isAdminLoginPage, pathname, router, SUPER_ADMIN_DESTINATIONS]);
 
   useEffect(() => {
     if (!isLoggedIn || !isAdmin) return;
