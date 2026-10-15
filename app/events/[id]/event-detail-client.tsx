@@ -129,17 +129,6 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                     {categoryLabel}
                   </Badge>
                   <h1 className="text-2xl font-bold leading-tight text-balance">{event.title}</h1>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {event.platformNegotiated?.isPlatformEvent
-                      ? `Organized by E-TicketsZW on behalf of ${event.platformNegotiated.originalOrganizerName}`
-                      : event.organizerName}
-                  </p>
-                  {event.organizerCategory && (
-                    <p className="mt-1 text-xs text-primary">
-                      {event.organizerCategory}
-                      {event.organizerSubtype && ` · ${event.organizerSubtype}`}
-                    </p>
-                  )}
 
                   <div className="mt-6 space-y-3">
                     <div className="flex items-center gap-3">
