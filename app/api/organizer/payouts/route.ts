@@ -44,23 +44,45 @@ async function computeBalance(
   return Math.max(0, totalRevenue - committed);
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: organizer } = await supabase.from("organizers").select("id, name").eq("user_id", user.id).single();
-  if (!organizer) return NextResponse.json({ error: "No organizer profile found for this account" }, { status: 404 });
+  // Check if user is super admin for technical support access
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const isSuperAdmin = profile?.role === "super_admin";
+
+  // Super admin can view any organizer's payouts via ?organizerId=xxx query param
+  const url = new URL(req.url);
+  const queryOrganizerId = url.searchParams.get("organizerId");
+
+  let organizerId: string;
+  let organizerName: string;
+
+  if (isSuperAdmin && queryOrganizerId) {
+    // Super admin viewing specific organizer's data
+    const { data: organizer } = await supabase.from("organizers").select("id, name").eq("id", queryOrganizerId).single();
+    if (!organizer) return NextResponse.json({ error: "Organizer not found" }, { status: 404 });
+    organizerId = organizer.id;
+    organizerName = organizer.name;
+  } else {
+    // Regular organizer viewing their own data
+    const { data: organizer } = await supabase.from("organizers").select("id, name").eq("user_id", user.id).single();
+    if (!organizer) return NextResponse.json({ error: "No organizer profile found for this account" }, { status: 404 });
+    organizerId = organizer.id;
+    organizerName = organizer.name;
+  }
 
   const [availableBalance, { data: payouts }, minPayout] = await Promise.all([
-    computeBalance(supabase, user.id, organizer.id),
-    supabase.from("payout_requests").select("*").eq("organizer_id", organizer.id).order("requested_at", { ascending: false }),
+    computeBalance(supabase, user.id, organizerId),
+    supabase.from("payout_requests").select("*").eq("organizer_id", organizerId).order("requested_at", { ascending: false }),
     getMinPayout(),
   ]);
 
   return NextResponse.json({
-    organizerId: organizer.id,
-    organizerName: organizer.name,
+    organizerId,
+    organizerName,
     availableBalance,
     payouts: payouts ?? [],
     minPayout,
