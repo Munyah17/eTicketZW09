@@ -332,7 +332,7 @@ export default function AdminEditEventPage() {
               <ImageIcon className="h-10 w-10 text-primary/40" />
               <div className="text-center">
                 <p className="text-sm font-medium text-foreground">Click to upload featured image</p>
-                <p className="text-xs text-muted-foreground mt-1">PNG, JPEG, WebP, or GIF (max 20MB)</p>
+                <p className="text-xs text-muted-foreground mt-1">PNG, JPEG, WebP, or GIF (max 150MB)</p>
               </div>
               <input
                 type="file"
