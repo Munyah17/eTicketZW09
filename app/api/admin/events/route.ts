@@ -150,24 +150,20 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
-  const [{ count: ticketCount }, { count: paidPaymentCount }, { count: gateSaleCount }] = await Promise.all([
-    supabase.from("tickets").select("id", { count: "exact", head: true }).eq("event_id", eventId),
-    supabase.from("payments").select("id", { count: "exact", head: true }).eq("event_id", eventId).eq("status", "paid"),
-    supabase.from("gate_sales").select("id", { count: "exact", head: true }).eq("event_id", eventId),
-  ]);
-
-  if ((ticketCount ?? 0) > 0 || (paidPaymentCount ?? 0) > 0 || (gateSaleCount ?? 0) > 0) {
-    return NextResponse.json(
-      {
-        error: `"${event.title}" has ${ticketCount ?? 0} ticket(s) sold — deleting would destroy buyers' records. Use Cancel instead, which stops sales but keeps the history.`,
-      },
-      { status: 409 }
-    );
+  // Delete all related records including tickets, payments, and gate sales
+  // This allows super admin to fully delete events even if they have sales history
+  const { error: ticketsError } = await supabase.from("tickets").delete().eq("event_id", eventId);
+  if (ticketsError) {
+    console.error("Admin event delete (tickets) error:", ticketsError.message);
+    return NextResponse.json({ error: "Failed to delete event's tickets" }, { status: 500 });
   }
 
-  // Nothing was ever sold — safe to clean up. Abandoned/failed checkout
-  // attempts and unsold ticket types have to go first to satisfy the FK
-  // constraints on events before the event row itself can be deleted.
+  const { error: gateSalesError } = await supabase.from("gate_sales").delete().eq("event_id", eventId);
+  if (gateSalesError) {
+    console.error("Admin event delete (gate_sales) error:", gateSalesError.message);
+    return NextResponse.json({ error: "Failed to delete event's gate sales" }, { status: 500 });
+  }
+
   const { error: paymentsError } = await supabase.from("payments").delete().eq("event_id", eventId);
   if (paymentsError) {
     console.error("Admin event delete (payments) error:", paymentsError.message);
