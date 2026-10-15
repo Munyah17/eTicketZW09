@@ -128,6 +128,12 @@ export default function AdminEditEventPage() {
       const compressed = await compressImageFile(file);
       setFeaturedImage(compressed);
       setFeaturedImagePreview(URL.createObjectURL(compressed));
+    } catch (err) {
+      console.error("Failed to compress image:", err);
+      setSaveError(
+        "Failed to process image" +
+          (err instanceof Error ? ` (${err.message})` : "")
+      );
     } finally {
       setCompressingImage(false);
     }
