@@ -7,8 +7,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: organizer } = await supabase.from("organizers").select("id").eq("user_id", user.id).single();
-  if (!organizer) return NextResponse.json({ error: "No organizer profile found" }, { status: 404 });
+  // Check if user is super admin for technical support access
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  const isSuperAdmin = profile?.role === "super_admin";
 
   const body = await req.json();
   const { label, paymentMethod, paymentDetails } = body;
@@ -17,16 +18,23 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
   }
 
-  // Verify the method belongs to this organizer
+  // Verify the method exists and get its organizer_id
   const { data: method } = await supabase
     .from("organizer_payout_methods")
-    .select("id")
+    .select("id, organizer_id")
     .eq("id", id)
-    .eq("organizer_id", organizer.id)
-    .single();
+    .maybeSingle();
 
   if (!method) {
     return NextResponse.json({ error: "Method not found" }, { status: 404 });
+  }
+
+  // Verify ownership for regular organizers
+  if (!isSuperAdmin) {
+    const { data: organizer } = await supabase.from("organizers").select("id").eq("user_id", user.id).single();
+    if (!organizer || method.organizer_id !== organizer.id) {
+      return NextResponse.json({ error: "Method not found" }, { status: 404 });
+    }
   }
 
   const { error } = await supabase
@@ -48,19 +56,27 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: organizer } = await supabase.from("organizers").select("id").eq("user_id", user.id).single();
-  if (!organizer) return NextResponse.json({ error: "No organizer profile found" }, { status: 404 });
+  // Check if user is super admin for technical support access
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  const isSuperAdmin = profile?.role === "super_admin";
 
-  // Verify the method belongs to this organizer
+  // Verify the method exists and get its organizer_id
   const { data: method } = await supabase
     .from("organizer_payout_methods")
-    .select("id")
+    .select("id, organizer_id")
     .eq("id", id)
-    .eq("organizer_id", organizer.id)
-    .single();
+    .maybeSingle();
 
   if (!method) {
     return NextResponse.json({ error: "Method not found" }, { status: 404 });
+  }
+
+  // Verify ownership for regular organizers
+  if (!isSuperAdmin) {
+    const { data: organizer } = await supabase.from("organizers").select("id").eq("user_id", user.id).single();
+    if (!organizer || method.organizer_id !== organizer.id) {
+      return NextResponse.json({ error: "Method not found" }, { status: 404 });
+    }
   }
 
   const { error } = await supabase.from("organizer_payout_methods").delete().eq("id", id);

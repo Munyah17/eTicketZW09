@@ -10,8 +10,18 @@ export async function GET(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Check if user is super admin for technical support access
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  const isSuperAdmin = profile?.role === "super_admin";
+
   const eventId = req.nextUrl.searchParams.get("eventId");
   if (!eventId) return NextResponse.json({ error: "eventId is required" }, { status: 400 });
+
+  // Verify event ownership for regular organizers
+  if (!isSuperAdmin) {
+    const { data: event } = await supabase.from("events").select("id").eq("id", eventId).eq("organizer_id", user.id).maybeSingle();
+    if (!event) return NextResponse.json({ error: "Event not found or unauthorized" }, { status: 403 });
+  }
 
   const { data, error } = await supabase.from("tickets").select("*").eq("event_id", eventId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -23,11 +33,21 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Check if user is super admin for technical support access
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  const isSuperAdmin = profile?.role === "super_admin";
+
   const body = await req.json();
   const { action, eventId, code, ticketId } = body;
 
   if (action === "scan") {
     if (!eventId || !code) return NextResponse.json({ error: "eventId and code are required" }, { status: 400 });
+
+    // Verify event ownership for regular organizers
+    if (!isSuperAdmin) {
+      const { data: event } = await supabase.from("events").select("id").eq("id", eventId).eq("organizer_id", user.id).maybeSingle();
+      if (!event) return NextResponse.json({ error: "Event not found or unauthorized" }, { status: 403 });
+    }
 
     // QR payloads arrive as a validation URL (current) or JSON (legacy); the
     // old .eq("qr_code", code) match compared against a stored data-URL image
@@ -79,7 +99,7 @@ export async function POST(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     if (!ticket) {
-      const { data: current } = await supabase.from("tickets").select("*").eq("id", ticketId).single();
+      const { data: current } = await supabase.from("tickets").select("*").eq("id", ticketId).maybeSingle();
       return NextResponse.json({
         status: "admitted",
         ticket: current,
