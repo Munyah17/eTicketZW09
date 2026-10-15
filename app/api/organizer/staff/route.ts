@@ -1,19 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-async function getOwnOrganizerId(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function getOrganizerId(supabase: Awaited<ReturnType<typeof createClient>>, queryOrganizerId?: string | null) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) } as const;
 
+  // Check if user is super admin for technical support access
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const isSuperAdmin = profile?.role === "super_admin";
+
+  // Super admin can access any organizer's data via query param
+  if (isSuperAdmin && queryOrganizerId) {
+    const { data: organizer } = await supabase.from("organizers").select("id").eq("id", queryOrganizerId).single();
+    if (!organizer) return { error: NextResponse.json({ error: "Organizer not found" }, { status: 404 }) } as const;
+    return { organizerId: organizer.id } as const;
+  }
+
+  // Regular organizer can only access their own data
   const { data: organizer } = await supabase.from("organizers").select("id").eq("user_id", user.id).single();
   if (!organizer) return { error: NextResponse.json({ error: "No organizer profile found" }, { status: 404 }) } as const;
 
   return { organizerId: organizer.id } as const;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createClient();
-  const scoped = await getOwnOrganizerId(supabase);
+  const url = new URL(req.url);
+  const queryOrganizerId = url.searchParams.get("organizerId");
+  const scoped = await getOrganizerId(supabase, queryOrganizerId);
   if ("error" in scoped) return scoped.error;
 
   const { data, error } = await supabase
@@ -28,7 +42,9 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
-  const scoped = await getOwnOrganizerId(supabase);
+  const url = new URL(req.url);
+  const queryOrganizerId = url.searchParams.get("organizerId");
+  const scoped = await getOrganizerId(supabase, queryOrganizerId);
   if ("error" in scoped) return scoped.error;
 
   const body = await req.json();
@@ -52,7 +68,9 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   const supabase = await createClient();
-  const scoped = await getOwnOrganizerId(supabase);
+  const url = new URL(req.url);
+  const queryOrganizerId = url.searchParams.get("organizerId");
+  const scoped = await getOrganizerId(supabase, queryOrganizerId);
   if ("error" in scoped) return scoped.error;
 
   const body = await req.json();
@@ -79,7 +97,9 @@ export async function PATCH(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const supabase = await createClient();
-  const scoped = await getOwnOrganizerId(supabase);
+  const url = new URL(req.url);
+  const queryOrganizerId = url.searchParams.get("organizerId");
+  const scoped = await getOrganizerId(supabase, queryOrganizerId);
   if ("error" in scoped) return scoped.error;
 
   const body = await req.json();
