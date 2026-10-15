@@ -132,7 +132,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                   <p className="mt-2 text-sm text-muted-foreground">
                     {event.platformNegotiated?.isPlatformEvent
                       ? `Organized by E-TicketsZW on behalf of ${event.platformNegotiated.originalOrganizerName}`
-                      : `by ${event.organizerName}`}
+                      : event.organizerName}
                   </p>
                   {event.organizerCategory && (
                     <p className="mt-1 text-xs text-primary">

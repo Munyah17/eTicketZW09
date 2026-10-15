@@ -15,9 +15,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { ArrowLeft, Plus, Trash2, Save, RefreshCw } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Save, RefreshCw, Upload, X, Image as ImageIcon } from "lucide-react";
 import { EVENT_CATEGORIES, Event } from "@/lib/types";
 import { useAuth } from "@/lib/auth-context";
+import { compressImageFile } from "@/lib/image-compress";
 
 interface TicketTypeForm {
   id?: string; // undefined = new, not yet saved
@@ -51,6 +52,13 @@ export default function AdminEditEventPage() {
   const [city, setCity] = useState("");
   const [ticketTypes, setTicketTypes] = useState<TicketTypeForm[]>([]);
 
+  // Featured image upload state
+  const [featuredImage, setFeaturedImage] = useState<File | null>(null);
+  const [featuredImagePreview, setFeaturedImagePreview] = useState<string | null>(null);
+  const [compressingImage, setCompressingImage] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
@@ -70,6 +78,7 @@ export default function AdminEditEventPage() {
       setVenue(event.venue);
       setCity(event.city);
       setOrganizerName(event.organizerName);
+      setCurrentImageUrl(event.image || null);
       setTicketTypes(
         event.ticketTypes.map((tt) => ({
           id: tt.id,
@@ -110,10 +119,25 @@ export default function AdminEditEventPage() {
     setTicketTypes(ticketTypes.map((t) => (t.key === key ? { ...t, [field]: value } : t)));
   };
 
+  const handleFeaturedImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setCompressingImage(true);
+    try {
+      const compressed = await compressImageFile(file);
+      setFeaturedImage(compressed);
+      setFeaturedImagePreview(URL.createObjectURL(compressed));
+    } finally {
+      setCompressingImage(false);
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaveError(null);
     try {
+      // First save event details
       const res = await fetch(`/api/admin/events/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -139,6 +163,34 @@ export default function AdminEditEventPage() {
         setSaveError(data.error || "Failed to save changes");
         return;
       }
+
+      // Then upload image if one was selected
+      if (featuredImage) {
+        setUploadingImage(true);
+        try {
+          const formData = new FormData();
+          formData.append("image", featuredImage);
+          formData.append("eventId", id);
+          const imageRes = await fetch("/api/organizer/events/image", {
+            method: "POST",
+            body: formData,
+          });
+          if (!imageRes.ok) {
+            const body = await imageRes.json().catch(() => ({}));
+            throw new Error(body.error || `Upload failed (${imageRes.status})`);
+          }
+        } catch (err) {
+          console.error("Failed to upload featured image:", err);
+          setSaveError(
+            "Event details saved, but the featured image failed to upload" +
+              (err instanceof Error ? ` (${err.message})` : "")
+          );
+          return;
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+
       router.push("/private/events");
     } finally {
       setSaving(false);
@@ -237,6 +289,53 @@ export default function AdminEditEventPage() {
               <Input id="city" value={city} onChange={(e) => setCity(e.target.value)} className="mt-1.5" />
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Featured Image</CardTitle>
+          <CardDescription>Upload a featured image for the event listing</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {compressingImage ? (
+            <div className="flex items-center justify-center gap-3 py-8 text-muted-foreground">
+              <Spinner className="h-6 w-6" />
+              <p className="text-sm">Optimizing your image…</p>
+            </div>
+          ) : featuredImagePreview || currentImageUrl ? (
+            <div className="relative">
+              <img
+                src={featuredImagePreview || currentImageUrl || ""}
+                alt="Featured preview"
+                className="w-full h-auto max-h-48 object-cover rounded-lg"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setFeaturedImage(null);
+                  setFeaturedImagePreview(null);
+                }}
+                className="absolute top-2 right-2 bg-destructive text-destructive-foreground p-2 rounded-lg hover:bg-destructive/90"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <label className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary/20 p-8 cursor-pointer hover:bg-primary/5 transition-colors">
+              <ImageIcon className="h-10 w-10 text-primary/40" />
+              <div className="text-center">
+                <p className="text-sm font-medium text-foreground">Click to upload featured image</p>
+                <p className="text-xs text-muted-foreground mt-1">PNG, JPEG, WebP, or GIF (max 20MB)</p>
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFeaturedImageUpload}
+                className="hidden"
+              />
+            </label>
+          )}
         </CardContent>
       </Card>
 
