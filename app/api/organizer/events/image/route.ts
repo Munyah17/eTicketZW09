@@ -28,6 +28,14 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // Check if user is super admin
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+  const isSuperAdmin = profile?.role === "super_admin";
+
   const form = await req.formData();
   const file = form.get("image") as File | null;
   const eventId = form.get("eventId") as string | null;
@@ -40,12 +48,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Event ID is required" }, { status: 400 });
   }
 
-  // Verify the event belongs to this organizer
+  // Verify the event belongs to this organizer (or allow super admin)
   const { data: event, error: lookupError } = await supabase
     .from("events")
-    .select("id")
+    .select("id, organizer_id")
     .eq("id", eventId)
-    .eq("organizer_id", user.id)
     .maybeSingle();
 
   if (lookupError) {
@@ -54,7 +61,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (!event) {
-    return NextResponse.json({ error: "Event not found or unauthorized" }, { status: 404 });
+    return NextResponse.json({ error: "Event not found" }, { status: 404 });
+  }
+
+  if (!isSuperAdmin && event.organizer_id !== user.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
