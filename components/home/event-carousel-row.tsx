@@ -21,14 +21,14 @@ interface EventCarouselRowProps {
   mobileRows?: number;
 }
 
-const GAP = 30;
+const GAP = 24;
 
 // Cards fully in view at each breakpoint.
-// Desktop (1024+): exactly 3 full-width cards (400px each + 30px gaps)
+// Desktop (1024+): exactly 4 full-width cards
 // Tablet (640+): 2 cards center + 0.5 card peek each side
 // Mobile: 1 card center + 0.5 card peek each side
 function cardsPerViewForWidth(width: number): number {
-  if (width >= 1024) return 3;
+  if (width >= 1024) return 4;
   if (width >= 640) return 2;
   return 1;
 }
@@ -78,7 +78,7 @@ export function EventCarouselRow({
   const cardWidth = viewportWidth > 0
     ? isMobile
       ? viewportWidth
-      : 400
+      : (viewportWidth - (cardsPerView - 1) * GAP) / cardsPerView
     : 0;
   const step = cardWidth + GAP;
 
