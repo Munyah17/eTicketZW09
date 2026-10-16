@@ -24,9 +24,11 @@ const EXT_TO_TYPE: Record<string, string> = {
 };
 
 export async function POST(req: NextRequest) {
+  console.log("=== IMAGE UPLOAD REQUEST STARTED ===");
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
+    console.log("User authenticated:", !!user, "userId:", user?.id);
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     // Check if user is super admin
@@ -41,6 +43,8 @@ export async function POST(req: NextRequest) {
     const file = form.get("image") as File | null;
     const eventId = form.get("eventId") as string | null;
 
+    console.log("Received file:", !!file, "size:", file?.size, "eventId:", eventId);
+
     if (!file || file.size === 0) {
       return NextResponse.json({ error: "Image is required" }, { status: 400 });
     }
@@ -49,7 +53,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Event ID is required" }, { status: 400 });
     }
 
-    // Verify the event belongs to this organizer (or allow super admin)
+    // Verify the event exists (super admins can upload to any event)
     const { data: event, error: lookupError } = await supabase
       .from("events")
       .select("id, organizer_id")
@@ -66,7 +70,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
+    console.log("Event found, isSuperAdmin:", isSuperAdmin, "organizer_id:", event.organizer_id, "user.id:", user.id);
+
     if (!isSuperAdmin && event.organizer_id !== user.id) {
+      console.error("Unauthorized: user is not super admin and doesn't own event");
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
@@ -103,15 +110,18 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    console.log("Attempting storage upload to bucket 'events', path:", path, "contentType:", contentType, "bufferSize:", buffer.length);
     const { error: uploadError } = await adminSupabase.storage
       .from("events")
       .upload(path, buffer, { contentType, upsert: true });
 
     if (uploadError) {
       console.error("Storage upload failed:", uploadError);
-      logError("event_image_storage_upload_failed", uploadError, { eventId, path, contentType });
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+      console.error("Upload error details:", JSON.stringify(uploadError, null, 2));
+      logError("event_image_storage_upload_failed", uploadError, { eventId, path, contentType, bucket: "events" });
+      return NextResponse.json({ error: `Storage upload failed: ${uploadError.message} (Bucket: events, Path: ${path})` }, { status: 500 });
     }
+    console.log("Storage upload succeeded");
 
     const { data: pub } = adminSupabase.storage.from("events").getPublicUrl(path);
 

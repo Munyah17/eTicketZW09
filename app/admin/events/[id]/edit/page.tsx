@@ -183,6 +183,7 @@ export default function AdminEditEventPage() {
           });
           if (!imageRes.ok) {
             const body = await imageRes.json().catch(() => ({}));
+            console.error("Image upload failed response:", body);
             throw new Error(body.error || `Upload failed (${imageRes.status})`);
           }
         } catch (err) {

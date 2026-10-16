@@ -37,3 +37,4 @@ node_modules
 .vercel
 
 .claude/
+.env*
