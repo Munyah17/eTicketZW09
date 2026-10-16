@@ -220,7 +220,7 @@ export function AllEventsPageContent({ initialEvents }: { initialEvents?: Event[
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 lg:grid-cols-4">
+            <div className="flex flex-wrap gap-[30px] justify-center">
               {filteredEvents.map((event) => (
                 <EventCard key={event.id} event={event} statusTag={getEventStatusTag(event)} />
               ))}

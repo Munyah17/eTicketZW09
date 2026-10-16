@@ -71,16 +71,16 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
   }
 
   return (
-    <Link href={`/events/${event.id}`} className="block h-full">
-      <Card className="group flex h-full flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lg">
-        {/* Cover image — takes 50% of card height, fills completely */}
-        <div className="relative h-1/2 shrink-0 overflow-hidden bg-gradient-to-br from-primary/20 via-primary/10 to-accent">
+    <Link href={`/events/${event.id}`} className="block">
+      <Card className="group flex h-[450px] w-[400px] flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lg">
+        {/* Cover image — 210px height */}
+        <div className="relative h-[210px] shrink-0 overflow-hidden bg-gradient-to-br from-primary/20 via-primary/10 to-accent">
           {event.image ? (
             <Image
               src={event.image}
               alt={event.title}
               fill
-              sizes="(min-width: 1024px) 30vw, (min-width: 640px) 45vw, 90vw"
+              sizes="400px"
               className="object-cover object-top transition-transform duration-300 group-hover:scale-[1.03]"
             />
           ) : (
@@ -121,7 +121,7 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
           )}
         </div>
 
-        <CardContent className="flex h-1/2 flex-col p-3">
+        <CardContent className="flex h-[240px] flex-col p-3">
           <h3 className="line-clamp-2 text-sm font-semibold leading-tight text-balance group-hover:text-primary transition-colors">
             {event.title}
           </h3>
