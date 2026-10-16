@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import sharp from "sharp";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logError } from "@/lib/error-logger";
-
-// Phone photos routinely come in at 3000-4000px+ on the long edge — far
-// bigger than any slot this image is ever displayed in (hero, listing
-// card, detail page). Capping it here keeps every page that renders it
-// fast, without touching aspect ratio or cropping (that's a display-time
-// CSS decision per context, not something to bake into the stored file).
-const MAX_DIMENSION = 1600;
 
 // Matches the "events" storage bucket's allowed_mime_types exactly
 // (supabase/migrations/20260710000000_create_events_storage_bucket.sql) —
@@ -91,24 +83,7 @@ export async function POST(req: NextRequest) {
 
     const adminSupabase = createAdminClient();
     const path = `event-${eventId}-${Date.now()}.${ext}`;
-    const rawBuffer = Buffer.from(await file.arrayBuffer());
-
-    // GIF is skipped — sharp flattens an animated GIF to its first frame,
-    // which would silently break any organizer relying on the animation.
-    let buffer = rawBuffer;
-    if (contentType !== "image/gif") {
-      try {
-        buffer = await sharp(rawBuffer)
-          .resize(MAX_DIMENSION, MAX_DIMENSION, { fit: "inside", withoutEnlargement: true })
-          .toBuffer();
-      } catch (err) {
-        // Resizing is an optimization, not a requirement — fall back to the
-        // original file rather than blocking the whole upload over it.
-        console.error("Image resize failed, using original:", err);
-        logError("event_image_resize_failed", err, { eventId, contentType });
-        buffer = rawBuffer;
-      }
-    }
+    const buffer = Buffer.from(await file.arrayBuffer());
 
     console.log("Attempting storage upload to bucket 'events', path:", path, "contentType:", contentType, "bufferSize:", buffer.length);
     const { error: uploadError } = await adminSupabase.storage
