@@ -241,7 +241,6 @@ export default function AdminEditEventPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold">Edit Event</h1>
-          <p className="text-sm text-muted-foreground">Listed by {organizerName}</p>
         </div>
       </div>
 

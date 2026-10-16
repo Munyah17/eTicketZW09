@@ -65,7 +65,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<Stats>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [pendingPayouts, setPendingPayouts] = useState(0);
-  const [platformFeePercent, setPlatformFeePercent] = useState(10);
+  const [platformFeePercent, setPlatformFeePercent] = useState<number | null>(null);
 
   const loadStats = useCallback(async () => {
     setLoading(true);

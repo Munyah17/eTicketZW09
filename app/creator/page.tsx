@@ -22,7 +22,7 @@ import { Event } from "@/lib/types";
 export default function OrganizerDashboard() {
   const { user } = useAuth();
   const [organizerEvents, setOrganizerEvents] = useState<Event[]>([]);
-  const [platformFeePercent, setPlatformFeePercent] = useState(10);
+  const [platformFeePercent, setPlatformFeePercent] = useState<number | null>(null);
 
   const loadEvents = useCallback(async () => {
     if (user) {
@@ -35,7 +35,7 @@ export default function OrganizerDashboard() {
     try {
       const res = await fetch("/api/platform-config");
       const json = await res.json();
-      if (json.config?.service_fee_percent) {
+      if (json.config?.service_fee_percent !== undefined) {
         setPlatformFeePercent(json.config.service_fee_percent);
       }
     } catch (e) {
@@ -55,7 +55,7 @@ export default function OrganizerDashboard() {
   const totalRevenue = organizerEvents.reduce((sum, e) => {
     return sum + e.ticketTypes.reduce((typeSum, t) => typeSum + t.sold * t.price, 0);
   }, 0);
-  const serviceFees = totalRevenue * (platformFeePercent / 100);
+  const serviceFees = platformFeePercent !== null ? totalRevenue * (platformFeePercent / 100) : 0;
   const netRevenue = totalRevenue - serviceFees;
 
   const stats = [

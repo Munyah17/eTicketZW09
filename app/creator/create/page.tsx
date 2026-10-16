@@ -44,20 +44,19 @@ export default function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [step, setStep] = useState(1);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-  const [platformFeePercent, setPlatformFeePercent] = useState(10);
+  const [platformFeePercent, setPlatformFeePercent] = useState<number | null>(null);
 
   // Fetch platform configuration for the actual fee percentage
   useEffect(() => {
     fetch("/api/platform-config")
       .then((res) => res.json())
       .then((data) => {
-        if (data.config?.service_fee_percent) {
+        if (data.config?.service_fee_percent !== undefined) {
           setPlatformFeePercent(data.config.service_fee_percent);
         }
       })
       .catch(() => {
-        // Fallback to 10% if fetch fails
-        setPlatformFeePercent(10);
+        // No fallback - show loading state instead
       });
   }, []);
 
@@ -836,7 +835,7 @@ export default function CreateEventPage() {
                     </div>
                   </div>
 
-                  {ticketType.price && (
+                  {ticketType.price && platformFeePercent !== null && (
                     <div className="rounded bg-secondary/50 p-3 text-sm">
                       <p>
                         Buyer pays:{" "}
