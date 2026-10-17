@@ -72,7 +72,7 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
 
   return (
     <Link href={`/events/${event.id}`} className="block">
-      <Card className="group flex h-[450px] w-full flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lg">
+      <Card className="group flex h-[450px] w-full flex-col overflow-hidden transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl">
         {/* Cover image — 210px height, no blank space */}
         <div className="relative h-[210px] shrink-0 overflow-hidden bg-gradient-to-br from-primary/20 via-primary/10 to-accent">
           {event.image ? (
@@ -81,7 +81,8 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
               alt={event.title}
               fill
               sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 90vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+              className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+              quality={85}
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -89,76 +90,76 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
             </div>
           )}
           {/* Category badge */}
-          <Badge className="absolute left-3 top-3 bg-background/90 text-foreground hover:bg-background/90">
+          <Badge className="absolute left-3 top-3 bg-background/90 text-foreground hover:bg-background/90 backdrop-blur-sm">
             {categoryLabel}
           </Badge>
           {/* Availability indicator — a passed-in statusTag (used on the All
               Events page) takes over this corner entirely, since it already
               covers sold-out/almost-sold-out plus ended/cancelled/hot-selling. */}
           {statusTag ? (
-            <Badge className={`absolute right-3 top-3 ${statusTag.className}`}>
+            <Badge className={`absolute right-3 top-3 ${statusTag.className} backdrop-blur-sm`}>
               {statusTag.label}
             </Badge>
           ) : (
             <>
               {availableTickets < 50 && availableTickets > 0 && (
-                <Badge className="absolute right-3 top-3 bg-warning text-warning-foreground">
+                <Badge className="absolute right-3 top-3 bg-warning text-warning-foreground backdrop-blur-sm">
                   Only {availableTickets} left!
                 </Badge>
               )}
               {availableTickets === 0 && event.totalTickets > 0 && (
-                <Badge className="absolute right-3 top-3 bg-destructive text-destructive-foreground">
+                <Badge className="absolute right-3 top-3 bg-destructive text-destructive-foreground backdrop-blur-sm">
                   Sold Out
                 </Badge>
               )}
             </>
           )}
           {shouldShowSellFast && (
-            <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2 py-1 text-white shadow-md">
+            <div className="absolute bottom-3 left-3 flex items-center gap-1 rounded-full bg-gradient-to-r from-orange-500 to-red-500 px-2 py-1 text-white shadow-md backdrop-blur-sm">
               <Flame className="h-3.5 w-3.5" />
               <span className="text-[10px] font-bold uppercase tracking-wide">Selling Fast</span>
             </div>
           )}
         </div>
 
-        <CardContent className="flex h-[240px] flex-col p-3">
-          <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-balance group-hover:text-primary transition-colors hyphens-auto">
+        <CardContent className="flex h-[240px] flex-col p-4">
+          <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-balance group-hover:text-primary transition-colors duration-200 hyphens-auto">
             {event.title}
           </h3>
 
-          <div className="mt-1.5 space-y-1">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Calendar className="h-3 w-3 shrink-0" />
+          <div className="mt-2 space-y-1.5">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Calendar className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate hyphens-auto">{formatDate(event.date)} · {event.time}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <MapPin className="h-3 w-3 shrink-0" />
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate hyphens-auto">{event.venue}, {event.city}</span>
             </div>
           </div>
 
           {/* Tickets Sold Progress Bar */}
           {event.totalTickets > 0 && (
-            <div className="mt-2 space-y-0.5">
+            <div className="mt-3 space-y-1">
               <div className="flex items-center justify-between text-[10px]">
                 <span className="text-muted-foreground">Tickets Sold</span>
                 <span className="font-semibold text-primary">{event.soldTickets}/{event.totalTickets}</span>
               </div>
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
                 <div
-                  className="h-full bg-gradient-to-r from-primary to-primary/80 transition-all"
+                  className="h-full bg-gradient-to-r from-primary to-primary/80 transition-all duration-500 ease-out"
                   style={{ width: `${(event.soldTickets / event.totalTickets) * 100}%` }}
                 />
               </div>
             </div>
           )}
 
-          <div className="mt-auto flex items-center justify-between pt-2">
+          <div className="mt-auto flex items-center justify-between pt-3">
             <div>
               <span className="text-[10px] text-muted-foreground">From</span>
               <p className="text-sm font-heading font-bold text-primary">${lowestPrice}</p>
             </div>
-            <Button size="sm" className="bg-primary hover:bg-primary/90 text-xs px-3 h-7">
+            <Button size="sm" className="bg-primary hover:bg-primary/90 text-xs px-4 h-8 transition-all duration-200 ease-out hover:scale-105">
               Get Tickets
             </Button>
           </div>
