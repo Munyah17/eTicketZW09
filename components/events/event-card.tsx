@@ -73,7 +73,7 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
   return (
     <Link href={`/events/${event.id}`} className="block">
       <Card className="group flex h-[450px] w-full flex-col overflow-hidden transition-all hover:-translate-y-0.5 hover:shadow-lg">
-        {/* Cover image — 210px height */}
+        {/* Cover image — 210px height, no blank space */}
         <div className="relative h-[210px] shrink-0 overflow-hidden bg-gradient-to-br from-primary/20 via-primary/10 to-accent">
           {event.image ? (
             <Image
@@ -81,7 +81,7 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
               alt={event.title}
               fill
               sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 90vw"
-              className="object-cover object-top transition-transform duration-300 group-hover:scale-[1.03]"
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
@@ -121,30 +121,30 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
           )}
         </div>
 
-        <CardContent className="flex h-[240px] flex-col p-4">
-          <h3 className="line-clamp-2 text-base font-semibold leading-snug text-balance group-hover:text-primary transition-colors hyphens-auto">
+        <CardContent className="flex h-[240px] flex-col p-3">
+          <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-balance group-hover:text-primary transition-colors hyphens-auto">
             {event.title}
           </h3>
 
-          <div className="mt-2 space-y-1.5">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4 shrink-0" />
+          <div className="mt-1.5 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Calendar className="h-3 w-3 shrink-0" />
               <span className="truncate hyphens-auto">{formatDate(event.date)} · {event.time}</span>
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <MapPin className="h-4 w-4 shrink-0" />
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <MapPin className="h-3 w-3 shrink-0" />
               <span className="truncate hyphens-auto">{event.venue}, {event.city}</span>
             </div>
           </div>
 
           {/* Tickets Sold Progress Bar */}
           {event.totalTickets > 0 && (
-            <div className="mt-3 space-y-1">
-              <div className="flex items-center justify-between text-xs">
+            <div className="mt-2 space-y-0.5">
+              <div className="flex items-center justify-between text-[10px]">
                 <span className="text-muted-foreground">Tickets Sold</span>
                 <span className="font-semibold text-primary">{event.soldTickets}/{event.totalTickets}</span>
               </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
                 <div
                   className="h-full bg-gradient-to-r from-primary to-primary/80 transition-all"
                   style={{ width: `${(event.soldTickets / event.totalTickets) * 100}%` }}
@@ -153,12 +153,12 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
             </div>
           )}
 
-          <div className="mt-auto flex items-center justify-between pt-3">
+          <div className="mt-auto flex items-center justify-between pt-2">
             <div>
-              <span className="text-xs text-muted-foreground">From</span>
-              <p className="text-lg font-heading font-bold text-primary">${lowestPrice}</p>
+              <span className="text-[10px] text-muted-foreground">From</span>
+              <p className="text-sm font-heading font-bold text-primary">${lowestPrice}</p>
             </div>
-            <Button size="sm" className="bg-primary hover:bg-primary/90 text-sm px-4 h-9">
+            <Button size="sm" className="bg-primary hover:bg-primary/90 text-xs px-3 h-7">
               Get Tickets
             </Button>
           </div>

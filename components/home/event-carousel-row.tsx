@@ -26,17 +26,18 @@ const GAP = 24;
 // Cards fully in view at each breakpoint.
 // Desktop (1024+): exactly 4 full-width cards
 // Tablet (640+): 2 cards center + 0.5 card peek each side
-// Mobile: 1 card center + 0.5 card peek each side
+// Mobile: 1 card center (no peek)
 function cardsPerViewForWidth(width: number): number {
   if (width >= 1024) return 4;
   if (width >= 640) return 2;
   return 1;
 }
 
-// Only mobile/tablet get the half-card "peek" scroll affordance; desktop
+// Only tablet gets the half-card "peek" scroll affordance; desktop
 // shows a clean set of full cards with no cut-off edge card.
+// Mobile shows 1 full card with no peek.
 function hasPeekForWidth(width: number): boolean {
-  return width > 0 && width < 1024;
+  return width > 0 && width >= 640 && width < 1024;
 }
 
 export function EventCarouselRow({
