@@ -190,59 +190,55 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                 {event.description}
               </p>
             </div>
-          </div>
 
-          <div className="lg:col-span-1">
-            <div id="tickets">
-              <h2 className="text-lg font-bold mb-3">Select Tickets</h2>
-              <div className="space-y-3">
-                {event.ticketTypes.map((ticketType) => {
-                  const available = ticketType.quantity - ticketType.sold;
-                  const isSelected = selectedTicketType === ticketType.id;
-
-                  return (
-                    <Card
-                      key={ticketType.id}
-                      className={cn(
-                        "cursor-pointer transition-all hover:shadow-md",
-                        isSelected && "ring-2 ring-primary bg-primary/5",
-                        available === 0 && "opacity-50 cursor-not-allowed hover:shadow-none"
-                      )}
-                      onClick={() => { if (available > 0) handleTicketSelect(ticketType.id); }}
-                    >
-                      <CardContent className="flex items-center justify-between p-3">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold">{ticketType.name}</h3>
-                            {isSelected && <CheckCircle2 className="h-3 w-3 text-primary" />}
-                          </div>
-                          <p className="mt-0.5 text-xs text-muted-foreground">{ticketType.description}</p>
-                          <p className="mt-1 text-[10px] text-muted-foreground">
-                            {available > 0 ? `${available} available` : "Sold out"}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-base font-heading font-bold">${ticketType.price.toFixed(2)}</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
             <div id="ticket-purchase-form">
               <TicketPurchaseForm
                 event={event}
                 selectedTicketTypeId={selectedTicketType}
                 onTicketTypeChange={setSelectedTicketType}
               />
+            </div>
+          </div>
+
+          <div className="lg:col-span-1">
+            <div className="lg:sticky lg:top-24 space-y-4">
+              <div id="tickets">
+                <h2 className="text-lg font-bold mb-3">Select Tickets</h2>
+                <div className="space-y-3">
+                  {event.ticketTypes.map((ticketType) => {
+                    const available = ticketType.quantity - ticketType.sold;
+                    const isSelected = selectedTicketType === ticketType.id;
+
+                    return (
+                      <Card
+                        key={ticketType.id}
+                        className={cn(
+                          "cursor-pointer transition-all hover:shadow-md",
+                          isSelected && "ring-2 ring-primary bg-primary/5",
+                          available === 0 && "opacity-50 cursor-not-allowed hover:shadow-none"
+                        )}
+                        onClick={() => { if (available > 0) handleTicketSelect(ticketType.id); }}
+                      >
+                        <CardContent className="flex items-center justify-between p-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-sm font-semibold">{ticketType.name}</h3>
+                              {isSelected && <CheckCircle2 className="h-3 w-3 text-primary" />}
+                            </div>
+                            <p className="mt-0.5 text-xs text-muted-foreground">{ticketType.description}</p>
+                            <p className="mt-1 text-[10px] text-muted-foreground">
+                              {available > 0 ? `${available} available` : "Sold out"}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-base font-heading font-bold">${ticketType.price.toFixed(2)}</p>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </div>
