@@ -72,7 +72,7 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
 
   return (
     <Link href={`/events/${event.id}`} className="block">
-      <Card className="group flex h-[450px] w-full flex-col overflow-hidden transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl">
+      <Card className="group flex h-[450px] w-full flex-col overflow-hidden transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl pt-0 pb-6">
         {/* Cover image — 210px height, no blank space */}
         <div className="relative h-[210px] shrink-0 overflow-hidden bg-gradient-to-br from-primary/20 via-primary/10 to-accent">
           {event.image ? (
