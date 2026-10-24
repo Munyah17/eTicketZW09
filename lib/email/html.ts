@@ -20,7 +20,7 @@ export function wrapper(accentColor: string, heading: string, bodyHtml: string):
       </div>
       <div style="max-width: 520px; margin: 16px auto 0; text-align: center;">
         <p style="margin: 0; font-size: 12px; color: #94a3b8;">
-          E-TicketsZW · <a href="https://eticket.co.zw" style="color: #059669; text-decoration: none;">eticket.co.zw</a> · info@eticket.co.zw
+          E-TicketsZW · <a href="https://www.eticket.co.zw" style="color: #059669; text-decoration: none;">eticket.co.zw</a> · info@eticket.co.zw
         </p>
         <p style="margin: 6px 0 0; font-size: 11px; color: #b6c0cc;">Replies to this email reach our team directly.</p>
       </div>

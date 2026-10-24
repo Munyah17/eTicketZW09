@@ -4,11 +4,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calculatePlatformFee, calculateTotalWithFee } from "@/lib/pricing";
 import { PLATFORM_FEE_PERCENTAGE, PLATFORM_FEE_FIXED } from "@/lib/types";
 import { sendFailedPurchaseAlert } from "@/lib/failed-purchase-alert";
+import { getSiteUrl } from "@/lib/site-url";
 
 export async function POST(req: NextRequest) {
   try {
     const body: PaymentInitiateRequest = await req.json();
-    body.origin = req.headers.get("origin") || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    body.origin = getSiteUrl(req);
+
+    // The checkout form carries the purchase identity inside metadata
+    // (camelCase) — normalize it up to the top-level fields the repricing
+    // and column writes below key on. Without this, every purchase
+    // silently skipped price verification and left payments.event_id /
+    // payments.ticket_type_id NULL.
+    const meta = (body.metadata ?? {}) as Record<string, unknown>;
+    body.ticket_type_id = body.ticket_type_id ?? (meta.ticketTypeId as string | undefined);
+    body.event_id = body.event_id ?? (meta.eventId as string | undefined);
 
     if (!body.product_name || !body.amount || !body.currency || !body.provider) {
       return NextResponse.json(
@@ -53,10 +63,10 @@ export async function POST(req: NextRequest) {
     // fee. Recompute both server-side from the ticket type's real price and
     // the live platform_config rates (percent + fixed).
     if (body.ticket_type_id) {
-      const quantity = Math.max(1, Number(body.metadata?.quantity) || 1);
+      const quantity = Math.min(10, Math.max(1, Math.floor(Number(body.metadata?.quantity)) || 1));
       const { data: ticketType } = await supabase
         .from("ticket_types")
-        .select("price")
+        .select("price, currency, event_id")
         .eq("id", body.ticket_type_id)
         .maybeSingle();
 
@@ -70,6 +80,8 @@ export async function POST(req: NextRequest) {
       const fee = calculatePlatformFee(subtotal, feePercent, feeFixed);
 
       body.amount = calculateTotalWithFee(subtotal, feePercent, feeFixed);
+      body.currency = ticketType.currency;
+      body.event_id = body.event_id ?? ticketType.event_id;
       body.metadata = { ...(body.metadata ?? {}), quantity, platformFeeAmount: fee };
     }
 

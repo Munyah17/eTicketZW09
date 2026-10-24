@@ -18,7 +18,7 @@ export async function sendPaymentFailedEmail(info: FailedPaymentInfo): Promise<v
   // a failed payment is a lost sale and must never leave the admin blind.
   const recipient = info.buyerEmail || "sales@eticket.co.zw";
 
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://eticket.co.zw";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://www.eticket.co.zw";
   const retryUrl = info.eventId ? `${baseUrl}/events/${info.eventId}` : baseUrl;
 
   const html = wrapper(

@@ -48,7 +48,7 @@ export interface OrganizerWeeklyReport {
   recentPayouts: PayoutActivity[];
 }
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://eticket.co.zw";
+const SITE_URL = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://www.eticket.co.zw";
 
 function esc(s: string): string {
   return s

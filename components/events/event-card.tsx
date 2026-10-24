@@ -72,15 +72,15 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
 
   return (
     <Link href={`/events/${event.id}`} className="block">
-      <Card className="group flex h-[450px] w-full flex-col overflow-hidden transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl pt-0 pb-6">
-        {/* Cover image — 210px height, no blank space */}
-        <div className="relative h-[210px] shrink-0 overflow-hidden bg-gradient-to-br from-primary/20 via-primary/10 to-accent">
+      <Card className="group flex w-full flex-col overflow-hidden transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl pt-0 pb-6 sm:h-[450px]">
+        {/* Cover image — aspect-scaled on narrow (mobile) cards, fixed 210px at sm+ */}
+        <div className="relative aspect-[16/10] shrink-0 overflow-hidden bg-gradient-to-br from-primary/20 via-primary/10 to-accent sm:aspect-auto sm:h-[210px]">
           {event.image ? (
             <Image
               src={event.image}
               alt={event.title}
               fill
-              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 90vw"
+              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 45vw"
               className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
               quality={85}
             />
@@ -122,19 +122,19 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
           )}
         </div>
 
-        <CardContent className="flex h-[240px] flex-col p-4">
-          <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-balance group-hover:text-primary transition-colors duration-200 hyphens-auto">
+        <CardContent className="flex flex-1 flex-col p-3 sm:h-[240px] sm:p-4">
+          <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-balance group-hover:text-primary transition-colors duration-200">
             {event.title}
           </h3>
 
           <div className="mt-2 space-y-1.5">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Calendar className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate hyphens-auto">{formatDate(event.date)} · {event.time}</span>
+              <span className="truncate">{formatDate(event.date)} · {event.time}</span>
             </div>
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <MapPin className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate hyphens-auto">{event.venue}, {event.city}</span>
+              <span className="truncate">{event.venue}, {event.city}</span>
             </div>
           </div>
 
@@ -154,12 +154,12 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
             </div>
           )}
 
-          <div className="mt-auto flex items-center justify-between pt-3">
-            <div>
+          <div className="mt-auto flex items-center justify-between gap-2 pt-3">
+            <div className="min-w-0">
               <span className="text-[10px] text-muted-foreground">From</span>
-              <p className="text-sm font-heading font-bold text-primary">${lowestPrice}</p>
+              <p className="truncate text-sm font-heading font-bold text-primary">${lowestPrice}</p>
             </div>
-            <Button size="sm" className="bg-primary hover:bg-primary/90 text-xs px-4 h-8 transition-all duration-200 ease-out hover:scale-105">
+            <Button size="sm" className="shrink-0 whitespace-nowrap bg-primary hover:bg-primary/90 text-[11px] px-2.5 h-8 transition-all duration-200 ease-out hover:scale-105 sm:text-xs sm:px-4">
               Get Tickets
             </Button>
           </div>

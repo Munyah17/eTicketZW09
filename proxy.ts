@@ -44,6 +44,18 @@ const SUPER_ADMIN_LOGIN_PATH = "/super-admin";
 export async function proxy(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  // Redirect/short-circuit responses are created fresh, which would drop the
+  // refreshed session cookies getUser() wrote into supabaseResponse — the
+  // browser then retries the next navigation with a refresh token GoTrue
+  // already revoked, and every few requests ends in a random sign-out.
+  // Copy any updated auth cookies onto whatever response we return.
+  const respond = (res: NextResponse) => {
+    supabaseResponse.cookies.getAll().forEach(({ name, value }) =>
+      res.cookies.set(name, value)
+    );
+    return res;
+  };
+
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -82,10 +94,10 @@ export async function proxy(request: NextRequest) {
         }
 
         if (!isAdmin) {
-          return new NextResponse(MAINTENANCE_HTML, {
+          return respond(new NextResponse(MAINTENANCE_HTML, {
             status: 503,
             headers: { "Content-Type": "text/html", "Retry-After": "3600" },
-          });
+          }));
         }
       }
     }
@@ -98,7 +110,7 @@ export async function proxy(request: NextRequest) {
     // portals.
     // Legacy Super Admin login URL — the real sign-in lives at /super-admin.
     if (path === PRIVATE_LOGIN_PATH) {
-      return NextResponse.redirect(new URL(SUPER_ADMIN_LOGIN_PATH, request.url));
+      return respond(NextResponse.redirect(new URL(SUPER_ADMIN_LOGIN_PATH, request.url)));
     }
 
     const isAdminPath = path.startsWith("/admin");
@@ -111,7 +123,7 @@ export async function proxy(request: NextRequest) {
     // hydration decided otherwise.
     if (isCreatorPath) {
       if (!user) {
-        return NextResponse.redirect(new URL("/login", request.url));
+        return respond(NextResponse.redirect(new URL("/login", request.url)));
       }
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
       const role = profile?.role;
@@ -119,10 +131,10 @@ export async function proxy(request: NextRequest) {
       // organizer code lookup). Every /creator page presumes an organizer
       // identity, so they go straight to the scanner.
       if (role === "staff") {
-        return NextResponse.redirect(new URL("/validate", request.url));
+        return respond(NextResponse.redirect(new URL("/validate", request.url)));
       }
       if (role !== "organizer" && role !== "super_admin") {
-        return NextResponse.redirect(new URL("/", request.url));
+        return respond(NextResponse.redirect(new URL("/", request.url)));
       }
     }
 
@@ -130,7 +142,7 @@ export async function proxy(request: NextRequest) {
       const loginPath = isPrivatePath ? SUPER_ADMIN_LOGIN_PATH : ADMIN_LOGIN_PATH;
 
       if (!user) {
-        return NextResponse.redirect(new URL(loginPath, request.url));
+        return respond(NextResponse.redirect(new URL(loginPath, request.url)));
       }
 
       const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
@@ -138,7 +150,7 @@ export async function proxy(request: NextRequest) {
       const allowed = isPrivatePath ? role === "super_admin" : (role === "admin" || role === "super_admin");
 
       if (!allowed) {
-        return NextResponse.redirect(new URL(loginPath, request.url));
+        return respond(NextResponse.redirect(new URL(loginPath, request.url)));
       }
 
       // Super Admin sessions must be two-factor (aal2). A password-only
@@ -148,7 +160,7 @@ export async function proxy(request: NextRequest) {
       if (role === "super_admin") {
         const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
         if (aal?.currentLevel !== "aal2") {
-          return NextResponse.redirect(new URL(SUPER_ADMIN_LOGIN_PATH, request.url));
+          return respond(NextResponse.redirect(new URL(SUPER_ADMIN_LOGIN_PATH, request.url)));
         }
       }
     }

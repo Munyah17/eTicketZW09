@@ -94,7 +94,7 @@ export function AllEventsPageContent({ initialEvents }: { initialEvents?: Event[
 
       <main className="flex-1">
         <section className="border-b bg-secondary/30 py-8">
-          <div className="mx-auto max-w-[95%] px-4 lg:px-8">
+          <div className="mx-auto max-w-7xl px-4 lg:px-8">
             <h1 className="text-3xl font-bold md:text-4xl">All Events</h1>
             <p className="mt-2 text-muted-foreground">
               Every event ever listed on E-TicketsZW — newest first
@@ -197,7 +197,7 @@ export function AllEventsPageContent({ initialEvents }: { initialEvents?: Event[
 
         {/* Full chronological feed — no pagination, the list simply grows
             (and the scrollbar with it) as more events get listed. */}
-        <section className="mx-auto max-w-[95%] px-4 py-10 lg:px-8">
+        <section className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
           <p className="mb-4 text-sm text-muted-foreground">
             Showing <span className="font-medium text-foreground">{filteredEvents.length}</span> of{" "}
             <span className="font-medium text-foreground">{allEvents.filter((e) => e.status === "published").length}</span> events
@@ -220,7 +220,7 @@ export function AllEventsPageContent({ initialEvents }: { initialEvents?: Event[
               </Button>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-6 sm:grid-cols-3 lg:grid-cols-4">
               {filteredEvents.map((event) => (
                 <EventCard key={event.id} event={event} statusTag={getEventStatusTag(event)} />
               ))}

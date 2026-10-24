@@ -76,8 +76,10 @@ export default function CareersPage() {
                       </span>
                     </div>
                   </div>
-                  <Button variant="outline" className="gap-1 shrink-0">
-                    Apply <ArrowRight className="h-4 w-4" />
+                  <Button variant="outline" className="gap-1 shrink-0" asChild>
+                    <a href={`mailto:info@eticket.co.zw?subject=${encodeURIComponent(`Application: ${job.title}`)}`}>
+                      Apply <ArrowRight className="h-4 w-4" />
+                    </a>
                   </Button>
                 </CardContent>
               </Card>

@@ -69,7 +69,7 @@ export default function PrivateLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [pendingPayouts, setPendingPayouts] = useState(0);
-  const { isSuperAdmin, isAdmin, isLoggedIn, user, logout } = useAuth();
+  const { isSuperAdmin, isAdmin, isLoggedIn, loading, user, logout } = useAuth();
 
   // /private/login is a standalone page (its own sign-in form) — never
   // wrapped in the Access-Required/AdminShell chrome below.
@@ -102,6 +102,17 @@ export default function PrivateLayout({
 
   if (isPrivateLoginPage) {
     return <>{children}</>;
+  }
+
+  // Wait for the session to resolve — during the window between mount and
+  // profile load isLoggedIn is false, and showing the sign-in splash then
+  // flickered "Access Required" at signed-in super admins.
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
   if (!isLoggedIn) {

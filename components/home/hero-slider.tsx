@@ -202,7 +202,7 @@ export function HeroSlider() {
                 />
                 <div className="relative mx-auto w-full max-w-7xl px-4 py-8 md:py-12 lg:px-8">
                   <div className="min-w-0 w-full max-w-2xl">
-                    <h1 className="text-3xl font-bold tracking-tight text-balance text-white md:text-4xl lg:text-5xl">
+                    <h1 className="text-2xl font-bold tracking-tight text-balance text-white sm:text-3xl md:text-4xl lg:text-5xl">
                       {slide.title}
                     </h1>
                     <div className="mt-6 flex flex-wrap gap-3">

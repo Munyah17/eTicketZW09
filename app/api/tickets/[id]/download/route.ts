@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { renderTicketPng } from "@/lib/ticket-png";
+import { canAccessTicket } from "@/lib/server-auth";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
@@ -17,6 +18,10 @@ export async function GET(
 
   if (error || !ticket) {
     return NextResponse.json({ error: "Ticket not found" }, { status: 404 });
+  }
+
+  if (!(await canAccessTicket(ticket, req.nextUrl.searchParams.get("ref")))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const png = await renderTicketPng({

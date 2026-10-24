@@ -26,6 +26,15 @@ export default function LoginPage() {
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotMsg, setForgotMsg] = useState("");
   const [forgotSending, setForgotSending] = useState(false);
+  const [notice, setNotice] = useState("");
+
+  // Banners for links that land here: confirmed emails (?confirmed=1) and
+  // failed/expired link errors (?error=...) redirected by /auth/callback.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("confirmed")) setNotice("Email confirmed — sign in below.");
+    else if (params.get("error")) setNotice(params.get("error") || "");
+  }, []);
 
   // This page is for customers and organizers only — Admin and Super Admin
   // have their own dedicated sign-in surfaces. A privileged SESSION landing
@@ -70,7 +79,11 @@ export default function LoginPage() {
     setResending(true);
     setResendMsg("");
     const supabase = createClient();
-    const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email: email.trim(),
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
     setResendMsg(error ? `Couldn't resend: ${error.message}` : "Confirmation email resent — check inbox and spam.");
     setResending(false);
   };
@@ -83,7 +96,7 @@ export default function LoginPage() {
     setForgotMsg("");
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}/auth/callback?next=/reset-password`,
     });
     setForgotMsg(error ? `Couldn't send: ${error.message}` : "Reset link sent — check inbox and spam.");
     setForgotSending(false);
@@ -114,6 +127,9 @@ export default function LoginPage() {
             <CardDescription>Enter your email and password</CardDescription>
           </CardHeader>
           <CardContent>
+            {notice && (
+              <p className="mb-4 rounded-md bg-primary/10 px-3 py-2 text-sm text-primary">{notice}</p>
+            )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="email">Email</Label>

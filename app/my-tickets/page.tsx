@@ -228,7 +228,7 @@ export default function MyTicketsPage() {
                         <div className="grid gap-1 text-sm">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Ticket ID</span>
-                            <span className="font-mono">{ticket.id}</span>
+                            <span className="min-w-0 break-all text-right font-mono">{ticket.id}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Name on Ticket</span>

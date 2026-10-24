@@ -56,6 +56,22 @@ const adminLinks: AdminShellLink[] = [
   { href: "/admin/organizer-settings", label: "Organizer Settings", icon: Settings, group: "Organizing" },
 ];
 
+// Organizer-shaped pages have no /private twin — they map to the creator
+// portal (super admin has full organiser access), so a stale /admin/* link
+// can never 404 for them.
+const SUPER_ADMIN_DESTINATIONS: Record<string, string> = {
+  "/admin/create-event": "/creator/create",
+  "/admin/my-events": "/creator/events",
+  "/admin/my-events-overview": "/creator",
+  "/admin/ticket-sales": "/creator/sales",
+  "/admin/organizer-analytics": "/creator/analytics",
+  "/admin/advertising": "/creator/advertising",
+  "/admin/my-payouts": "/creator/payouts",
+  "/admin/organizer-staff": "/creator/staff",
+  "/admin/gate": "/creator/gate",
+  "/admin/organizer-settings": "/creator/settings",
+};
+
 export default function AdminLayout({
   children,
 }: {
@@ -64,7 +80,7 @@ export default function AdminLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [pendingPayouts, setPendingPayouts] = useState(0);
-  const { isSuperAdmin, isAdmin, isLoggedIn, user, logout } = useAuth();
+  const { isSuperAdmin, isAdmin, isLoggedIn, loading, user, logout } = useAuth();
 
   // /admin/login is a standalone page (its own sign-in form) — it must
   // never be wrapped in the "Access Required"/AdminShell chrome below, or an
@@ -74,26 +90,12 @@ export default function AdminLayout({
   // Super Admin outranks this dashboard — it has everything here plus
   // super-admin-only tools, at its own URL. Sending them there instead of
   // letting them use the plain Admin dashboard is what keeps this to one
-  // portal per person rather than two. Organizer-shaped pages have no
-  // /private twin — they map to the creator portal (super admin has full
-  // organiser access), so a stale /admin/* link can never 404.
-  const SUPER_ADMIN_DESTINATIONS: Record<string, string> = {
-    "/admin/create-event": "/creator/create",
-    "/admin/my-events": "/creator/events",
-    "/admin/my-events-overview": "/creator",
-    "/admin/ticket-sales": "/creator/sales",
-    "/admin/organizer-analytics": "/creator/analytics",
-    "/admin/advertising": "/creator/advertising",
-    "/admin/my-payouts": "/creator/payouts",
-    "/admin/organizer-staff": "/creator/staff",
-    "/admin/gate": "/creator/gate",
-    "/admin/organizer-settings": "/creator/settings",
-  };
+  // portal per person rather than two.
   useEffect(() => {
     if (isSuperAdmin && !isAdminLoginPage) {
       router.replace(SUPER_ADMIN_DESTINATIONS[pathname] ?? pathname.replace(/^\/admin/, "/private"));
     }
-  }, [isSuperAdmin, isAdminLoginPage, pathname, router, SUPER_ADMIN_DESTINATIONS]);
+  }, [isSuperAdmin, isAdminLoginPage, pathname, router]);
 
   useEffect(() => {
     if (!isLoggedIn || !isAdmin) return;
@@ -108,6 +110,17 @@ export default function AdminLayout({
 
   if (isAdminLoginPage) {
     return <>{children}</>;
+  }
+
+  // Wait for the session to resolve — during the window between mount and
+  // profile load isLoggedIn is false, and showing the sign-in splash then
+  // flickered "Access Required" at signed-in admins.
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
   if (!isLoggedIn) {

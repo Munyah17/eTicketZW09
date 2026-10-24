@@ -44,7 +44,7 @@ interface PaymentStatusResponse {
   success: boolean;
   reference: string;
   provider: string;
-  status: "pending" | "paid" | "failed";
+  status: "pending" | "paid" | "failed" | "paid_refund_required";
   error: string | null;
   metadata: Record<string, any> | null;
   instruction: "accept" | "retry" | "pending";
@@ -60,6 +60,26 @@ function TicketConfirmationContent() {
   const [statusError, setStatusError] = useState<string | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(true);
 
+  const [shareMsg, setShareMsg] = useState("");
+
+  const handleShare = async () => {
+    const url = window.location.href;
+    const text = ticketData
+      ? `My ticket for ${ticketData.eventTitle} on ${ticketData.eventDate}`
+      : "My E-TicketsZW ticket";
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "E-TicketsZW Ticket", text, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareMsg("Link copied to clipboard");
+      }
+    } catch {
+      // User dismissed the share sheet — not an error.
+    }
+    setTimeout(() => setShareMsg(""), 3000);
+  };
+
   useEffect(() => {
     if (!reference) {
       setLoadingStatus(false);
@@ -67,42 +87,87 @@ function TicketConfirmationContent() {
       return;
     }
 
-    const fetchStatus = async () => {
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    // EcoCash buyers land here while the PIN prompt is still on their phone,
+    // and Stripe/Paynow buyers often arrive before the webhook does — one
+    // status check would strand them on "pending" forever. Poll until a
+    // terminal state (or ~5 minutes), then show the pending UI with a
+    // manual refresh.
+    const MAX_ATTEMPTS = 60;
+
+    const fetchTicket = async (): Promise<boolean> => {
+      try {
+        const ticketResponse = await fetch(`/api/tickets/retrieve?ref=${encodeURIComponent(reference)}`);
+        const ticketJson = await ticketResponse.json();
+        if (ticketResponse.ok && ticketJson.ticket) {
+          setTicketData(ticketJson.ticket as TicketData);
+          return true;
+        }
+      } catch (error) {
+        console.error("Failed to fetch ticket:", error);
+      }
+      return false;
+    };
+
+    const tick = async () => {
+      if (cancelled) return;
+      attempts++;
       try {
         const response = await fetch(`/api/payments/status?ref=${encodeURIComponent(reference)}`);
         const data = await response.json();
 
         if (!response.ok || !data.success) {
-          setStatusError(data.error || "Unable to load payment status.");
-          setLoadingStatus(false);
+          if (attempts >= MAX_ATTEMPTS) {
+            setStatusError(data.error || "Unable to load payment status.");
+            setLoadingStatus(false);
+            return;
+          }
+          timer = setTimeout(tick, 5000);
           return;
         }
 
         setPaymentStatus(data as PaymentStatusResponse);
 
-        // If payment is paid, fetch the generated ticket
         if (data.status === "paid") {
-          try {
-            const ticketResponse = await fetch(`/api/tickets/retrieve?ref=${encodeURIComponent(reference)}`);
-            const ticketData = await ticketResponse.json();
-            if (ticketResponse.ok && ticketData.ticket) {
-              setTicketData(ticketData.ticket as TicketData);
-            }
-          } catch (error) {
-            console.error("Failed to fetch ticket:", error);
+          if (await fetchTicket()) {
+            setLoadingStatus(false);
+            return;
           }
+          // Payment paid but ticket still generating — keep polling on a
+          // slightly longer budget; generation runs webhook-side.
+          if (attempts >= MAX_ATTEMPTS + 6) {
+            setLoadingStatus(false);
+            return;
+          }
+          timer = setTimeout(tick, 5000);
+          return;
         }
 
-        setLoadingStatus(false);
-      } catch (error) {
-        setStatusError(
-          error instanceof Error ? error.message : "Unable to load payment status."
-        );
-        setLoadingStatus(false);
+        if (data.status === "failed" || data.status === "paid_refund_required") {
+          setLoadingStatus(false);
+          return;
+        }
+
+        // pending
+        if (attempts >= MAX_ATTEMPTS) {
+          setLoadingStatus(false);
+          return;
+        }
+        timer = setTimeout(tick, 5000);
+      } catch {
+        if (attempts >= MAX_ATTEMPTS) {
+          setStatusError("Unable to load payment status. Please check your connection and refresh.");
+          setLoadingStatus(false);
+          return;
+        }
+        timer = setTimeout(tick, 5000);
       }
     };
 
-    fetchStatus();
+    tick();
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [reference]);
 
   useEffect(() => {
@@ -206,7 +271,7 @@ function TicketConfirmationContent() {
 
   const isPaid = paymentStatus.status === "paid";
   const isPending = paymentStatus.status === "pending";
-  const isFailed = paymentStatus.status === "failed";
+  const isRefundRequired = paymentStatus.status === "paid_refund_required";
 
   // Link back to the specific event so "Try Again" repeats the full checkout process
   const retryUrl = paymentStatus.metadata?.eventId
@@ -305,7 +370,7 @@ function TicketConfirmationContent() {
 
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                   <a
-                    href={`/api/tickets/${ticketData.id}/download`}
+                    href={`/api/tickets/${ticketData.id}/download?ref=${encodeURIComponent(reference ?? "")}`}
                     download={`ticket-${ticketData.id}.png`}
                     className="flex-1"
                   >
@@ -315,7 +380,7 @@ function TicketConfirmationContent() {
                     </Button>
                   </a>
                   <a
-                    href={`/api/tickets/${ticketData.id}/wristband`}
+                    href={`/api/tickets/${ticketData.id}/wristband?ref=${encodeURIComponent(reference ?? "")}`}
                     download={`wristband-${ticketData.id}.png`}
                     className="flex-1"
                   >
@@ -324,11 +389,12 @@ function TicketConfirmationContent() {
                       Print Wristband
                     </Button>
                   </a>
-                  <Button variant="outline" className="flex-1 gap-2">
+                  <Button variant="outline" className="flex-1 gap-2" onClick={handleShare}>
                     <Share2 className="h-4 w-4" />
                     Share
                   </Button>
                 </div>
+                {shareMsg && <p className="mt-2 text-center text-sm text-success">{shareMsg}</p>}
                 <p className="mt-2 text-center text-xs text-muted-foreground">
                   Gate staff will have your wristband ready at the venue — printing your own is optional.
                 </p>
@@ -348,14 +414,31 @@ function TicketConfirmationContent() {
                 </div>
               </div>
             )
+          ) : isRefundRequired ? (
+            <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center">
+              <Ticket className="mx-auto h-16 w-16 text-amber-600" />
+              <h1 className="mt-4 text-2xl font-bold">Payment Received — Refund Required</h1>
+              <p className="mt-2 text-amber-800">
+                Your payment went through, but the ticket sold out before it could be issued.
+                Your payment will be refunded — please contact support if you have questions.
+              </p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <Link href="/contact">
+                  <Button>Contact Support</Button>
+                </Link>
+                <Link href="/allevents">
+                  <Button variant="outline">Browse Events</Button>
+                </Link>
+              </div>
+            </div>
           ) : isPending ? (
             <div className="rounded-3xl border border-muted/20 bg-secondary/50 p-8 text-center">
               <Ticket className="mx-auto h-16 w-16 text-muted-foreground" />
               <h1 className="mt-4 text-2xl font-bold">Payment Pending</h1>
               <p className="mt-2 text-muted-foreground">
                 {paymentStatus.provider === "ecocash"
-                  ? "Check your phone for the EcoCash PIN prompt and confirm the payment, then refresh this page."
-                  : "Your payment is still being confirmed. Please wait a few moments and refresh this page."}
+                  ? "Check your phone for the EcoCash PIN prompt and confirm the payment — this page will update automatically."
+                  : "Your payment is still being confirmed. This page will keep checking — you can also refresh."}
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Button onClick={() => window.location.reload()}>Refresh Status</Button>

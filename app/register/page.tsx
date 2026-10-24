@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,14 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<"customer" | "organizer">("customer");
+
+  // ?role=organizer pre-selects the seller path (linked from /creator's
+  // "Become an Organizer" CTA and organizer marketing).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("role") === "organizer") {
+      setRole("organizer");
+    }
+  }, []);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);

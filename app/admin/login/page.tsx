@@ -16,7 +16,7 @@ import { useAuth } from "@/lib/auth-context";
 // generic error, same as /login rejects privileged accounts.
 export default function AdminLoginPage() {
   const router = useRouter();
-  const { signIn, logout, user, loading } = useAuth();
+  const { signIn, user, loading } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,16 +24,19 @@ export default function AdminLoginPage() {
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // An existing session landing here is routed to its own portal — never
+  // signed out. Force-logging out turned every stray redirect to this page
+  // (including the Super Admin's) into a real sign-out.
   useEffect(() => {
-    if (!loading && user) {
-      if (user.role === "admin") {
-        router.push("/admin");
-      } else {
-        logout();
-        setError("Incorrect email or password.");
-      }
-    }
-  }, [user, loading, router, logout]);
+    if (loading || !user) return;
+    const dest: Record<string, string> = {
+      admin: "/admin",
+      super_admin: "/private",
+      organizer: "/creator",
+      staff: "/validate",
+    };
+    router.replace(dest[user.role] ?? "/");
+  }, [user, loading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

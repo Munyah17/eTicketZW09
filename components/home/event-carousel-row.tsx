@@ -138,7 +138,7 @@ export function EventCarouselRow({
     <section className="mx-auto max-w-7xl px-4 py-10 lg:px-8">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold md:text-3xl">{title}</h2>
+          <h2 className="text-xl font-bold sm:text-2xl md:text-3xl">{title}</h2>
           {subtitle && <p className="mt-1 text-muted-foreground">{subtitle}</p>}
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -178,7 +178,7 @@ export function EventCarouselRow({
       >
         <div
           className={isDragging ? "flex" : "flex transition-transform duration-300 ease-out"}
-          style={{ gap: GAP, transform: `translateX(-${offset - dragDelta}px)` }}
+          style={{ gap: GAP, transform: `translateX(-${Math.min(Math.max(offset - dragDelta, 0), maxOffset)}px)` }}
         >
           {pages.map((page, i) => (
             <div
@@ -189,7 +189,9 @@ export function EventCarouselRow({
               {useMobileGrid ? (
                 <div className="flex flex-col gap-3">
                   {page.map((event) => (
-                    <EventCard key={event.id} event={event} variant={cardVariant} fastSelling={fastSellingBadge} />
+                    // Stacked mobile pages use the short "compact" card —
+                    // three 450px-tall cards per swipe page read as broken.
+                    <EventCard key={event.id} event={event} variant="compact" fastSelling={fastSellingBadge} />
                   ))}
                 </div>
               ) : (

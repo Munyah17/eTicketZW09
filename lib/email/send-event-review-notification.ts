@@ -20,7 +20,7 @@ export async function sendEventSubmittedEmail(eventId: string): Promise<void> {
   if (!event) return;
 
   const superAdminEmails = await getSuperAdminEmails();
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://eticket.co.zw";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://www.eticket.co.zw";
   const pending = event.status === "pending_review";
 
   const adminHtml = wrapper(
@@ -99,7 +99,7 @@ export async function sendEventStatusEmail(eventId: string, status: "published" 
   if (!profile?.email) return;
 
   const approved = status === "published";
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://eticket.co.zw";
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || "https://www.eticket.co.zw";
   const html = wrapper(
     approved ? "#16a34a" : "#dc2626",
     approved ? "Event Approved" : "Event Not Approved",

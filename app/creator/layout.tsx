@@ -218,9 +218,11 @@ export default function CreatorLayout({
             <h1 className="text-lg font-semibold">Creator Dashboard</h1>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm">
-              Help
-            </Button>
+            <Link href="/contact">
+              <Button variant="outline" size="sm">
+                Help
+              </Button>
+            </Link>
           </div>
         </header>
 

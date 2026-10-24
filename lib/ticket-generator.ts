@@ -126,7 +126,9 @@ export async function generateTicket(data: TicketGenerationData): Promise<Genera
     buyerContact: data.buyerPhone,
     buyerDisplayName: data.displayName || data.buyerName.split(" ").map((n) => n[0]).join(""),
     buyerEmail: data.buyerEmail,
-    price: data.amount / (data.quantity || 1),
+    // Face value: amount includes the buyer-side service fee, which is not
+    // part of the ticket's price — subtract it before the per-unit split.
+    price: (data.amount - (data.buyerFeeAmount ?? 0)) / (data.quantity || 1),
     markup: 0,
     totalPaid: data.amount,
     currency: data.currency,

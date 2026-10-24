@@ -10,7 +10,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string, role: UserRole, phone?: string) => Promise<{ needsConfirmation: boolean }>;
-  logout: () => Promise<void>;
+  logout: (redirectTo?: string) => Promise<void>;
   updateProfile: (updates: Partial<User>) => Promise<void>;
   login: (user: User) => void;
   isSuperAdmin: boolean;
@@ -80,68 +80,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfileRef = useRef<((userId: string, attempt?: number) => Promise<void>) | null>(null);
+  // The user id whose profile is currently loaded / being loaded. Used to
+  // drop stale responses and to skip redundant re-fetches on token refresh.
+  const activeUserIdRef = useRef<string | null>(null);
 
-  const fetchProfile = useCallback(async (userId: string, attempt = 0) => {
+  const fetchProfile = useCallback(async (userId: string) => {
     const supabase = createClient();
-    const { data: profile, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .maybeSingle();
-    // Suspension can be applied to an already-active session — catch it here
-    // too, not just at sign-in, so it takes effect on the next page load.
-    if (profile?.is_suspended) {
-      await supabase.auth.signOut();
-      setUser(null);
-      setLoading(false);
-      return;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { data: profile, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle();
+      if (activeUserIdRef.current !== userId) return;
+      // Suspension can be applied to an already-active session — catch it here
+      // too, not just at sign-in, so it takes effect on the next page load.
+      if (profile?.is_suspended) {
+        activeUserIdRef.current = null;
+        await supabase.auth.signOut();
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      if (profile) {
+        setUser(dbProfileToUser(profile));
+        setLoading(false);
+        return;
+      }
+      if (!error) break;
+      // Transient read failure (network blip, slow mobile link, PostgREST
+      // hiccup) — retry rather than flash a logged-out UI while the session
+      // is actually fine.
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+      if (activeUserIdRef.current !== userId) return;
     }
-    if (profile) {
-      setUser(dbProfileToUser(profile));
-      setLoading(false);
-      return;
-    }
-    // The session is valid but the profile read failed (network blip, slow
-    // mobile link, PostgREST hiccup). Retrying briefly is better than showing
-    // a logged-out UI — which sends users into a sign-in loop while their
-    // session is actually fine.
-    if (error && attempt < 3) {
-      setTimeout(() => { fetchProfileRef.current?.(userId, attempt + 1); }, 800 * (attempt + 1));
-      return;
-    }
-    // After all retries fail, log the error but keep the session if auth is still valid
-    console.error("Failed to fetch user profile after retries:", error);
-    // Check if auth session is still valid before signing out
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      setUser(null);
-    }
+    // Never downgrade an already-loaded user to "logged out" because a
+    // background profile refresh failed — only an auth SIGNED_OUT does that.
+    console.error("Failed to fetch user profile for", userId);
     setLoading(false);
   }, []);
-
-  fetchProfileRef.current = fetchProfile;
 
   useEffect(() => {
     const supabase = createClient();
 
-    // Initial session check - don't set loading to false until we have a definitive answer
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
+    // onAuthStateChange emits INITIAL_SESSION on subscribe, so it is the
+    // single source of truth (a separate getSession() call raced it and
+    // double-fetched the profile). Work is deferred out of the callback:
+    // calling Supabase from inside it can deadlock the auth lock and stall
+    // token refreshes, which surfaced as random sign-outs.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const uid = session?.user?.id ?? null;
+      if (!uid) {
+        activeUserIdRef.current = null;
         setUser(null);
         setLoading(false);
+        return;
       }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
-        setUser(null);
-        setLoading(false);
-      }
+      // Token refreshes keep the same user — no need to reload the profile.
+      if (event === "TOKEN_REFRESHED" && activeUserIdRef.current === uid) return;
+      if (event !== "USER_UPDATED" && activeUserIdRef.current === uid) return;
+      activeUserIdRef.current = uid;
+      setTimeout(() => { fetchProfile(uid); }, 0);
     });
 
     return () => subscription.unsubscribe();
@@ -149,14 +148,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const supabase = createClient();
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     if (error) throw new Error(error.message);
 
     const { data: profile } = await supabase
       .from("profiles")
       .select("is_suspended")
       .eq("id", data.user.id)
-      .single();
+      .maybeSingle();
     if (profile?.is_suspended) {
       await supabase.auth.signOut();
       throw new Error("This account has been suspended. Contact support if you believe this is a mistake.");
@@ -173,22 +172,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     phone = ""
   ): Promise<{ needsConfirmation: boolean }> => {
     const supabase = createClient();
+    const next = role === "organizer" ? "/creator" : "/";
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: email.trim().toLowerCase(),
       password,
       options: {
         data: { name, role, phone, verified: false },
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
       },
     });
     if (error) throw new Error(error.message);
+    // GoTrue returns a user with no identities (and no error) when the email
+    // is already registered, to avoid leaking account existence — surface it
+    // instead of telling the person to wait for an email that never comes.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      throw new Error("This email is already registered. Try signing in or reset your password.");
+    }
     return { needsConfirmation: !data.session };
   };
 
-  const logout = async () => {
+  // Always lands on a fresh page so no stale client state (or an in-flight
+  // navigation racing the cookie clear) can resurrect the old session.
+  const logout = async (redirectTo = "/") => {
     const supabase = createClient();
     await logAuthEvent("admin.logout");
-    await supabase.auth.signOut();
+    activeUserIdRef.current = null;
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+    }
     setUser(null);
+    window.location.assign(redirectTo);
   };
 
   const updateProfile = async (updates: Partial<User>) => {

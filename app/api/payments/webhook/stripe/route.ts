@@ -105,8 +105,8 @@ export async function POST(req: NextRequest) {
       try {
         console.log("🚀 Starting fulfillment workflow for Stripe payment:", reference);
         await PaymentService.confirmPaid(reference, {
-          amount: session.amount_total / 100,
-          currency: session.currency.toUpperCase(),
+          amount: session.amount_total != null ? session.amount_total / 100 : payment.amount,
+          currency: (session.currency ?? payment.currency).toUpperCase(),
           paymentMethod: "stripe",
         });
         console.log("✅ Fulfillment complete: Ticket generated and email sent for", reference);

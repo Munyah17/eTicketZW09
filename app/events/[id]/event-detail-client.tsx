@@ -67,7 +67,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
   return (
     <main className="flex-1">
       <div className="border-b bg-secondary/30">
-        <div className="mx-auto max-w-[95%] px-4 py-3 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-3 lg:px-8">
           <Link
             href="/allevents"
             className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
@@ -79,7 +79,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
       </div>
 
       <section className="border-b">
-        <div className="mx-auto max-w-[95%] px-4 py-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
           <div className="grid gap-6 lg:grid-cols-3">
             <div className="lg:col-span-2 space-y-4">
               {/* Featured Image */}
@@ -181,7 +181,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[95%] px-4 py-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2 space-y-6">
             <div>
@@ -220,7 +220,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                         onClick={() => { if (available > 0) handleTicketSelect(ticketType.id); }}
                       >
                         <CardContent className="flex items-center justify-between p-3">
-                          <div className="flex-1">
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <h3 className="text-sm font-semibold">{ticketType.name}</h3>
                               {isSelected && <CheckCircle2 className="h-3 w-3 text-primary" />}
@@ -230,7 +230,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                               {available > 0 ? `${available} available` : "Sold out"}
                             </p>
                           </div>
-                          <div className="text-right">
+                          <div className="ml-2 shrink-0 text-right">
                             <p className="text-base font-heading font-bold">${ticketType.price.toFixed(2)}</p>
                           </div>
                         </CardContent>
@@ -244,7 +244,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
         </div>
       </section>
 
-      <section className="mx-auto max-w-[95%] px-4 py-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
         <div>
           <h2 className="text-xl font-bold">Venue</h2>
           <Card className="mt-4">
@@ -256,8 +256,14 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                 <div>
                   <h3 className="font-semibold">{event.venue}</h3>
                   <p className="text-sm text-muted-foreground">{event.city}, Zimbabwe</p>
-                  <Button variant="link" className="h-auto p-0 text-primary">
-                    Get Directions
+                  <Button variant="link" className="h-auto p-0 text-primary" asChild>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${event.venue}, ${event.city}, Zimbabwe`)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Get Directions
+                    </a>
                   </Button>
                 </div>
               </div>

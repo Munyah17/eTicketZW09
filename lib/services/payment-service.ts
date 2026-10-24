@@ -11,6 +11,7 @@ import { sendTicketEmail } from "@/lib/email/send-ticket-email";
 import { sendSaleNotificationEmails } from "@/lib/email/send-sale-notification-emails";
 import { sendPaymentFailedEmail } from "@/lib/email/send-payment-failed-email";
 import { sendFailedPurchaseAlert } from "@/lib/failed-purchase-alert";
+import { getSiteUrl } from "@/lib/site-url";
 import { sendTicketWhatsApp } from "@/lib/whatsapp";
 import { logError } from "@/lib/error-logger";
 
@@ -292,10 +293,19 @@ export class PaymentService {
         );
       }
 
-      // Step 6: Send sale notification emails
+      // Step 6: Send sale notification emails. Best-effort — a failure here
+      // must not rethrow into the catch below: the ticket row already exists,
+      // so a thrown error would mark fulfillment "failed" yet every retry
+      // would return early at the existingTicket guard and the notifications
+      // (and any alert) would never go out.
       console.log("Step 7/7: Sending sale notifications...");
-      await sendSaleNotificationEmails(ticket);
-      console.log("✓ Step 7/7: Sale notifications sent");
+      try {
+        await sendSaleNotificationEmails(ticket);
+        console.log("✓ Step 7/7: Sale notifications sent");
+      } catch (notifyError) {
+        logError("sale_notification_failed", notifyError, { reference, ticketId: ticket.id });
+        console.error("⚠️ Sale notification emails failed (ticket still issued)", ticket.id, notifyError);
+      }
 
       console.log(issued ? "✅ FULFILLMENT COMPLETE — TICKET ISSUED:" : "⚠️ FULFILLMENT INCOMPLETE — TICKET NOT ISSUED:", reference, ticket.id);
 
@@ -386,7 +396,7 @@ class PaynowService {
   static async initiatePayment(reference: string, request: PaymentInitiateRequest): Promise<PaymentInitiateResponse> {
     const PAYNOW_INTEGRATION_ID = process.env.PAYNOW_INTEGRATION_ID || "";
     const PAYNOW_INTEGRATION_KEY = process.env.PAYNOW_INTEGRATION_KEY || "";
-    const origin = request.origin || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const origin = request.origin || getSiteUrl();
 
     if (!PAYNOW_INTEGRATION_ID || !PAYNOW_INTEGRATION_KEY) {
       return { success: false, reference, redirect_url: "", error: "Paynow credentials are not configured." };
@@ -549,11 +559,13 @@ class EcocashService {
 
     const buyerPhone = (request.metadata?.buyerPhone as string) || "";
     const endUserId = EcocashService.normalizeMsisdn(buyerPhone);
-    if (!endUserId || endUserId.length < 9) {
-      return { success: false, reference, redirect_url: "", error: "A valid EcoCash phone number is required." };
+    // EIP endUserId must be a 9-digit Econet mobile (77x/78x). Anything else
+    // fails inside EcoCash with an opaque error instead of a clear message.
+    if (!/^7[78]\d{7}$/.test(endUserId)) {
+      return { success: false, reference, redirect_url: "", error: "EcoCash requires a valid Econet number (e.g. 077X XXX XXX)." };
     }
 
-    const origin = request.origin || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const origin = request.origin || getSiteUrl();
 
     const body = {
       clientCorrelator: reference,
@@ -628,7 +640,7 @@ export { EcocashService };
 class StripeService {
   static async initiatePayment(reference: string, request: PaymentInitiateRequest): Promise<PaymentInitiateResponse> {
     const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
-    const origin = request.origin || process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const origin = request.origin || getSiteUrl();
 
     if (!STRIPE_SECRET_KEY) {
       return { success: false, reference, redirect_url: "", error: "Stripe API key not configured" };
@@ -653,7 +665,11 @@ class StripeService {
           ...(request.event_id ? { event_id: request.event_id } : {}),
         },
         success_url: `${origin}/tickets/confirmation?ref=${reference}`,
-        cancel_url: `${origin}/events`,
+        // /events doesn't exist (only /events/[id] and /allevents) — a
+        // cancelled checkout used to land on a 404.
+        cancel_url: request.event_id
+          ? `${origin}/events/${request.event_id}`
+          : `${origin}/allevents`,
       });
       return { success: true, reference, redirect_url: session.url ?? "", stripe_session_id: session.id };
     } catch (error: unknown) {

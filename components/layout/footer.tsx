@@ -135,7 +135,7 @@ export function Footer() {
                 ))}
               </div>
             </div>
-            <p className="text-sm font-mono text-muted-foreground">
+            <p className="break-words text-sm font-mono text-muted-foreground">
               &copy; {new Date().getFullYear()} E-TicketsZW. All rights reserved. Developed &amp; Powered By{" "}
               <a href="https://globalspaceweb.co.zw" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">
                 Globalspaceweb.co.zw

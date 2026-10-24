@@ -181,15 +181,12 @@ export function Header() {
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     className="cursor-pointer"
-                    onClick={() => {
-                      logout();
-                      window.location.href = "/login";
-                    }}
+                    onClick={() => logout("/login")}
                   >
                     <LogOut className="h-4 w-4 mr-2" />
                     Switch Account
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive cursor-pointer" onClick={logout}>
+                  <DropdownMenuItem className="text-destructive cursor-pointer" onClick={() => logout()}>
                     <LogOut className="h-4 w-4 mr-2" />
                     Logout
                   </DropdownMenuItem>
@@ -213,13 +210,13 @@ export function Header() {
         {/* Mobile: Theme Toggle + Profile Avatar */}
         <div className="lg:hidden flex items-center gap-2">
           <div className="flex items-center gap-1.5">
-            <Sun className="h-4 w-4 text-muted-foreground" />
+            <Sun className="hidden h-4 w-4 text-muted-foreground min-[420px]:block" />
             <Switch
               checked={isDark}
               onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
               aria-label="Toggle dark mode"
             />
-            <Moon className="h-4 w-4 text-muted-foreground" />
+            <Moon className="hidden h-4 w-4 text-muted-foreground min-[420px]:block" />
           </div>
 
           {authLoading ? (
@@ -282,7 +279,7 @@ export function Header() {
                     Settings
                   </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive cursor-pointer" onClick={logout}>
+                <DropdownMenuItem className="text-destructive cursor-pointer" onClick={() => logout()}>
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
                 </DropdownMenuItem>
