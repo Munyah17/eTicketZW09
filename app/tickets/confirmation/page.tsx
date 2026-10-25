@@ -20,7 +20,12 @@ import {
   User,
   Phone,
   CreditCard,
+  Landmark,
+  Upload,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { BANK_TRANSFER_DETAILS } from "@/lib/types";
 
 interface TicketData {
   id: string;
@@ -44,7 +49,9 @@ interface PaymentStatusResponse {
   success: boolean;
   reference: string;
   provider: string;
-  status: "pending" | "paid" | "failed" | "paid_refund_required";
+  status: "pending" | "paid" | "failed" | "paid_refund_required" | "on_hold";
+  reviewStatus: string | null;
+  reviewReason: string | null;
   error: string | null;
   metadata: Record<string, any> | null;
   instruction: "accept" | "retry" | "pending";
@@ -61,6 +68,34 @@ function TicketConfirmationContent() {
   const [loadingStatus, setLoadingStatus] = useState(true);
 
   const [shareMsg, setShareMsg] = useState("");
+  // Bank-transfer resubmission — also covers buyers who skipped the upload
+  // at checkout, or were asked for more information.
+  const [txnRefInput, setTxnRefInput] = useState("");
+  const [proofInput, setProofInput] = useState<File | null>(null);
+  const [submittingProof, setSubmittingProof] = useState(false);
+  const [proofMsg, setProofMsg] = useState("");
+
+  const submitBankTransferInfo = async () => {
+    if (!reference || (!txnRefInput.trim() && !proofInput)) return;
+    setSubmittingProof(true);
+    setProofMsg("");
+    try {
+      const form = new FormData();
+      if (txnRefInput.trim()) form.append("transaction_reference", txnRefInput.trim());
+      if (proofInput) form.append("proof", proofInput);
+      const res = await fetch(`/api/payments/bank-transfer/${encodeURIComponent(reference)}`, {
+        method: "POST",
+        body: form,
+      });
+      const data = await res.json().catch(() => ({}));
+      setProofMsg(res.ok ? "Submitted — the verification team has been notified." : data.error || "Submission failed.");
+      if (res.ok) { setTxnRefInput(""); setProofInput(null); }
+    } catch {
+      setProofMsg("Network error — please try again.");
+    } finally {
+      setSubmittingProof(false);
+    }
+  };
 
   const handleShare = async () => {
     const url = window.location.href;
@@ -145,7 +180,10 @@ function TicketConfirmationContent() {
           return;
         }
 
-        if (data.status === "failed" || data.status === "paid_refund_required") {
+        // on_hold is terminal for polling purposes — only a human review
+        // changes it, so show the review state and stop. (A stalled order
+        // that gets resubmitted is reflected on the next page load/refresh.)
+        if (data.status === "failed" || data.status === "paid_refund_required" || data.status === "on_hold") {
           setLoadingStatus(false);
           return;
         }
@@ -220,6 +258,7 @@ function TicketConfirmationContent() {
       visa: "Visa Card",
       mastercard: "Mastercard",
       epay: "ePay",
+      bank_transfer: "Bank Transfer",
     };
     return methods[method] || method;
   };
@@ -272,6 +311,7 @@ function TicketConfirmationContent() {
   const isPaid = paymentStatus.status === "paid";
   const isPending = paymentStatus.status === "pending";
   const isRefundRequired = paymentStatus.status === "paid_refund_required";
+  const isOnHold = paymentStatus.status === "on_hold";
 
   // Link back to the specific event so "Try Again" repeats the full checkout process
   const retryUrl = paymentStatus.metadata?.eventId
@@ -431,6 +471,105 @@ function TicketConfirmationContent() {
                 </Link>
               </div>
             </div>
+          ) : isOnHold ? (
+            <div className="space-y-6">
+              <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center">
+                <Landmark className="mx-auto h-16 w-16 text-amber-600" />
+                <h1 className="mt-4 text-2xl font-bold">
+                  {paymentStatus.reviewStatus === "info_requested"
+                    ? "More Information Needed"
+                    : "Order On Hold — Awaiting Verification"}
+                </h1>
+                <p className="mt-2 text-amber-800">
+                  {paymentStatus.reviewStatus === "info_requested"
+                    ? "We reviewed your bank transfer but need more information before we can approve it:"
+                    : "Your ticket is not issued yet — it will be sent by email and WhatsApp once our team verifies your deposit in the FBC account."}
+                </p>
+                {paymentStatus.reviewStatus === "info_requested" && paymentStatus.reviewReason && (
+                  <p className="mt-3 rounded-lg border border-amber-300 bg-white p-3 text-sm font-medium text-amber-900">
+                    {paymentStatus.reviewReason}
+                  </p>
+                )}
+                {paymentStatus.metadata?.transaction_reference && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Transaction reference on file: <span className="font-mono">{paymentStatus.metadata.transaction_reference}</span>
+                  </p>
+                )}
+              </div>
+
+              <Card>
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Landmark className="h-4 w-4 text-primary" />
+                    <h3 className="font-semibold">Payment should have gone to</h3>
+                  </div>
+                  <div className="grid gap-1 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Account Name</span>
+                      <span className="text-right font-medium">{BANK_TRANSFER_DETAILS.accountName}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Bank</span>
+                      <span className="text-right font-medium">{BANK_TRANSFER_DETAILS.bank}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Branch</span>
+                      <span className="text-right font-medium">{BANK_TRANSFER_DETAILS.branch}</span>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">USD Account</span>
+                      <span className="text-right font-mono font-medium">{BANK_TRANSFER_DETAILS.accountNumber}</span>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4 space-y-3">
+                    <p className="text-sm font-medium">
+                      {paymentStatus.reviewStatus === "info_requested"
+                        ? "Resubmit your details"
+                        : "Add or update your proof of payment"}
+                    </p>
+                    <div>
+                      <Label htmlFor="txnRef">Transaction Reference</Label>
+                      <Input
+                        id="txnRef"
+                        value={txnRefInput}
+                        onChange={(e) => setTxnRefInput(e.target.value)}
+                        placeholder="Bank transaction reference"
+                        className="mt-1.5"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="proof" className="flex items-center gap-1.5">
+                        <Upload className="h-3.5 w-3.5" /> Proof of Payment
+                      </Label>
+                      <Input
+                        id="proof"
+                        type="file"
+                        accept="*/*"
+                        onChange={(e) => setProofInput(e.target.files?.[0] ?? null)}
+                        className="mt-1.5"
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">Any file format — PDF, screenshot, or photo.</p>
+                    </div>
+                    <Button
+                      className="w-full"
+                      onClick={submitBankTransferInfo}
+                      disabled={submittingProof || (!txnRefInput.trim() && !proofInput)}
+                    >
+                      {submittingProof ? "Submitting…" : "Submit for Review"}
+                    </Button>
+                    {proofMsg && <p className="text-center text-sm text-muted-foreground">{proofMsg}</p>}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="flex flex-col gap-3 sm:flex-row justify-center">
+                <Button onClick={() => window.location.reload()}>Refresh Status</Button>
+                <Link href="/allevents">
+                  <Button variant="outline">Browse Events</Button>
+                </Link>
+              </div>
+            </div>
           ) : isPending ? (
             <div className="rounded-3xl border border-muted/20 bg-secondary/50 p-8 text-center">
               <Ticket className="mx-auto h-16 w-16 text-muted-foreground" />
@@ -450,10 +589,19 @@ function TicketConfirmationContent() {
           ) : (
             <div className="rounded-3xl border border-destructive/20 bg-destructive/10 p-8 text-center">
               <Ticket className="mx-auto h-16 w-16 text-destructive" />
-              <h1 className="mt-4 text-2xl font-bold">Payment Was Not Successful</h1>
+              <h1 className="mt-4 text-2xl font-bold">
+                {paymentStatus.provider === "bank_transfer" ? "Bank Transfer Rejected" : "Payment Was Not Successful"}
+              </h1>
               <p className="mt-2 text-destructive">
-                Your payment did not go through. Would you like to try again or use a different payment method?
+                {paymentStatus.provider === "bank_transfer"
+                  ? "We could not verify your bank transfer."
+                  : "Your payment did not go through. Would you like to try again or use a different payment method?"}
               </p>
+              {paymentStatus.provider === "bank_transfer" && paymentStatus.reviewReason && (
+                <p className="mt-3 rounded-lg border border-destructive/30 bg-white p-3 text-sm font-medium text-destructive">
+                  Reason: {paymentStatus.reviewReason}
+                </p>
+              )}
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Link href="/allevents">
                   <Button variant="outline">Browse Events</Button>

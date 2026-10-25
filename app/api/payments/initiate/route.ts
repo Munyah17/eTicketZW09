@@ -34,9 +34,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!["paynow", "stripe", "ecocash"].includes(body.provider)) {
+    if (!["paynow", "stripe", "ecocash", "bank_transfer"].includes(body.provider)) {
       return NextResponse.json(
-        { error: "Invalid provider. Must be 'paynow', 'stripe', or 'ecocash'" },
+        { error: "Invalid provider. Must be 'paynow', 'stripe', 'ecocash', or 'bank_transfer'" },
         { status: 400 }
       );
     }
@@ -55,6 +55,9 @@ export async function POST(req: NextRequest) {
     }
     if (platformConfig && body.provider === "ecocash" && !platformConfig.ecocash_enabled) {
       return NextResponse.json({ error: "EcoCash payments are currently disabled" }, { status: 503 });
+    }
+    if (platformConfig && body.provider === "bank_transfer" && platformConfig.bank_transfer_enabled === false) {
+      return NextResponse.json({ error: "Bank transfer payments are currently disabled" }, { status: 503 });
     }
 
     // Never trust the browser for money math. The amount charged and the

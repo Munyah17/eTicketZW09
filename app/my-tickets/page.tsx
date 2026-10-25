@@ -19,8 +19,28 @@ import {
   Search,
   CheckCircle2,
   AlertCircle,
+  Landmark,
+  HelpCircle,
+  XCircle,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
+
+interface HeldOrder {
+  reference: string;
+  status: string;
+  reviewStatus: string | null;
+  reviewReason: string | null;
+  amount: number;
+  currency: string;
+  eventTitle: string;
+  eventDate: string;
+  eventTime: string;
+  venue: string;
+  ticketTypeName: string;
+  quantity: number;
+  transactionReference: string;
+  submittedAt: string;
+}
 
 interface MyTicket {
   id: string;
@@ -42,6 +62,7 @@ interface MyTicket {
 export default function MyTicketsPage() {
   const { user, loading: authLoading } = useAuth();
   const [tickets, setTickets] = useState<MyTicket[]>([]);
+  const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [qrCodes, setQrCodes] = useState<Record<string, string>>({});
@@ -54,7 +75,10 @@ export default function MyTicketsPage() {
     }
     fetch("/api/tickets/mine")
       .then((r) => r.json())
-      .then((data) => setTickets(data.tickets ?? []))
+      .then((data) => {
+        setTickets(data.tickets ?? []);
+        setHeldOrders(data.heldOrders ?? []);
+      })
       .catch(() => setTickets([]))
       .finally(() => setLoading(false));
   }, [user, authLoading]);
@@ -147,6 +171,70 @@ export default function MyTicketsPage() {
               />
             </div>
           </div>
+
+          {/* Pending bank-transfer orders — held until an admin verifies the
+              deposit; stalled orders show what to fix. */}
+          {!authLoading && !loading && heldOrders.length > 0 && (
+            <div className="mt-8 space-y-4">
+              <h2 className="text-lg font-semibold">Pending Orders</h2>
+              {heldOrders.map((o) => (
+                <Card key={o.reference} className="overflow-hidden border-amber-200">
+                  <CardContent className="p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="gap-1 text-amber-700 border-amber-400 bg-amber-50">
+                            <Landmark className="h-3 w-3" />
+                            {o.status === "failed"
+                              ? "Rejected"
+                              : o.reviewStatus === "info_requested"
+                              ? "More Info Needed"
+                              : "On Hold — Bank Transfer"}
+                          </Badge>
+                          <span className="text-sm font-medium">{o.ticketTypeName} x {o.quantity}</span>
+                        </div>
+                        <h3 className="text-lg font-semibold">{o.eventTitle}</h3>
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                          {o.eventDate && <span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" />{formatDate(o.eventDate)}</span>}
+                          {o.venue && <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5" />{o.venue}</span>}
+                        </div>
+                        <p className="text-sm">
+                          Amount: <span className="font-mono font-medium">{o.currency} {o.amount.toFixed(2)}</span>
+                          {o.transactionReference && (
+                            <span className="ml-3 text-muted-foreground">txn: <span className="font-mono">{o.transactionReference}</span></span>
+                          )}
+                        </p>
+                        {o.status === "failed" && o.reviewReason && (
+                          <p className="flex items-start gap-1.5 rounded-md border border-red-200 bg-red-50 p-2 text-xs text-red-800">
+                            <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            Rejected: {o.reviewReason}
+                          </p>
+                        )}
+                        {o.status === "on_hold" && o.reviewStatus === "info_requested" && o.reviewReason && (
+                          <p className="flex items-start gap-1.5 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                            <HelpCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            {o.reviewReason}
+                          </p>
+                        )}
+                        {o.status === "on_hold" && (
+                          <p className="text-xs text-muted-foreground">
+                            {o.reviewStatus === "info_requested"
+                              ? "Open the order to resubmit your proof or transaction reference."
+                              : "Awaiting manual verification — you will be notified by email and WhatsApp once reviewed."}
+                          </p>
+                        )}
+                      </div>
+                      {o.status === "on_hold" && (
+                        <Link href={`/tickets/confirmation?ref=${o.reference}`} className="shrink-0">
+                          <Button variant="outline" size="sm">View Order</Button>
+                        </Link>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
 
           {/* Tickets List */}
           <div className="mt-8 space-y-6">

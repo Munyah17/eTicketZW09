@@ -9,7 +9,10 @@ import {
 } from "@/components/ui/dialog";
 import {
   CheckCircle2, XCircle, Clock, CreditCard, RefreshCw, ShieldAlert, Ticket,
+  Landmark, FileText, HelpCircle,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ExportMenu } from "@/components/ui/export-menu";
 import type { ExportColumn } from "@/lib/export-utils";
 
@@ -24,9 +27,11 @@ interface AdminPayment {
   provider: string;
   amount: number;
   currency: string;
-  status: "pending" | "paid" | "failed" | "paid_refund_required";
+  status: "pending" | "paid" | "failed" | "paid_refund_required" | "on_hold";
   metadata: Record<string, unknown> | null;
   error_message: string | null;
+  review_status: string | null;
+  review_reason: string | null;
   created_at: string;
   updated_at: string;
   hasTicket: boolean;
@@ -40,6 +45,8 @@ const STATUS_CONFIG = {
   // issue a ticket (two buyers racing for the last spot) — needs a human to
   // refund the buyer or raise capacity and re-trigger. Never automatic.
   paid_refund_required: { label: "Refund Required", icon: ShieldAlert, color: "bg-red-100 text-red-700" },
+  // Bank transfer awaiting manual verification — no ticket exists yet.
+  on_hold: { label: "On Hold", icon: Landmark, color: "bg-amber-100 text-amber-700" },
 };
 
 export default function AdminPaymentsPage() {
@@ -47,7 +54,10 @@ export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [now, setNow] = useState(Date.now());
   const [confirmAction, setConfirmAction] = useState<{ payment: AdminPayment; status: "paid" | "failed" } | null>(null);
+  const [reviewAction, setReviewAction] = useState<{ payment: AdminPayment; action: "approve" | "reject" | "stall" } | null>(null);
+  const [reviewReason, setReviewReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [proofLoading, setProofLoading] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -85,7 +95,46 @@ export default function AdminPaymentsPage() {
     }
   };
 
+  // Bank-transfer review: approve runs full fulfillment (ticket issued),
+  // reject/stall keep the buyer informed with the reason by email + WhatsApp.
+  const runReview = async () => {
+    if (!reviewAction) return;
+    if ((reviewAction.action === "reject" || reviewAction.action === "stall") && !reviewReason.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/payments/${reviewAction.payment.reference}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: reviewAction.action, reason: reviewReason.trim() || undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) alert(data.error || "Review failed");
+      await load();
+    } finally {
+      setSubmitting(false);
+      setReviewAction(null);
+      setReviewReason("");
+    }
+  };
+
+  // Proof files sit in a private bucket — fetch a 10-min signed URL per view.
+  const viewProof = async (reference: string) => {
+    setProofLoading(reference);
+    try {
+      const res = await fetch(`/api/admin/payments/${reference}/proof`);
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.open(data.url, "_blank");
+      } else {
+        alert(data.error || "No proof of payment uploaded");
+      }
+    } finally {
+      setProofLoading(null);
+    }
+  };
+
   const pendingCount = payments.filter((p) => p.status === "pending").length;
+  const onHoldCount = payments.filter((p) => p.status === "on_hold").length;
 
   const exportColumns: ExportColumn<AdminPayment>[] = [
     { header: "Reference", accessor: (p) => p.reference },
@@ -116,6 +165,13 @@ export default function AdminPaymentsPage() {
           </Button>
         </div>
       </div>
+
+      {onHoldCount > 0 && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <Landmark className="h-4 w-4 shrink-0" />
+          {onHoldCount} bank transfer order{onHoldCount > 1 ? "s" : ""} on hold — verify the deposit in the FBC account and review below.
+        </div>
+      )}
 
       {pendingCount > 0 && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -148,6 +204,7 @@ export default function AdminPaymentsPage() {
                   const ageMs = now - new Date(p.created_at).getTime();
                   const canVerifyManually = p.status === "pending" && ageMs >= VERIFY_GRACE_MS;
                   const secondsLeft = Math.max(0, Math.ceil((VERIFY_GRACE_MS - ageMs) / 1000));
+                  const isHeldTransfer = p.status === "on_hold" && p.provider === "bank_transfer";
 
                   return (
                     <tr key={p.id} className="hover:bg-muted/30 transition-colors">
@@ -155,6 +212,12 @@ export default function AdminPaymentsPage() {
                       <td className="px-5 py-3.5">
                         <p className="font-medium text-sm">{(m.buyerName as string) || "—"}</p>
                         <p className="text-xs text-muted-foreground truncate max-w-[220px]">{(m.eventTitle as string) || "—"}</p>
+                        {(m.transaction_reference as string) && (
+                          <p className="mt-0.5 text-xs font-mono text-muted-foreground">txn: {String(m.transaction_reference)}</p>
+                        )}
+                        {isHeldTransfer && p.review_status === "info_requested" && (
+                          <p className="mt-0.5 text-xs text-amber-700">Info requested — awaiting buyer</p>
+                        )}
                       </td>
                       <td className="px-5 py-3.5 text-right font-mono font-bold text-sm">{p.currency} {Number(p.amount).toFixed(2)}</td>
                       <td className="px-5 py-3.5">
@@ -177,6 +240,44 @@ export default function AdminPaymentsPage() {
                         )}
                       </td>
                       <td className="px-5 py-3.5 text-right">
+                        {isHeldTransfer && (
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs gap-1"
+                              disabled={!m.proof_path || proofLoading === p.reference}
+                              onClick={() => viewProof(p.reference)}
+                            >
+                              <FileText className="h-3 w-3" />
+                              {proofLoading === p.reference ? "Opening…" : m.proof_path ? "View Proof" : "No Proof"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs gap-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
+                              onClick={() => { setReviewAction({ payment: p, action: "approve" }); setReviewReason(""); }}
+                            >
+                              <CheckCircle2 className="h-3 w-3" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs gap-1 text-amber-600 border-amber-200 hover:bg-amber-50"
+                              onClick={() => { setReviewAction({ payment: p, action: "stall" }); setReviewReason(""); }}
+                            >
+                              <HelpCircle className="h-3 w-3" /> Request Info
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs gap-1 text-red-600 border-red-200 hover:bg-red-50"
+                              onClick={() => { setReviewAction({ payment: p, action: "reject" }); setReviewReason(""); }}
+                            >
+                              <XCircle className="h-3 w-3" /> Reject
+                            </Button>
+                          </div>
+                        )}
                         {p.status === "pending" && !canVerifyManually && (
                           <span className="text-xs text-muted-foreground">Waiting on webhook ({secondsLeft}s)</span>
                         )}
@@ -237,6 +338,96 @@ export default function AdminPaymentsPage() {
               disabled={submitting}
             >
               {submitting ? "Processing…" : confirmAction?.status === "paid" ? "Approve & Issue Ticket" : "Confirm Decline"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bank transfer review dialog — approve / reject / request more info */}
+      <Dialog open={!!reviewAction} onOpenChange={() => { setReviewAction(null); setReviewReason(""); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle
+              className={
+                reviewAction?.action === "approve"
+                  ? "text-emerald-600"
+                  : reviewAction?.action === "reject"
+                  ? "text-red-600"
+                  : "text-amber-600"
+              }
+            >
+              {reviewAction?.action === "approve"
+                ? "Approve Bank Transfer?"
+                : reviewAction?.action === "reject"
+                ? "Reject Bank Transfer?"
+                : "Request More Information"}
+            </DialogTitle>
+            <DialogDescription>
+              {reviewAction?.action === "approve"
+                ? "Only approve after confirming the deposit in the FBC account (Solabliss Zimbabwe Pvt Ltd, FBC Center Branch, USD 6870465460146). This immediately issues the ticket and notifies the buyer."
+                : reviewAction?.action === "reject"
+                ? "The order is cancelled and the buyer is told why, by email and WhatsApp, so they can fix it and order again."
+                : "The order stays on hold and the buyer is told exactly what to fix — they can resubmit a proof or transaction reference."}
+            </DialogDescription>
+          </DialogHeader>
+          {reviewAction && (
+            <div className="space-y-3">
+              <div className="space-y-1 text-sm">
+                <p><span className="text-muted-foreground">Reference:</span> <span className="font-mono text-xs">{reviewAction.payment.reference}</span></p>
+                <p><span className="text-muted-foreground">Amount:</span> <strong className="font-mono">{reviewAction.payment.currency} {Number(reviewAction.payment.amount).toFixed(2)}</strong></p>
+                {(() => {
+                  const m = (reviewAction.payment.metadata ?? {}) as Record<string, unknown>;
+                  return (
+                    <>
+                      <p><span className="text-muted-foreground">Buyer:</span> {(m.buyerName as string) || "—"} {(m.buyerEmail as string) ? `(${m.buyerEmail})` : ""}</p>
+                      <p><span className="text-muted-foreground">Phone:</span> {(m.buyerPhone as string) || "—"}</p>
+                      <p><span className="text-muted-foreground">Txn ref:</span> <span className="font-mono text-xs">{(m.transaction_reference as string) || "—"}</span></p>
+                      <p><span className="text-muted-foreground">Proof:</span> {m.proof_path ? (m.proof_filename as string) || "uploaded" : "not uploaded"}</p>
+                    </>
+                  );
+                })()}
+              </div>
+              {reviewAction.action !== "approve" && (
+                <div>
+                  <Label htmlFor="reviewReason">
+                    {reviewAction.action === "reject" ? "Rejection reason *" : "What do you need? *"}
+                  </Label>
+                  <Input
+                    id="reviewReason"
+                    value={reviewReason}
+                    onChange={(e) => setReviewReason(e.target.value)}
+                    placeholder={
+                      reviewAction.action === "reject"
+                        ? "e.g. No matching deposit found in the FBC account"
+                        : "e.g. Please upload a clearer proof of payment"
+                    }
+                    className="mt-1.5"
+                  />
+                  <p className="mt-1 text-xs text-muted-foreground">Sent to the buyer by email and WhatsApp.</p>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setReviewAction(null); setReviewReason(""); }} disabled={submitting}>Cancel</Button>
+            <Button
+              className={
+                reviewAction?.action === "approve"
+                  ? "bg-emerald-600 hover:bg-emerald-700"
+                  : reviewAction?.action === "reject"
+                  ? "bg-red-600 hover:bg-red-700"
+                  : "bg-amber-600 hover:bg-amber-700"
+              }
+              onClick={runReview}
+              disabled={submitting || (reviewAction?.action !== "approve" && !reviewReason.trim())}
+            >
+              {submitting
+                ? "Processing…"
+                : reviewAction?.action === "approve"
+                ? "Approve & Issue Ticket"
+                : reviewAction?.action === "reject"
+                ? "Reject & Notify Buyer"
+                : "Request Info & Notify Buyer"}
             </Button>
           </DialogFooter>
         </DialogContent>

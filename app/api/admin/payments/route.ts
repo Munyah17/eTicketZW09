@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data: payments, error } = await supabase
     .from("payments")
-    .select("id, reference, provider, amount, currency, status, metadata, error_message, created_at, updated_at")
+    .select("id, reference, provider, amount, currency, status, metadata, error_message, review_status, review_reason, created_at, updated_at")
     .order("created_at", { ascending: false })
     .limit(100);
 

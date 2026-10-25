@@ -66,6 +66,40 @@ async function sendMessage(phoneNumberId: string, token: string, payload: Record
   }
 }
 
+// Plain-text WhatsApp notification (order status updates — no media).
+// Same caveat as everywhere else: business-initiated free-form messages only
+// land inside the buyer's 24h service window unless an approved template is
+// used. Best-effort — never throws; the caller logs the result.
+export async function sendWhatsAppText(
+  toPhone: string,
+  text: string
+): Promise<WhatsAppSendResult> {
+  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+
+  if (!token || !phoneNumberId) {
+    return { sent: false, skipped: true, error: "WhatsApp API not configured (WHATSAPP_ACCESS_TOKEN / WHATSAPP_PHONE_NUMBER_ID)" };
+  }
+
+  const to = normalizeZimPhone(toPhone);
+  if (!to) {
+    return { sent: false, skipped: true, error: `No valid phone number ("${toPhone}")` };
+  }
+
+  try {
+    await sendMessage(phoneNumberId, token, {
+      messaging_product: "whatsapp",
+      to,
+      type: "text",
+      text: { body: text },
+    });
+    return { sent: true };
+  } catch (err) {
+    logError("whatsapp_text_send_failed", err, { to });
+    return { sent: false, error: err instanceof Error ? err.message : "WhatsApp send failed" };
+  }
+}
+
 // Pushes the generated ticket PNG to the buyer's WhatsApp. Never throws —
 // returns a result the fulfillment orchestrator records as proof of delivery.
 export async function sendTicketWhatsApp(

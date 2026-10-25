@@ -15,7 +15,7 @@ import { getSiteUrl } from "@/lib/site-url";
 import { sendTicketWhatsApp } from "@/lib/whatsapp";
 import { logError } from "@/lib/error-logger";
 
-export type PaymentProvider = "paynow" | "stripe" | "ecocash";
+export type PaymentProvider = "paynow" | "stripe" | "ecocash" | "bank_transfer";
 
 export interface PaymentInitiateRequest {
   product_name: string;
@@ -45,7 +45,11 @@ export interface PaymentStatus {
   provider: PaymentProvider;
   amount: number;
   currency: string;
-  status: "pending" | "paid" | "failed" | "paid_refund_required";
+  // "on_hold" = bank-transfer order awaiting manual admin verification —
+  // no ticket exists yet and none may be issued until an admin approves.
+  status: "pending" | "paid" | "failed" | "paid_refund_required" | "on_hold";
+  reviewStatus?: string | null;
+  reviewReason?: string | null;
   created_at: string;
   updated_at: string;
   metadata?: Record<string, unknown>;
@@ -58,21 +62,40 @@ export class PaymentService {
     const reference = uuidv4();
     const supabase = createAdminClient();
 
+    // Bank transfers have no gateway — the buyer deposits into the FBC
+    // account and submits proof + a transaction reference. The order goes
+    // straight to "on_hold" and stays there until an admin verifies the
+    // deposit in the bank statement and approves it.
+    const isBankTransfer = request.provider === "bank_transfer";
+
     const { error: insertError } = await supabase.from("payments").insert({
       reference,
       provider: request.provider,
       amount: request.amount,
       currency: request.currency,
-      status: "pending",
+      status: isBankTransfer ? "on_hold" : "pending",
       user_id: request.user_id || null,
       event_id: request.event_id || null,
       ticket_type_id: request.ticket_type_id || null,
-      metadata: request.metadata || {},
+      metadata: isBankTransfer
+        ? { ...(request.metadata || {}), review_status: "awaiting_review" }
+        : request.metadata || {},
     });
 
     if (insertError) {
       console.error("Payment record insert failed:", insertError.message);
       return { success: false, reference, redirect_url: "", error: "Failed to create payment record" };
+    }
+
+    // Nothing to call out to — the confirmation page collects the proof of
+    // payment and transaction reference against this reference.
+    if (isBankTransfer) {
+      const origin = request.origin || getSiteUrl();
+      return {
+        success: true,
+        reference,
+        redirect_url: `${origin}/tickets/confirmation?ref=${reference}`,
+      };
     }
 
     let result: PaymentInitiateResponse;
@@ -364,6 +387,8 @@ export class PaymentService {
       amount: Number(data.amount),
       currency: data.currency,
       status: data.status as PaymentStatus["status"],
+      reviewStatus: data.review_status ?? null,
+      reviewReason: data.review_reason ?? null,
       created_at: data.created_at,
       updated_at: data.updated_at,
       metadata: data.metadata,

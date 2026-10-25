@@ -18,8 +18,8 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
-import { Minus, Plus, Lock, ArrowLeft, Users, ShieldCheck, Baby } from "lucide-react";
-import { Event, PaymentProvider } from "@/lib/types";
+import { Minus, Plus, Lock, ArrowLeft, Users, ShieldCheck, Baby, Landmark, Upload, Copy } from "lucide-react";
+import { Event, PaymentProvider, BANK_TRANSFER_DETAILS } from "@/lib/types";
 import { PaymentProviders } from "@/components/payment/payment-providers";
 import { useAuth } from "@/lib/auth-context";
 
@@ -52,8 +52,11 @@ export function TicketPurchaseForm({
   const [children, setChildren] = useState(0);
   const [seniors, setSeniors] = useState(0);
   const [attendees, setAttendees] = useState<{ name: string; idNumber: string; ageGroup: string; address: string }[]>([]);
-  const [step, setStep] = useState<"details" | "provider" | "processing" | "redirect">("details");
+  const [step, setStep] = useState<"details" | "provider" | "bank_transfer" | "processing" | "redirect">("details");
   const [selectedProvider, setSelectedProvider] = useState<PaymentProvider | null>(null);
+  const [txnReference, setTxnReference] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [bankCopied, setBankCopied] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const [platformFee, setPlatformFee] = useState(0);
@@ -164,7 +167,108 @@ export function TicketPurchaseForm({
 
   const handleProviderSelect = (providerId: string) => {
     if (providerId === "epay") return;
+    // Bank transfer has no hosted checkout — the buyer sees our FBC details,
+    // pays at their bank, then submits proof + a transaction reference here.
+    if (providerId === "bank_transfer") {
+      setSelectedProvider("bank_transfer");
+      setPaymentError(null);
+      setStep("bank_transfer");
+      return;
+    }
     handlePaymentSubmit(providerId as PaymentProvider);
+  };
+
+  // Creates the on-hold order, then attaches the transaction reference and
+  // proof of payment. The ticket is NOT issued here — an admin verifies the
+  // deposit in the FBC account first.
+  const handleBankTransferSubmit = async () => {
+    if (!selectedTicketType || !txnReference.trim()) return;
+
+    setStep("processing");
+    setPaymentError(null);
+
+    try {
+      const response = await fetch("/api/payments/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product_name: `${event.title} - ${selectedTicketType.name} x ${quantity}`,
+          amount: totalPrice,
+          currency: selectedTicketType.currency,
+          provider: "bank_transfer",
+          origin: window.location.origin,
+          user_id: user?.id,
+          metadata: {
+            eventId: event.id,
+            eventTitle: event.title,
+            eventDate: event.date,
+            eventTime: event.time,
+            venue: event.venue,
+            ticketTypeId: selectedTicketTypeId,
+            ticketTypeName: selectedTicketType.name,
+            quantity,
+            buyerName,
+            buyerEmail,
+            buyerPhone: buyerContact,
+            displayName: useAnonymous ? "Anonymous" : displayName || buyerName,
+            idNumber,
+            receiverName: receiverName || undefined,
+            admitCount,
+            partyComposition: { adults, children, seniors },
+            attendees: hasKids ? attendees : [],
+            customFieldResponses: customFieldValues,
+            platformFeeAmount: platformFee,
+          },
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setPaymentError(data.error || "Could not create the bank transfer order. Please try again.");
+        setStep("bank_transfer");
+        return;
+      }
+
+      // Attach the transaction reference (+ proof file if provided) to the
+      // on-hold order. Failure here isn't fatal — the confirmation page can
+      // collect both again, so we still send the buyer there.
+      const form = new FormData();
+      form.append("transaction_reference", txnReference.trim());
+      if (proofFile) form.append("proof", proofFile);
+      await fetch(`/api/payments/bank-transfer/${encodeURIComponent(data.reference)}`, {
+        method: "POST",
+        body: form,
+      }).catch(() => {});
+
+      sessionStorage.setItem(
+        "lastPurchaseAttempt",
+        JSON.stringify({
+          id: data.reference,
+          eventId: event.id,
+          eventTitle: event.title,
+          eventDate: event.date,
+          eventTime: event.time,
+          venue: event.venue,
+          ticketType: selectedTicketType.name,
+          quantity,
+          buyerName,
+          buyerContact,
+          displayName: useAnonymous ? "Anonymous" : displayName || buyerName,
+          paymentMethod: "bank_transfer",
+          totalPaid: totalPrice,
+          currency: selectedTicketType.currency,
+          purchasedAt: new Date().toISOString(),
+        })
+      );
+
+      router.push(`/tickets/confirmation?ref=${data.reference}`);
+    } catch (error) {
+      setPaymentError(
+        error instanceof Error ? error.message : "Network error. Please try again."
+      );
+      setStep("bank_transfer");
+    }
   };
 
   const handlePaymentSubmit = async (provider: PaymentProvider) => {
@@ -318,6 +422,8 @@ export function TicketPurchaseForm({
               ? "Creating your Paynow checkout session…"
               : selectedProvider === "ecocash"
               ? "Sending a payment request to your EcoCash wallet…"
+              : selectedProvider === "bank_transfer"
+              ? "Creating your bank transfer order…"
               : "Creating your Stripe checkout session…"}
           </p>
         </CardContent>
@@ -357,7 +463,11 @@ export function TicketPurchaseForm({
     <Card ref={cardRef}>
       <CardHeader>
         <CardTitle className="text-lg">
-          {step === "details" ? "Your Details" : "Select Payment Method"}
+          {step === "details"
+            ? "Your Details"
+            : step === "bank_transfer"
+            ? "Pay by Bank Transfer"
+            : "Select Payment Method"}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -667,6 +777,125 @@ export function TicketPurchaseForm({
               disabled={!buyerName || !buyerContact || !buyerEmail || missingRequiredCustomField || attendeesIncomplete}
             >
               Continue to Payment
+            </Button>
+          </>
+        )}
+
+        {/* ── Step 2b: Bank transfer — FBC details + proof/reference capture ── */}
+        {step === "bank_transfer" && (
+          <>
+            <div className="rounded-lg bg-secondary/50 p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium">
+                    {selectedTicketType.name} x {quantity}
+                  </p>
+                  <p className="text-sm text-muted-foreground">{event.title}</p>
+                </div>
+                <span className="font-heading font-bold text-primary">${totalPrice.toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <Landmark className="h-4 w-4 text-primary" />
+                <p className="text-sm font-semibold">Transfer {selectedTicketType.currency} ${totalPrice.toFixed(2)} to:</p>
+              </div>
+              <div className="grid gap-1 text-sm">
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Account Name</span>
+                  <span className="text-right font-medium">{BANK_TRANSFER_DETAILS.accountName}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Bank</span>
+                  <span className="text-right font-medium">{BANK_TRANSFER_DETAILS.bank}</span>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <span className="text-muted-foreground">Branch</span>
+                  <span className="text-right font-medium">{BANK_TRANSFER_DETAILS.branch}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-muted-foreground">USD Account</span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="font-mono font-medium">{BANK_TRANSFER_DETAILS.accountNumber}</span>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground"
+                      title="Copy account number"
+                      onClick={() => {
+                        navigator.clipboard.writeText(BANK_TRANSFER_DETAILS.accountNumber).then(() => {
+                          setBankCopied(true);
+                          setTimeout(() => setBankCopied(false), 2000);
+                        }).catch(() => {});
+                      }}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                </div>
+                {bankCopied && <p className="text-xs text-success">Account number copied</p>}
+              </div>
+              <p className="text-xs text-muted-foreground pt-1">
+                Use your order email or name as the payment narration. Your ticket is held until we
+                verify the deposit — approval is done manually and you&apos;ll be notified by email and WhatsApp.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="txnReference">Enter Transaction Reference *</Label>
+              <Input
+                id="txnReference"
+                value={txnReference}
+                onChange={(e) => setTxnReference(e.target.value)}
+                placeholder="e.g. bank reference / transaction ID from your transfer"
+                className="mt-1.5"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                From your bank app, deposit slip or transfer confirmation — this is how we match your payment.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="proofFile" className="flex items-center gap-1.5">
+                <Upload className="h-3.5 w-3.5" />
+                Upload Proof of Payment
+                <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Recommended</span>
+              </Label>
+              <Input
+                id="proofFile"
+                type="file"
+                accept="*/*"
+                onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+                className="mt-1.5"
+              />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Any file format — receipt PDF, bank confirmation, or a screenshot/photo of your transfer.
+                Proof speeds up verification.
+              </p>
+            </div>
+
+            {paymentError && (
+              <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive">
+                {paymentError}
+              </div>
+            )}
+
+            <Button
+              className="w-full gap-2 bg-primary hover:bg-primary/90"
+              size="lg"
+              onClick={handleBankTransferSubmit}
+              disabled={!txnReference.trim()}
+            >
+              Submit Order for Verification
+            </Button>
+
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => { setStep("provider"); setPaymentError(null); }}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Choose a Different Method
             </Button>
           </>
         )}

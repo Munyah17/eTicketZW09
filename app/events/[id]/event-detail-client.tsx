@@ -32,8 +32,16 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
 
   const handleTicketSelect = (ticketTypeId: string) => {
     setSelectedTicketType(ticketTypeId);
-    if (window.innerWidth < 1024) {
-      document.getElementById("ticket-purchase-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // On mobile the form is far below; on desktop it sits beside/below the
+    // fold depending on description length. In both cases, if the form isn't
+    // comfortably in view the click appears to do nothing — so scroll to it
+    // only when needed.
+    const form = document.getElementById("ticket-purchase-form");
+    if (!form) return;
+    const top = form.getBoundingClientRect().top;
+    const headerOffset = 96;
+    if (top < headerOffset || top > window.innerHeight - 200) {
+      form.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   };
 
@@ -191,7 +199,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
               </p>
             </div>
 
-            <div id="ticket-purchase-form">
+            <div id="ticket-purchase-form" className="scroll-mt-24">
               <TicketPurchaseForm
                 event={event}
                 selectedTicketTypeId={selectedTicketType}

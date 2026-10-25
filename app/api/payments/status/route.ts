@@ -102,6 +102,8 @@ export async function GET(req: NextRequest) {
   // Re-read payment after possible update above
   const updated = (await PaymentService.getPayment(reference))!;
 
+  // on_hold (bank transfer) is deliberately not in the instruction ladder —
+  // there is no gateway to poll, only an admin's manual decision can move it.
   const instruction =
     updated.status === "paid"
       ? "accept"
@@ -114,6 +116,8 @@ export async function GET(req: NextRequest) {
       ? "Payment confirmed. Accept the payment and generate the ticket."
       : updated.status === "failed"
       ? "Payment failed. Decline this checkout and ask the user to try again."
+      : updated.status === "on_hold"
+      ? "Bank transfer order is on hold pending manual verification."
       : "Payment is still pending. Wait for confirmation before generating a ticket.";
 
   return NextResponse.json({
@@ -121,6 +125,8 @@ export async function GET(req: NextRequest) {
     reference: updated.reference,
     provider: updated.provider,
     status: updated.status,
+    reviewStatus: updated.reviewStatus ?? null,
+    reviewReason: updated.reviewReason ?? null,
     error: updated.error || null,
     metadata: updated.metadata || null,
     instruction,

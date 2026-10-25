@@ -53,7 +53,8 @@ export function EventCarouselRow({
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [index, setIndex] = useState(0);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressClickRef = useRef(false);
   const [dragDelta, setDragDelta] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -98,6 +99,13 @@ export function EventCarouselRow({
   const trackWidth = slotCount * (cardWidth + GAP) - GAP;
   const maxOffset = Math.max(0, trackWidth - viewportWidth);
   const maxIndex = Math.max(0, slotCount - cardsPerView);
+  // When there aren't enough events to fill a full view, fixed card widths
+  // would leave a large empty area at the right edge. In that case let the
+  // cards stretch to share the viewport evenly instead.
+  const fillRow = !isMobile && !useMobileGrid && slotCount <= cardsPerView;
+  // Even when filling, a card shouldn't stretch absurdly wide — cap at
+  // ~2× its normal width so a lone event reads as a card, not a banner.
+  const fillMaxWidth = Math.min(cardWidth * 2, 520);
 
   const rawOffset = hasPeek ? (index - 0.5) * step : index * step;
   const offset = Math.min(Math.max(rawOffset, 0), maxOffset);
@@ -106,30 +114,40 @@ export function EventCarouselRow({
   const canScrollNext = index < maxIndex;
 
   const SWIPE_THRESHOLD = 40;
+  const DRAG_START = 6;
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    setIsDragging(true);
+  // Pointer events cover mouse drag on desktop and touch swipe on mobile.
+  // touch-pan-y on the viewport keeps vertical page scrolling native; only
+  // clearly-horizontal gestures become drags.
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (maxIndex === 0) return;
+    pointerStartRef.current = { x: e.clientX, y: e.clientY };
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartRef.current) return;
-    const dx = e.touches[0].clientX - touchStartRef.current.x;
-    const dy = e.touches[0].clientY - touchStartRef.current.y;
-    // Only hijack horizontal swipes — vertical page scroll passes through untouched.
-    if (Math.abs(dx) > Math.abs(dy)) {
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!pointerStartRef.current) return;
+    const dx = e.clientX - pointerStartRef.current.x;
+    const dy = e.clientY - pointerStartRef.current.y;
+    if (Math.abs(dx) > DRAG_START && Math.abs(dx) > Math.abs(dy)) {
+      if (!isDragging) {
+        setIsDragging(true);
+        // Keep receiving move/up even when the pointer leaves the element;
+        // also retargets the post-drag click away from card links.
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+      }
       setDragDelta(dx);
     }
   };
 
-  const handleTouchEnd = () => {
+  const endDrag = () => {
     if (Math.abs(dragDelta) > SWIPE_THRESHOLD) {
       if (dragDelta < 0) setIndex((i) => Math.min(maxIndex, i + 1));
       else setIndex((i) => Math.max(0, i - 1));
     }
+    if (isDragging) suppressClickRef.current = true;
     setDragDelta(0);
     setIsDragging(false);
-    touchStartRef.current = null;
+    pointerStartRef.current = null;
   };
 
   if (events.length === 0) return null;
@@ -171,10 +189,19 @@ export function EventCarouselRow({
 
       <div
         ref={viewportRef}
-        className="relative mt-6 overflow-hidden touch-pan-y"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        className={`relative mt-6 overflow-hidden touch-pan-y${isDragging ? " select-none" : ""}`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onClickCapture={(e) => {
+          // A real drag ending on a card must not follow that card's link.
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }}
       >
         <div
           className={isDragging ? "flex" : "flex transition-transform duration-300 ease-out"}
@@ -184,7 +211,13 @@ export function EventCarouselRow({
             <div
               key={page[0]?.id ?? i}
               className="shrink-0 grow-0"
-              style={viewportWidth > 0 ? { width: cardWidth, flexBasis: cardWidth } : undefined}
+              style={
+                viewportWidth > 0
+                  ? fillRow
+                    ? { flexBasis: 0, flexGrow: 1, minWidth: 0, maxWidth: fillMaxWidth }
+                    : { width: cardWidth, flexBasis: cardWidth }
+                  : undefined
+              }
             >
               {useMobileGrid ? (
                 <div className="flex flex-col gap-3">

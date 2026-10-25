@@ -106,9 +106,9 @@ export interface Ticket {
   customFieldResponses?: Record<string, string>; // keyed by EventCustomField.id
 }
 
-export type PaymentMethod = "ecocash" | "innbucks" | "visa" | "mastercard" | "cash" | "stripe" | "paynow" | "epay";
+export type PaymentMethod = "ecocash" | "innbucks" | "visa" | "mastercard" | "cash" | "stripe" | "paynow" | "epay" | "bank_transfer";
 
-export type PaymentProvider = "stripe" | "paynow" | "ecocash" | "epay" | "mobile_money" | "card" | "cash";
+export type PaymentProvider = "stripe" | "paynow" | "ecocash" | "epay" | "bank_transfer" | "mobile_money" | "card" | "cash";
 
 export interface Banner {
   id: string;
@@ -308,6 +308,14 @@ export const ONLINE_PAYMENT_PROVIDERS = [
     methods: [],
   },
   {
+    id: "bank_transfer" as PaymentProvider,
+    name: "Bank Transfer",
+    description: "Deposit or transfer directly into our FBC account — tickets are issued after we verify your payment",
+    banner: "",
+    active: true,
+    methods: [],
+  },
+  {
     id: "epay" as PaymentProvider,
     name: "ePay",
     description: "Coming soon - Visa, Mastercard & more",
@@ -337,6 +345,17 @@ export const EVENT_CATEGORIES: { value: EventCategory; label: string }[] = [
   { value: "exhibition", label: "Exhibition" },
   { value: "other", label: "Other" },
 ];
+
+// The FBC account buyers deposit into when they choose Bank Transfer.
+// Shown at checkout and on the on-hold confirmation page; admins verify
+// deposits against this same account before issuing the ticket.
+export const BANK_TRANSFER_DETAILS = {
+  accountName: "Solabliss Zimbabwe Pvt Ltd",
+  bank: "FBC Bank",
+  branch: "FBC Center Branch",
+  accountNumber: "6870465460146",
+  currency: "USD",
+};
 
 export const PLATFORM_FEE_PERCENTAGE = 10;
 export const PLATFORM_FEE_FIXED = 0;

@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Check, Lock, Info, ArrowRight } from "lucide-react";
+import { Check, Lock, Info, ArrowRight, Landmark } from "lucide-react";
 import { ONLINE_PAYMENT_PROVIDERS } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -58,16 +58,24 @@ export function PaymentProviders({ amount, onSelect, selectedProvider }: Payment
           onClick={() => handleSelect(provider.id)}
         >
           <CardContent className="p-0">
-            {/* Banner Image - Responsive sizing */}
+            {/* Banner Image - Responsive sizing. Providers without a banner
+                asset (e.g. Bank Transfer) get an icon placeholder instead. */}
             <div className="w-full bg-white flex items-center justify-center p-2 sm:p-3 border-b min-h-16 sm:min-h-24">
-              <img
-                src={provider.banner}
-                alt={`${provider.name} payment banner`}
-                className="w-full max-h-16 sm:max-h-24 object-contain"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
+              {provider.banner ? (
+                <img
+                  src={provider.banner}
+                  alt={`${provider.name} payment banner`}
+                  className="w-full max-h-16 sm:max-h-24 object-contain"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                  }}
+                />
+              ) : (
+                <div className="flex items-center gap-2 text-slate-700">
+                  <Landmark className="h-7 w-7 sm:h-9 sm:w-9" />
+                  <span className="text-base sm:text-lg font-semibold tracking-tight">{provider.name}</span>
+                </div>
+              )}
             </div>
 
             {/* Card Info - Responsive layout */}

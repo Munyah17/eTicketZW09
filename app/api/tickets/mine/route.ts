@@ -39,5 +39,37 @@ export async function GET() {
     purchasedAt: t.purchased_at,
   }));
 
-  return NextResponse.json({ tickets });
+  // Bank-transfer orders awaiting manual verification have no ticket row
+  // yet — but the buyer still needs to see them on their dashboard,
+  // including whether we've asked for more information.
+  const { data: heldPayments } = await admin
+    .from("payments")
+    .select("reference, amount, currency, status, metadata, review_status, review_reason, created_at")
+    .eq("user_id", user.id)
+    .eq("provider", "bank_transfer")
+    .in("status", ["on_hold", "failed"])
+    .order("created_at", { ascending: false })
+    .limit(50);
+
+  const heldOrders = (heldPayments ?? []).map((p) => {
+    const m = (p.metadata ?? {}) as Record<string, unknown>;
+    return {
+      reference: p.reference,
+      status: p.status,
+      reviewStatus: p.review_status,
+      reviewReason: p.review_reason,
+      amount: Number(p.amount),
+      currency: p.currency,
+      eventTitle: (m.eventTitle as string) || "",
+      eventDate: (m.eventDate as string) || "",
+      eventTime: (m.eventTime as string) || "",
+      venue: (m.venue as string) || "",
+      ticketTypeName: (m.ticketTypeName as string) || "",
+      quantity: (m.quantity as number) || 1,
+      transactionReference: (m.transaction_reference as string) || "",
+      submittedAt: p.created_at,
+    };
+  });
+
+  return NextResponse.json({ tickets, heldOrders });
 }
