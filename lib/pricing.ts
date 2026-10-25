@@ -16,10 +16,11 @@ export function calculateTotalWithFee(basePrice: number, feePercent: number, fee
 }
 
 // Bank transfers carry a transaction cost — the buyer covers it, so it is
-// added on top of the normal total (subtotal + platform fee). Rounded to
-// cents because the deposited amount must match exactly what we display.
-export function calculateBankTransferFee(total: number, feePercent: number): number {
-  return Math.round(total * (feePercent / 100) * 100) / 100;
+// added on top of the normal total (subtotal + platform fee): a percentage
+// of that total plus a fixed amount. Rounded to cents because the deposited
+// amount must match exactly what we display.
+export function calculateBankTransferFee(total: number, feePercent: number, feeFixed = 0): number {
+  return Math.round((total * (feePercent / 100) + feeFixed) * 100) / 100;
 }
 
 export function calculatePayoutTransactionCost(amount: number, costPercent: number): number {

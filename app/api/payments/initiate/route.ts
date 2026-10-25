@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PaymentService, PaymentInitiateRequest } from "@/lib/services/payment-service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculatePlatformFee, calculateTotalWithFee, calculateBankTransferFee } from "@/lib/pricing";
-import { PLATFORM_FEE_PERCENTAGE, PLATFORM_FEE_FIXED, BANK_TRANSFER_FEE_PERCENT } from "@/lib/types";
+import { PLATFORM_FEE_PERCENTAGE, PLATFORM_FEE_FIXED, BANK_TRANSFER_FEE_PERCENT, BANK_TRANSFER_FEE_FIXED } from "@/lib/types";
 import { sendFailedPurchaseAlert } from "@/lib/failed-purchase-alert";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
       // Bank deposits cost the platform a transaction fee — passed to the buyer.
       const bankTransferFee =
         body.provider === "bank_transfer"
-          ? calculateBankTransferFee(total, BANK_TRANSFER_FEE_PERCENT)
+          ? calculateBankTransferFee(total, BANK_TRANSFER_FEE_PERCENT, BANK_TRANSFER_FEE_FIXED)
           : 0;
       total += bankTransferFee;
 

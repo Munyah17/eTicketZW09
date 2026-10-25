@@ -360,8 +360,10 @@ export const BANK_TRANSFER_DETAILS = {
 export const PLATFORM_FEE_PERCENTAGE = 10;
 export const PLATFORM_FEE_FIXED = 0;
 // Manual bank deposits cost the platform real money to reconcile — buyers
-// choosing Bank Transfer pay this surcharge on top of the order total.
-export const BANK_TRANSFER_FEE_PERCENT = 5;
+// choosing Bank Transfer pay this surcharge on top of the order total:
+// a flat $0.50 plus 7% of the total (5% cost of transacting + 2% IMMT tax).
+export const BANK_TRANSFER_FEE_PERCENT = 7;
+export const BANK_TRANSFER_FEE_FIXED = 0.5;
 export const HERO_BANNER_PRICE_PER_DAY = 10;
 export const SECTION_BANNER_PRICE_PER_DAY = 5;
 export const ANNOUNCEMENT_AD_PRICE_PER_2_WEEKS = 50;
