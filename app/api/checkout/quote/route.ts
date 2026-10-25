@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { calculatePlatformFee, calculateTotalWithFee } from "@/lib/pricing";
-import { PLATFORM_FEE_PERCENTAGE, PLATFORM_FEE_FIXED } from "@/lib/types";
+import { calculatePlatformFee, calculateTotalWithFee, calculateBankTransferFee } from "@/lib/pricing";
+import { PLATFORM_FEE_PERCENTAGE, PLATFORM_FEE_FIXED, BANK_TRANSFER_FEE_PERCENT } from "@/lib/types";
 
 // Computes the buyer-facing processing fee server-side and returns only the
 // resulting dollar amounts — never the rate itself. The rate is a trade
@@ -25,8 +25,17 @@ export async function POST(req: NextRequest) {
   const feePercent = Number(config?.service_fee_percent ?? PLATFORM_FEE_PERCENTAGE);
   const feeFixed = Number(config?.service_fee_fixed ?? PLATFORM_FEE_FIXED);
 
+  const fee = calculatePlatformFee(subtotal, feePercent, feeFixed);
+  const total = calculateTotalWithFee(subtotal, feePercent, feeFixed);
+
+  // Bank transfers carry a 5% transaction cost the buyer pays on top.
+  const surcharge =
+    body.provider === "bank_transfer"
+      ? calculateBankTransferFee(total, BANK_TRANSFER_FEE_PERCENT)
+      : 0;
+
   return NextResponse.json({
-    fee: calculatePlatformFee(subtotal, feePercent, feeFixed),
-    total: calculateTotalWithFee(subtotal, feePercent, feeFixed),
+    fee: fee + surcharge,
+    total: total + surcharge,
   });
 }

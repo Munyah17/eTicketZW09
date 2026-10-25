@@ -57,59 +57,50 @@ export function PaymentProviders({ amount, onSelect, selectedProvider }: Payment
           )}
           onClick={() => handleSelect(provider.id)}
         >
-          <CardContent className="p-0">
-            {/* Banner Image - Responsive sizing. Providers without a banner
-                asset (e.g. Bank Transfer) get an icon placeholder instead. */}
-            <div className="w-full bg-white flex items-center justify-center p-2 sm:p-3 border-b min-h-16 sm:min-h-24">
+          {/* Compact row: small logo tile + name/description + action. The
+              old layout rendered each provider's banner as a full-width block
+              — on desktop the "banners" looked like giant buttons. */}
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className="h-10 w-14 sm:h-11 sm:w-16 shrink-0 rounded-md bg-white border flex items-center justify-center overflow-hidden">
               {provider.banner ? (
                 <img
                   src={provider.banner}
-                  alt={`${provider.name} payment banner`}
-                  className="w-full max-h-16 sm:max-h-24 object-contain"
+                  alt={`${provider.name} logo`}
+                  className="h-full w-full object-contain p-1"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = "none";
                   }}
                 />
               ) : (
-                <div className="flex items-center gap-2 text-slate-700">
-                  <Landmark className="h-7 w-7 sm:h-9 sm:w-9" />
-                  <span className="text-base sm:text-lg font-semibold tracking-tight">{provider.name}</span>
-                </div>
+                <Landmark className="h-5 w-5 text-slate-600" />
               )}
             </div>
 
-            {/* Card Info - Responsive layout */}
-            <div className="p-2 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-1 sm:gap-2">
-                  <h4 className="font-semibold text-sm sm:text-base truncate">{provider.name}</h4>
-                  {provider.active ? (
-                    <Badge variant="default" className="bg-success text-success-foreground gap-1 text-xs shrink-0">
-                      <Lock className="h-3 w-3" />
-                      Active
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="text-xs shrink-0">Coming Soon</Badge>
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{provider.description}</p>
-              </div>
-
-              <div className="flex-shrink-0">
-                {selectedProvider === provider.id ? (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                    <Check className="h-4 w-4" />
-                  </div>
-                ) : provider.active ? (
-                  <Button size="sm" variant="outline" disabled={loadingProvider === provider.id} className="text-xs sm:text-sm whitespace-nowrap">
-                    {loadingProvider === provider.id ? "..." : `Pay`}
-                  </Button>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <h4 className="font-semibold text-sm truncate">{provider.name}</h4>
+                {provider.active ? (
+                  <Badge variant="default" className="bg-success text-success-foreground gap-1 text-xs shrink-0">
+                    <Lock className="h-3 w-3" />
+                    Active
+                  </Badge>
                 ) : (
-                  <Button size="sm" variant="outline" className="text-xs sm:text-sm whitespace-nowrap">
-                    Pay
-                  </Button>
+                  <Badge variant="secondary" className="text-xs shrink-0">Coming Soon</Badge>
                 )}
               </div>
+              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{provider.description}</p>
+            </div>
+
+            <div className="flex-shrink-0">
+              {selectedProvider === provider.id ? (
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                  <Check className="h-4 w-4" />
+                </div>
+              ) : provider.active ? (
+                <Button size="sm" variant="outline" disabled={loadingProvider === provider.id} className="text-xs whitespace-nowrap">
+                  {loadingProvider === provider.id ? "..." : "Pay"}
+                </Button>
+              ) : null}
             </div>
           </CardContent>
         </Card>
@@ -134,26 +125,14 @@ export function PaymentProviders({ amount, onSelect, selectedProvider }: Payment
             </p>
 
             <div className="space-y-3">
-              <Card className="border-primary/50 bg-primary/5">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <p className="font-semibold">Paynow</p>
-                  <Badge className="bg-emerald-500">Available</Badge>
-                </CardContent>
-              </Card>
-
-              <Card className="border-primary/50 bg-primary/5">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <p className="font-semibold">Stripe</p>
-                  <Badge className="bg-blue-500">Available</Badge>
-                </CardContent>
-              </Card>
-
-              <Card className="border-primary/50 bg-primary/5">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <p className="font-semibold">EcoCash Instant</p>
-                  <Badge className="bg-emerald-500">Available</Badge>
-                </CardContent>
-              </Card>
+              {ONLINE_PAYMENT_PROVIDERS.filter((p) => p.active).map((p) => (
+                <Card key={p.id} className="border-primary/50 bg-primary/5">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <p className="font-semibold">{p.name}</p>
+                    <Badge className="bg-emerald-500">Available</Badge>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           </div>
 

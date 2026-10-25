@@ -302,9 +302,9 @@ export const ONLINE_PAYMENT_PROVIDERS = [
   {
     id: "ecocash" as PaymentProvider,
     name: "EcoCash Instant",
-    description: "Pay directly from your EcoCash wallet — a PIN prompt is sent straight to your phone",
+    description: "Coming soon — pay directly from your EcoCash wallet",
     banner: "/payments/ecocash-banner.svg",
-    active: true,
+    active: false,
     methods: [],
   },
   {
@@ -359,6 +359,9 @@ export const BANK_TRANSFER_DETAILS = {
 
 export const PLATFORM_FEE_PERCENTAGE = 10;
 export const PLATFORM_FEE_FIXED = 0;
+// Manual bank deposits cost the platform real money to reconcile — buyers
+// choosing Bank Transfer pay this surcharge on top of the order total.
+export const BANK_TRANSFER_FEE_PERCENT = 5;
 export const HERO_BANNER_PRICE_PER_DAY = 10;
 export const SECTION_BANNER_PRICE_PER_DAY = 5;
 export const ANNOUNCEMENT_AD_PRICE_PER_2_WEEKS = 50;

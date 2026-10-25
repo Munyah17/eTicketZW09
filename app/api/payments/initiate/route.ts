@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PaymentService, PaymentInitiateRequest } from "@/lib/services/payment-service";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { calculatePlatformFee, calculateTotalWithFee } from "@/lib/pricing";
-import { PLATFORM_FEE_PERCENTAGE, PLATFORM_FEE_FIXED } from "@/lib/types";
+import { calculatePlatformFee, calculateTotalWithFee, calculateBankTransferFee } from "@/lib/pricing";
+import { PLATFORM_FEE_PERCENTAGE, PLATFORM_FEE_FIXED, BANK_TRANSFER_FEE_PERCENT } from "@/lib/types";
 import { sendFailedPurchaseAlert } from "@/lib/failed-purchase-alert";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -82,10 +82,23 @@ export async function POST(req: NextRequest) {
       const feeFixed = Number(platformConfig?.service_fee_fixed ?? PLATFORM_FEE_FIXED);
       const fee = calculatePlatformFee(subtotal, feePercent, feeFixed);
 
-      body.amount = calculateTotalWithFee(subtotal, feePercent, feeFixed);
+      let total = calculateTotalWithFee(subtotal, feePercent, feeFixed);
+      // Bank deposits cost the platform a transaction fee — passed to the buyer.
+      const bankTransferFee =
+        body.provider === "bank_transfer"
+          ? calculateBankTransferFee(total, BANK_TRANSFER_FEE_PERCENT)
+          : 0;
+      total += bankTransferFee;
+
+      body.amount = total;
       body.currency = ticketType.currency;
       body.event_id = body.event_id ?? ticketType.event_id;
-      body.metadata = { ...(body.metadata ?? {}), quantity, platformFeeAmount: fee };
+      body.metadata = {
+        ...(body.metadata ?? {}),
+        quantity,
+        platformFeeAmount: fee,
+        bankTransferFee,
+      };
     }
 
     const result = await PaymentService.initiatePayment(body);

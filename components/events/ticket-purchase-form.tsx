@@ -19,7 +19,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Alert } from "@/components/ui/alert";
 import { Minus, Plus, Lock, ArrowLeft, Users, ShieldCheck, Baby, Landmark, Upload, Copy } from "lucide-react";
-import { Event, PaymentProvider, BANK_TRANSFER_DETAILS } from "@/lib/types";
+import { Event, PaymentProvider, BANK_TRANSFER_DETAILS, ONLINE_PAYMENT_PROVIDERS } from "@/lib/types";
 import { PaymentProviders } from "@/components/payment/payment-providers";
 import { useAuth } from "@/lib/auth-context";
 
@@ -102,7 +102,9 @@ export function TicketPurchaseForm({
     fetch("/api/checkout/quote", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subtotal: basePrice }),
+      // Pass the chosen provider so bank transfer quotes include its
+      // transaction cost on top of the platform fee.
+      body: JSON.stringify({ subtotal: basePrice, provider: selectedProvider ?? undefined }),
     })
       .then((res) => res.json())
       .then((data) => {
@@ -117,9 +119,12 @@ export function TicketPurchaseForm({
         }
       });
     return () => { cancelled = true; };
-  }, [basePrice]);
+  }, [basePrice, selectedProvider]);
 
-  const showBaseUrlWarning = !process.env.NEXT_PUBLIC_BASE_URL;
+  // Dev-only config reminder — a missing env var must never render as a
+  // scary warning in a buyer's checkout on production.
+  const showBaseUrlWarning =
+    process.env.NODE_ENV === "development" && !process.env.NEXT_PUBLIC_BASE_URL;
 
   const handleQuantityChange = (delta: number) => {
     const newQuantity = quantity + delta;
@@ -166,7 +171,8 @@ export function TicketPurchaseForm({
   };
 
   const handleProviderSelect = (providerId: string) => {
-    if (providerId === "epay") return;
+    const provider = ONLINE_PAYMENT_PROVIDERS.find((p) => p.id === providerId);
+    if (provider && !provider.active) return;
     // Bank transfer has no hosted checkout — the buyer sees our FBC details,
     // pays at their bank, then submits proof + a transaction reference here.
     if (providerId === "bank_transfer") {
@@ -838,6 +844,9 @@ export function TicketPurchaseForm({
               <p className="text-xs text-muted-foreground pt-1">
                 Use your order email or name as the payment narration. Your ticket is held until we
                 verify the deposit — approval is done manually and you&apos;ll be notified by email and WhatsApp.
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Total includes the 5% bank transfer transaction cost.
               </p>
             </div>
 
