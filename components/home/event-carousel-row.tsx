@@ -99,13 +99,6 @@ export function EventCarouselRow({
   const trackWidth = slotCount * (cardWidth + GAP) - GAP;
   const maxOffset = Math.max(0, trackWidth - viewportWidth);
   const maxIndex = Math.max(0, slotCount - cardsPerView);
-  // When there aren't enough events to fill a full view, fixed card widths
-  // would leave a large empty area at the right edge. In that case let the
-  // cards stretch to share the viewport evenly instead.
-  const fillRow = !isMobile && !useMobileGrid && slotCount <= cardsPerView;
-  // Even when filling, a card shouldn't stretch absurdly wide — cap at
-  // ~2× its normal width so a lone event reads as a card, not a banner.
-  const fillMaxWidth = Math.min(cardWidth * 2, 520);
 
   const rawOffset = hasPeek ? (index - 0.5) * step : index * step;
   const offset = Math.min(Math.max(rawOffset, 0), maxOffset);
@@ -211,13 +204,7 @@ export function EventCarouselRow({
             <div
               key={page[0]?.id ?? i}
               className="shrink-0 grow-0"
-              style={
-                viewportWidth > 0
-                  ? fillRow
-                    ? { flexBasis: 0, flexGrow: 1, minWidth: 0, maxWidth: fillMaxWidth }
-                    : { width: cardWidth, flexBasis: cardWidth }
-                  : undefined
-              }
+              style={viewportWidth > 0 ? { width: cardWidth, flexBasis: cardWidth } : undefined}
             >
               {useMobileGrid ? (
                 <div className="flex flex-col gap-3">
