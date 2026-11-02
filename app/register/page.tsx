@@ -32,6 +32,7 @@ export default function RegisterPage() {
   }, []);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [errorIsDuplicate, setErrorIsDuplicate] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
@@ -58,7 +59,19 @@ export default function RegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim(), reason: msg }),
       }).catch(() => {});
-      setError(msg.includes("already registered") ? "This email is already registered. Try signing in." : msg);
+      // Give retry loops a path forward: an existing account needs sign-in,
+      // and a GoTrue rate limit just needs a pause — endless re-submits only
+      // fail again and spam the ops inbox.
+      if (/already registered|already been registered|already in use|user already exists/i.test(msg)) {
+        setErrorIsDuplicate(true);
+        setError("This email is already registered.");
+      } else if (/rate limit|for security purposes|too many requests/i.test(msg)) {
+        setErrorIsDuplicate(false);
+        setError("Too many attempts — please wait a moment and try again.");
+      } else {
+        setErrorIsDuplicate(false);
+        setError(msg);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -150,7 +163,16 @@ export default function RegisterPage() {
                 <Input id="confirm" type="password" placeholder="Repeat password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" disabled={isSubmitting} />
               </div>
 
-              {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+              {error && (
+                <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {error}{" "}
+                  {errorIsDuplicate && (
+                    <Link href="/login" className="font-medium underline underline-offset-2">
+                      Sign in instead
+                    </Link>
+                  )}
+                </p>
+              )}
 
               <p className="text-xs text-muted-foreground">
                 By creating an account, you agree to our{" "}
