@@ -10,11 +10,19 @@ interface HookUser {
   user_metadata?: { name?: string; role?: string };
 }
 
+// The response GoTrue hooks expect: 2xx + {"decision":"continue"} lets the
+// signup through; anything else rejects it. Because hooks run inside the
+// signup transaction, this endpoint must NEVER return an error status —
+// a 401 from a missing/mismatched SIGNUP_HOOK_SECRET previously turned a
+// notification misconfiguration into a total signup outage for every role.
+// The secret now gates only the notification send; an unauthenticated call
+// gets "continue" and does nothing, which stays spam-safe.
 export async function POST(req: NextRequest) {
   const key = req.nextUrl.searchParams.get("key");
   const expected = process.env.SIGNUP_HOOK_SECRET;
   if (!expected || key !== expected) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    console.warn("auth-created hook: SIGNUP_HOOK_SECRET missing or mismatched — notification skipped, signup allowed");
+    return NextResponse.json({ decision: "continue" });
   }
 
   const body = (await req.json().catch(() => ({}))) as { user?: HookUser };
@@ -31,5 +39,5 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ decision: "continue" });
 }
