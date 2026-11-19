@@ -25,6 +25,7 @@ import {
   ImagePlus,
   Loader2,
   PackagePlus,
+  Pencil,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getOrganizerEvents } from "@/lib/events-store";
@@ -312,6 +313,11 @@ export default function OrganizerEventsPage() {
                             <Link href={`/events/${event.id}`}>
                               <Button variant="ghost" size="icon" title="View event page">
                                 <Eye className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                            <Link href={`/creator/events/${event.id}/edit`}>
+                              <Button variant="ghost" size="icon" title="Edit event">
+                                <Pencil className="h-4 w-4" />
                               </Button>
                             </Link>
                             <Button

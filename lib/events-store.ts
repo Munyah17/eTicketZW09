@@ -200,12 +200,21 @@ export async function saveEvent(event: Event): Promise<string> {
     eventId = event.id;
     await supabase.from("events").update(eventToDbRow(event)).eq("id", eventId);
 
-    // Upsert ticket types — preserve IDs so existing tickets aren't orphaned
-    if (event.ticketTypes.length > 0) {
-      await supabase.from("ticket_types").upsert(
-        event.ticketTypes.map((tt) => ticketTypeToDbRow(tt, eventId)),
-        { onConflict: "id" }
-      );
+    // Ticket types: upsert the ones with a real UUID (preserves ids so existing
+    // tickets aren't orphaned), insert brand-new ones separately. A single
+    // mixed upsert is fragile — rows without an id rely on column defaults and
+    // PostgREST is picky about heterogeneous payloads. Removed types are never
+    // deleted here: a type with sales must not vanish (the organizer edit UI
+    // also doesn't offer removal of existing types).
+    const tts = event.ticketTypes || [];
+    const ttRows = tts.map((tt) => ticketTypeToDbRow(tt, eventId));
+    const ttUpsert = ttRows.filter((r) => r.id);
+    const ttInsert = ttRows.filter((r) => !r.id);
+    if (ttUpsert.length > 0) {
+      await supabase.from("ticket_types").upsert(ttUpsert, { onConflict: "id" });
+    }
+    if (ttInsert.length > 0) {
+      await supabase.from("ticket_types").insert(ttInsert);
     }
 
     // Sync add-ons: upsert the ones kept, delete any removed. Only real UUID
@@ -246,7 +255,7 @@ export async function getEventById(id: string): Promise<Event | undefined> {
   const supabase = createClient();
   const { data } = await supabase
     .from("events")
-    .select("*, ticket_types(*), event_add_ons(*)")
+    .select("*, ticket_types(*), event_custom_fields(*), event_add_ons(*)")
     .eq("id", id)
     .single();
   return data ? dbToEvent(data) : undefined;
