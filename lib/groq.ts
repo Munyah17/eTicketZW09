@@ -68,8 +68,8 @@ export async function generateSystemDiagnosis(logSummary: string): Promise<strin
           role: "system",
           content:
             "You are the site reliability engineer for E-TicketsZW, a Next.js + Supabase event " +
-            "ticketing platform in Zimbabwe. Payments go through Stripe (cards) and Paynow " +
-            "(EcoCash/mobile money); tickets are delivered by email (Resend) and WhatsApp " +
+            "ticketing platform in Zimbabwe. Payments go through Paynow " +
+            "(cards, EcoCash & mobile money); tickets are delivered by email (Resend) and WhatsApp " +
             "(Meta Cloud API). You are given real operational metrics computed from the " +
             "platform's system logs. Write a concise incident-style report in Markdown with " +
             "these sections: '## System Assessment' (2-3 sentences stating overall health), " +

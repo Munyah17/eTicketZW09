@@ -4,7 +4,6 @@ import https from "node:https";
 import { revalidateTag } from "next/cache";
 // @ts-ignore - Paynow SDK doesn't have TypeScript types
 import { Paynow } from "paynow";
-import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateTicket, TicketSoldOutError } from "@/lib/ticket-generator";
 import { sendTicketEmail } from "@/lib/email/send-ticket-email";
@@ -14,8 +13,15 @@ import { sendFailedPurchaseAlert } from "@/lib/failed-purchase-alert";
 import { getSiteUrl } from "@/lib/site-url";
 import { sendTicketWhatsApp } from "@/lib/whatsapp";
 import { logError } from "@/lib/error-logger";
+import { recordOrderPayment } from "@/lib/orders";
 
-export type PaymentProvider = "paynow" | "stripe" | "ecocash" | "bank_transfer";
+export type PaymentProvider = "paynow" | "ecocash" | "bank_transfer";
+
+// Prefix stamped onto the reference we hand to Paynow so every charge is
+// clearly labelled "eTicket-…" on the Paynow checkout, receipts and the
+// buyer's statement. The internal payments.reference stays a bare UUID —
+// the webhook strips this prefix before lookup (see webhook/paynow route).
+export const PAYNOW_REF_PREFIX = "eTicket-";
 
 export interface PaymentInitiateRequest {
   product_name: string;
@@ -33,7 +39,6 @@ export interface PaymentInitiateResponse {
   success: boolean;
   reference: string;
   redirect_url: string;
-  stripe_session_id?: string;
   paynow_poll_url?: string;
   ecocash_end_user_id?: string;
   error?: string;
@@ -47,7 +52,7 @@ export interface PaymentStatus {
   currency: string;
   // "on_hold" = bank-transfer order awaiting manual admin verification —
   // no ticket exists yet and none may be issued until an admin approves.
-  status: "pending" | "paid" | "failed" | "paid_refund_required" | "on_hold";
+  status: "pending" | "paid" | "failed" | "paid_refund_required" | "on_hold" | "refunded";
   reviewStatus?: string | null;
   reviewReason?: string | null;
   created_at: string;
@@ -77,6 +82,9 @@ export class PaymentService {
       user_id: request.user_id || null,
       event_id: request.event_id || null,
       ticket_type_id: request.ticket_type_id || null,
+      // Split-payment orders link their deposit/installment payments back to
+      // the ticket_orders row so fulfillment can gate ticket issuance.
+      order_id: (request.metadata?.orderId as string) || null,
       metadata: isBankTransfer
         ? { ...(request.metadata || {}), review_status: "awaiting_review" }
         : request.metadata || {},
@@ -101,8 +109,6 @@ export class PaymentService {
     let result: PaymentInitiateResponse;
     if (request.provider === "paynow") {
       result = await PaynowService.initiatePayment(reference, request);
-    } else if (request.provider === "stripe") {
-      result = await StripeService.initiatePayment(reference, request);
     } else if (request.provider === "ecocash") {
       result = await EcocashService.initiatePayment(reference, request);
     } else {
@@ -111,13 +117,6 @@ export class PaymentService {
 
     if (!result.success) {
       await supabase.from("payments").update({ status: "failed", error_message: result.error }).eq("reference", reference);
-    } else if (result.stripe_session_id) {
-      const { error: updateError } = await supabase.from("payments")
-        .update({ stripe_session_id: result.stripe_session_id, metadata: { ...request.metadata, stripe_session_id: result.stripe_session_id } })
-        .eq("reference", reference);
-      if (updateError) {
-        console.error("Payment stripe_session_id update failed:", updateError.message);
-      }
     } else if (result.paynow_poll_url) {
       // The poll URL is how we later verify the payment directly with Paynow's
       // servers (webhook bodies are unauthenticated and cannot be trusted).
@@ -147,8 +146,8 @@ export class PaymentService {
     await supabase.from("payments").update({ status }).eq("reference", reference);
   }
 
-  // Shared "this payment succeeded" path — used by the Stripe/Paynow webhooks,
-  // the direct Stripe status re-check, and the admin manual-verification tool.
+  // Shared "this payment succeeded" path — used by the Paynow/EcoCash webhooks,
+  // the direct status re-check, and the admin manual-verification tool.
   // CRITICAL: This is the main fulfillment orchestrator. Every step must succeed
   // before marking ticket as fulfilled.
   static async confirmPaid(
@@ -162,14 +161,59 @@ export class PaymentService {
         throw new Error(`Payment not found: ${reference}`);
       }
 
-      // Idempotency: the ticket row is the real completion marker, not the
-      // payment status. A payment can be "paid" with generation having failed
-      // mid-flight (crash, bad metadata) — in that case a retry must fall
-      // through and produce the ticket instead of returning early, otherwise
-      // the buyer is permanently stuck with a paid payment and no ticket.
-      const existingTicket = await PaymentService.getTicketByPaymentReference(reference);
-      if (existingTicket) {
-        console.log("confirmPaid: Ticket already exists", reference, existingTicket.id);
+      let m = (payment.metadata ?? {}) as Record<string, unknown>;
+      // Number of ticket rows this order must mint. Clamped to the same
+      // ceiling the checkout form enforces so a tampered metadata value can't
+      // request an unbounded batch.
+      let quantity = Math.min(10, Math.max(1, Math.floor(Number(m.quantity)) || 1));
+
+      // Split-payment orders: this payment settles (part of) a ticket_orders
+      // row. Record it against the order and only mint tickets once the
+      // balance reaches zero — a deposit alone must never issue a ticket.
+      const orderId = m.orderId as string | undefined;
+      let orderAmount: number | null = null;
+      let orderFee: number | null = null;
+      if (orderId) {
+        const settled = await recordOrderPayment(orderId, opts.amount ?? payment.amount, reference);
+        if (!settled) {
+          logError("confirmPaid_order_not_found", new Error("Order not found for payment"), { reference, orderId });
+          return;
+        }
+        // Money is captured — mark this installment paid either way.
+        await PaymentService.updatePaymentStatus(reference, "paid");
+        if (settled.status !== "paid") {
+          console.log("confirmPaid: order partially settled", settled.reference, "balance", settled.balance);
+          return;
+        }
+        // Order fully settled → mint tickets from the order's stored purchase
+        // snapshot (installment payments carry no buyer form of their own).
+        const om = (settled.purchase_metadata ?? {}) as Record<string, unknown>;
+        m = {
+          ...om,
+          ...m,
+          eventId: settled.event_id,
+          ticketTypeId: settled.ticket_type_id,
+          quantity: settled.quantity,
+          customFieldResponses: settled.custom_field_responses,
+          orderId: settled.id,
+          orderReference: settled.reference,
+        };
+        quantity = Math.min(10, Math.max(1, Math.floor(Number(settled.quantity)) || 1));
+        orderAmount = Number(settled.total);
+        orderFee = Number(om.platformFeeAmount) || 0;
+      }
+
+      // Idempotency: the ticket rows are the real completion marker, not the
+      // payment status. Count how many already exist for this payment — a
+      // retry issues only the deficit, and a fully-issued payment returns
+      // early. (The row lock inside create_ticket_with_capacity_check is the
+      // oversell backstop; fulfillment_started_at below is the concurrency
+      // mutex that stops two simultaneous runs double-issuing.)
+      const supabase = createAdminClient();
+      const existingTickets = await PaymentService.getTicketsByPaymentReference(reference);
+      const alreadyIssued = existingTickets.length;
+      if (alreadyIssued >= quantity) {
+        console.log("confirmPaid: Tickets already issued", reference, `${alreadyIssued}/${quantity}`);
         return;
       }
       if (payment.status === "failed") {
@@ -185,17 +229,36 @@ export class PaymentService {
         return;
       }
       if (payment.status === "paid") {
-        console.log("confirmPaid: Payment already paid but no ticket found — resuming fulfillment", reference);
+        console.log("confirmPaid: Payment already paid — resuming fulfillment", reference, `${alreadyIssued}/${quantity}`);
+      }
+
+      // Concurrency mutex: stamp fulfillment_started_at, but only when the
+      // stamp is absent or stale (>5 min). A crashed run's stamp goes stale so
+      // the next call can resume; two live callers can't both win. Without
+      // this, a webhook + a status poll firing together could each issue the
+      // full quantity.
+      const staleBefore = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const { data: claim } = await supabase
+        .from("payments")
+        .update({ fulfillment_started_at: new Date().toISOString() })
+        .eq("reference", reference)
+        .or(`fulfillment_started_at.is.null,fulfillment_started_at.lt.${staleBefore}`)
+        .select("reference")
+        .maybeSingle();
+      if (!claim) {
+        console.log("confirmPaid: fulfillment already in progress elsewhere", reference);
+        return;
       }
 
       // Step 1: Mark as paid in database
       console.log("Step 1/7: Marking payment as paid...", reference);
       await PaymentService.updatePaymentStatus(reference, "paid");
 
-      // Step 3: Generate ticket
-      const m = (payment.metadata ?? {}) as Record<string, unknown>;
-      console.log("Step 2/7: Generating ticket...", reference);
-      console.log("Payment metadata:", m);
+      // Step 2: Generate the remaining tickets, one row per ticket. Each row
+      // requests a single unit of inventory and carries 1/quantity of the
+      // charged amount + buyer fee so per-ticket price, totalPaid and the
+      // wallet-ledger commission all stay correct.
+      console.log("Step 2/7: Generating tickets...", reference, `need ${quantity - alreadyIssued} more`);
 
       if (!m.buyerEmail) {
         logError("confirmPaid_missing_buyer_email", new Error("Buyer email required for ticket generation"), {
@@ -205,132 +268,171 @@ export class PaymentService {
         throw new Error("Buyer email is required to generate ticket");
       }
 
-      let ticket;
-      try {
-        ticket = await generateTicket({
-          paymentId: reference,
-          eventId: (m.eventId as string) || "",
-          ticketTypeId: (m.ticketTypeId as string) || "",
-          ticketTypeName: m.ticketTypeName as string | undefined,
-          eventTitle: m.eventTitle as string | undefined,
-          eventDate: m.eventDate as string | undefined,
-          eventTime: m.eventTime as string | undefined,
-          venue: m.venue as string | undefined,
-          buyerName: (m.buyerName as string) || "Guest",
-          buyerEmail: (m.buyerEmail as string) || "",
-          buyerPhone: (m.buyerPhone as string) || "",
-          buyerUserId: payment.userId,
-          displayName: m.displayName as string | undefined,
-          idNumber: m.idNumber as string | undefined,
-          seatNumber: m.seatNumber as string | undefined,
-          quantity: m.quantity as number | undefined,
-          buyerFeeAmount: m.platformFeeAmount as number | undefined,
-          customFieldResponses: m.customFieldResponses as Record<string, string> | undefined,
-          receiverName: m.receiverName as string | undefined,
-          admitCount: m.admitCount as number | undefined,
-          partyComposition: m.partyComposition as { adults?: number; children?: number; seniors?: number } | undefined,
-          attendees: m.attendees as { name: string; idNumber?: string; ageGroup?: string; address?: string }[] | undefined,
-          // All tickets minted under one payment share the payment's id as
-          // their batch — that's what the batch barcode pulls up at the gate.
-          batchId: payment.id,
-          amount: opts.amount ?? payment.amount,
-          currency: (opts.currency ?? payment.currency).toUpperCase(),
-          paymentMethod: opts.paymentMethod,
-        });
-      } catch (genError) {
-        if (genError instanceof TicketSoldOutError) {
-          // Money has already been captured by the provider — this is not a
-          // "retry and it'll work" failure, it needs a human to refund the
-          // buyer. Flag it as loudly and searchably as possible: a distinct
-          // payments.status value (not the generic "paid") so it can't be
-          // mistaken for a normal successful sale, plus a clear error_message.
-          const flagMessage = `SOLD OUT AT FULFILLMENT — payment captured, no ticket issued, refund required. ${genError.message}`;
-          await createAdminClient()
-            .from("payments")
-            .update({ status: "paid_refund_required", error_message: flagMessage })
-            .eq("reference", reference);
-          logError("ticket_oversold_refund_required", genError, { reference, ticketTypeId: genError.ticketTypeId });
-          console.error("🔴 OVERSOLD — REFUND REQUIRED:", reference, genError.message);
-          return;
+      const totalAmount = orderAmount ?? (opts.amount ?? payment.amount);
+      const totalFee = orderFee ?? ((m.platformFeeAmount as number) || 0);
+      const perTicketAmount = totalAmount / quantity;
+      const perTicketFee = totalFee / quantity;
+      const issuedTickets = [];
+
+      for (let i = 0; i < quantity - alreadyIssued; i++) {
+        let ticket;
+        try {
+          ticket = await generateTicket({
+            paymentId: reference,
+            eventId: (m.eventId as string) || "",
+            ticketTypeId: (m.ticketTypeId as string) || "",
+            ticketTypeName: m.ticketTypeName as string | undefined,
+            eventTitle: m.eventTitle as string | undefined,
+            eventDate: m.eventDate as string | undefined,
+            eventTime: m.eventTime as string | undefined,
+            venue: m.venue as string | undefined,
+            buyerName: (m.buyerName as string) || "Guest",
+            buyerEmail: (m.buyerEmail as string) || "",
+            buyerPhone: (m.buyerPhone as string) || "",
+            buyerUserId: payment.userId,
+            displayName: m.displayName as string | undefined,
+            idNumber: m.idNumber as string | undefined,
+            seatNumber: m.seatNumber as string | undefined,
+            quantity: 1,
+            buyerFeeAmount: perTicketFee,
+            customFieldResponses: m.customFieldResponses as Record<string, string> | undefined,
+            receiverName: m.receiverName as string | undefined,
+            admitCount: m.admitCount as number | undefined,
+            partyComposition: m.partyComposition as { adults?: number; children?: number; seniors?: number } | undefined,
+            attendees: m.attendees as { name: string; idNumber?: string; ageGroup?: string; address?: string }[] | undefined,
+            // All tickets minted under one payment share the payment's id as
+            // their batch — that's what the batch barcode pulls up at the gate.
+            batchId: payment.id,
+            amount: perTicketAmount,
+            currency: (opts.currency ?? payment.currency).toUpperCase(),
+            paymentMethod: opts.paymentMethod,
+          });
+        } catch (genError) {
+          if (genError instanceof TicketSoldOutError) {
+            // Money has already been captured by the provider — this is not a
+            // "retry and it'll work" failure, it needs a human to refund the
+            // buyer. Flag it as loudly and searchably as possible: a distinct
+            // payments.status value (not the generic "paid") so it can't be
+            // mistaken for a normal successful sale, plus a clear error_message.
+            const flagMessage = `SOLD OUT AT FULFILLMENT — payment captured, no ticket issued, refund required. ${genError.message}`;
+            await createAdminClient()
+              .from("payments")
+              .update({ status: "paid_refund_required", error_message: flagMessage })
+              .eq("reference", reference);
+            logError("ticket_oversold_refund_required", genError, { reference, ticketTypeId: genError.ticketTypeId });
+            console.error("🔴 OVERSOLD — REFUND REQUIRED:", reference, genError.message);
+            return;
+          }
+          throw genError;
         }
-        throw genError;
+
+        if (!ticket || !ticket.id) {
+          throw new Error("Failed to generate ticket");
+        }
+
+        // Confirm from the backend that THIS ticket was actually persisted —
+        // the row is the proof, not the returned object.
+        const persisted = await PaymentService.getTicket(ticket.id);
+        if (!persisted) {
+          throw new Error(`Ticket generation could not be confirmed in database for payment ${reference}`);
+        }
+        issuedTickets.push(ticket);
       }
 
-      if (!ticket || !ticket.id) {
-        throw new Error("Failed to generate ticket");
+      console.log(`✓ Step 3/7: ${issuedTickets.length} ticket(s) generated and confirmed`);
+
+      // Count purchased add-ons against stock — once per payment, guarded by a
+      // metadata flag so fulfillment retries don't double-count. Add-ons are
+      // per-order (not per-ticket), so each line's quantity is added once.
+      // increment_addon_sold is atomic and refuses to oversell a limited add-on.
+      const purchasedAddOns = m.addOns as { addOnId?: string; quantity?: number }[] | undefined;
+      if (purchasedAddOns?.length && !m.addOnsCounted) {
+        for (const ao of purchasedAddOns) {
+          const qty = Math.max(0, Math.floor(Number(ao.quantity)) || 0);
+          if (!ao.addOnId || qty <= 0) continue;
+          const { data: newSold, error: addonErr } = await supabase.rpc("increment_addon_sold", {
+            p_id: ao.addOnId,
+            p_qty: qty,
+          });
+          if (addonErr) {
+            logError("addon_stock_increment_failed", addonErr, { reference, addOnId: ao.addOnId });
+          } else if (newSold === -1) {
+            // Would oversell a limited add-on — the buyer already paid, so the
+            // ticket still issues; flag it for manual stock resolution.
+            logError(
+              "addon_stock_oversell",
+              new Error(`Add-on ${ao.addOnId} oversold at fulfilment`),
+              { reference, addOnId: ao.addOnId, qty }
+            );
+          }
+        }
+        // Mark counted so a fulfillment retry doesn't add them again.
+        await supabase
+          .from("payments")
+          .update({ metadata: { ...m, addOnsCounted: true } })
+          .eq("reference", reference);
       }
 
-      console.log("✓ Step 3/7: Ticket generated", ticket.id);
-
-      // Step 4: Confirm from the backend that the ticket was actually persisted.
-      // Generation returning an object is not proof — the DB row is.
-      const persisted = await PaymentService.getTicketByPaymentReference(reference);
-      if (!persisted || persisted.id !== ticket.id) {
-        throw new Error(`Ticket generation could not be confirmed in database for payment ${reference}`);
-      }
-      console.log("✓ Step 4/7: Ticket confirmed in database", ticket.id);
-
-      // Step 5: Push the ticket to the buyer on both channels. Delivery is the
-      // proof of issuance — the ticket is only "issued" once at least one push
-      // has actually landed.
-      const buyerPhone = (m.buyerPhone as string) || ticket.buyerContact || "";
-      console.log("Step 5/7: Pushing ticket to email + WhatsApp...", ticket.buyerEmail, buyerPhone);
-      const [emailResult, whatsappResult] = await Promise.all([
-        sendTicketEmail(ticket),
-        sendTicketWhatsApp(ticket, buyerPhone),
-      ]);
-
-      const issued = emailResult.sent || whatsappResult.sent;
+      // Step 4: Push each newly-issued ticket to the buyer on both channels.
+      // Delivery is the proof of issuance — a ticket is only "issued" once at
+      // least one push has actually landed. Tickets minted by an earlier run
+      // already had their delivery attempted, so we only push this run's set.
+      console.log("Step 4/7: Pushing tickets to email + WhatsApp...", issuedTickets.length);
       const now = new Date().toISOString();
-      const supabase = createAdminClient();
-      // Best-effort delivery bookkeeping — must never fail fulfillment (e.g.
-      // before the delivery-tracking migration has been applied).
-      const { error: deliveryUpdateError } = await supabase
-        .from("tickets")
-        .update({
-          email_delivered_at: emailResult.sent ? now : null,
-          whatsapp_delivered_at: whatsappResult.sent ? now : null,
-          issued_at: issued ? now : null,
-          delivery_log: [
-            { channel: "email", at: now, ...emailResult },
-            { channel: "whatsapp", at: now, ...whatsappResult },
-          ],
-        })
-        .eq("id", ticket.id);
-      if (deliveryUpdateError) {
-        logError("ticket_delivery_tracking_update_failed", deliveryUpdateError, { reference, ticketId: ticket.id });
+      let anyIssued = false;
+
+      for (const ticket of issuedTickets) {
+        const buyerPhone = (m.buyerPhone as string) || ticket.buyerContact || "";
+        const [emailResult, whatsappResult] = await Promise.all([
+          sendTicketEmail(ticket),
+          sendTicketWhatsApp(ticket, buyerPhone),
+        ]);
+
+        const issued = emailResult.sent || whatsappResult.sent;
+        if (issued) anyIssued = true;
+
+        // Best-effort delivery bookkeeping — must never fail fulfillment (e.g.
+        // before the delivery-tracking migration has been applied).
+        const { error: deliveryUpdateError } = await supabase
+          .from("tickets")
+          .update({
+            email_delivered_at: emailResult.sent ? now : null,
+            whatsapp_delivered_at: whatsappResult.sent ? now : null,
+            issued_at: issued ? now : null,
+            delivery_log: [
+              { channel: "email", at: now, ...emailResult },
+              { channel: "whatsapp", at: now, ...whatsappResult },
+            ],
+          })
+          .eq("id", ticket.id);
+        if (deliveryUpdateError) {
+          logError("ticket_delivery_tracking_update_failed", deliveryUpdateError, { reference, ticketId: ticket.id });
+        }
+
+        if (!issued) {
+          logError("ticket_generated_but_not_issued", new Error("All delivery channels failed"), {
+            reference,
+            ticketId: ticket.id,
+            emailError: emailResult.error,
+            whatsappError: whatsappResult.error,
+          });
+          console.error("⚠️ Ticket generated but NOT issued — no delivery channel succeeded", ticket.id);
+        }
+
+        // Step 5: Send sale notification emails. Best-effort — a failure here
+        // must not rethrow into the catch below: the ticket row already exists,
+        // so a thrown error would mark fulfillment "failed" yet every retry
+        // would return early at the existingTickets guard and the notifications
+        // (and any alert) would never go out.
+        try {
+          await sendSaleNotificationEmails(ticket);
+        } catch (notifyError) {
+          logError("sale_notification_failed", notifyError, { reference, ticketId: ticket.id });
+          console.error("⚠️ Sale notification emails failed (ticket still issued)", ticket.id, notifyError);
+        }
       }
 
-      if (!issued) {
-        logError("ticket_generated_but_not_issued", new Error("All delivery channels failed"), {
-          reference,
-          ticketId: ticket.id,
-          emailError: emailResult.error,
-          whatsappError: whatsappResult.error,
-        });
-        console.error("⚠️ Ticket generated but NOT issued — no delivery channel succeeded", ticket.id);
-      } else {
-        console.log(
-          `✓ Step 6/7: Ticket issued — email: ${emailResult.sent ? "delivered" : emailResult.error}, ` +
-          `whatsapp: ${whatsappResult.sent ? "delivered" : whatsappResult.error}`
-        );
-      }
-
-      // Step 6: Send sale notification emails. Best-effort — a failure here
-      // must not rethrow into the catch below: the ticket row already exists,
-      // so a thrown error would mark fulfillment "failed" yet every retry
-      // would return early at the existingTicket guard and the notifications
-      // (and any alert) would never go out.
-      console.log("Step 7/7: Sending sale notifications...");
-      try {
-        await sendSaleNotificationEmails(ticket);
-        console.log("✓ Step 7/7: Sale notifications sent");
-      } catch (notifyError) {
-        logError("sale_notification_failed", notifyError, { reference, ticketId: ticket.id });
-        console.error("⚠️ Sale notification emails failed (ticket still issued)", ticket.id, notifyError);
-      }
-
-      console.log(issued ? "✅ FULFILLMENT COMPLETE — TICKET ISSUED:" : "⚠️ FULFILLMENT INCOMPLETE — TICKET NOT ISSUED:", reference, ticket.id);
+      console.log(anyIssued ? "✅ FULFILLMENT COMPLETE — TICKETS ISSUED:" : "⚠️ FULFILLMENT INCOMPLETE — TICKETS NOT ISSUED:", reference, issuedTickets.map((t) => t.id).join(", "));
 
       // sold_tickets changed — bust the public events cache so sell-through
       // ordering (Featured / Best Selling) and sold-out states stay honest.
@@ -410,10 +512,23 @@ export class PaymentService {
     return data || undefined;
   }
 
-  static async getTicketByPaymentReference(reference: string): Promise<Record<string, unknown> | undefined> {
+  // All ticket rows minted under one payment reference. A multi-ticket order
+  // produces N rows sharing the reference (grouped by batch_id at the gate),
+  // so callers that need the full set must use this — the singular helper
+  // below returns only the first.
+  static async getTicketsByPaymentReference(reference: string): Promise<Record<string, unknown>[]> {
     const supabase = createAdminClient();
-    const { data } = await supabase.from("tickets").select("*").eq("payment_reference", reference).maybeSingle();
-    return data || undefined;
+    const { data } = await supabase
+      .from("tickets")
+      .select("*")
+      .eq("payment_reference", reference)
+      .order("purchased_at", { ascending: true });
+    return data || [];
+  }
+
+  static async getTicketByPaymentReference(reference: string): Promise<Record<string, unknown> | undefined> {
+    const tickets = await PaymentService.getTicketsByPaymentReference(reference);
+    return tickets[0];
   }
 }
 
@@ -432,7 +547,9 @@ class PaynowService {
     paynow.returnUrl = `${origin}/tickets/confirmation?ref=${reference}`;
 
     const buyerEmail = (request.metadata?.buyerEmail as string) || "customer@eticketszw.com";
-    const payment = paynow.createPayment(reference, buyerEmail);
+    // Brand the reference Paynow shows the buyer — "eTicket-<uuid>". The
+    // webhook strips the prefix to recover the internal reference.
+    const payment = paynow.createPayment(`${PAYNOW_REF_PREFIX}${reference}`, buyerEmail);
     payment.add(request.product_name, request.amount);
 
     try {
@@ -598,7 +715,7 @@ class EcocashService {
       referenceCode: reference,
       tranType: "MER",
       endUserId,
-      remarks: "E-TicketsZW",
+      remarks: "eTicket",
       transactionOperationStatus: "Charged",
       terminalID,
       paymentAmount: {
@@ -661,45 +778,3 @@ class EcocashService {
 }
 
 export { EcocashService };
-
-class StripeService {
-  static async initiatePayment(reference: string, request: PaymentInitiateRequest): Promise<PaymentInitiateResponse> {
-    const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || "";
-    const origin = request.origin || getSiteUrl();
-
-    if (!STRIPE_SECRET_KEY) {
-      return { success: false, reference, redirect_url: "", error: "Stripe API key not configured" };
-    }
-
-    try {
-      const stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2026-05-27.dahlia" });
-      const session = await stripe.checkout.sessions.create({
-        mode: "payment",
-        payment_method_types: ["card"],
-        line_items: [{
-          price_data: {
-            currency: request.currency.toLowerCase(),
-            product_data: { name: request.product_name },
-            unit_amount: Math.round(request.amount * 100),
-          },
-          quantity: 1,
-        }],
-        metadata: {
-          reference,
-          ...(request.user_id ? { user_id: request.user_id } : {}),
-          ...(request.event_id ? { event_id: request.event_id } : {}),
-        },
-        success_url: `${origin}/tickets/confirmation?ref=${reference}`,
-        // /events doesn't exist (only /events/[id] and /allevents) — a
-        // cancelled checkout used to land on a 404.
-        cancel_url: request.event_id
-          ? `${origin}/events/${request.event_id}`
-          : `${origin}/allevents`,
-      });
-      return { success: true, reference, redirect_url: session.url ?? "", stripe_session_id: session.id };
-    } catch (error: unknown) {
-      logError("stripe_initiate", error, { reference });
-      return { success: false, reference, redirect_url: "", error: (error as Error)?.message || "Failed to create Stripe session" };
-    }
-  }
-}

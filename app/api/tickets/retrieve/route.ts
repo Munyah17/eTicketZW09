@@ -42,7 +42,10 @@ export async function GET(req: NextRequest) {
       totalPaid: ticket.total_paid,
       currency: ticket.currency,
       purchasedAt: ticket.purchased_at,
-      customFieldResponses: ticket.custom_field_responses ?? {},
+      // custom_field_responses is intentionally NOT returned — the
+      // confirmation page never renders it, and organizer-defined fields can
+      // capture ID numbers / addresses that don't belong in a public,
+      // reference-bearer response.
     },
   });
 }

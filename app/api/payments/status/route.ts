@@ -20,37 +20,6 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // If Stripe payment is still pending, verify directly with Stripe API.
-  // This handles the case where the webhook hasn't fired yet (e.g. local dev).
-  if (payment.status === "pending" && payment.provider === "stripe") {
-    const stripeSessionId = payment.metadata?.stripe_session_id;
-    const stripeKey = process.env.STRIPE_SECRET_KEY;
-
-    if (stripeSessionId && stripeKey) {
-      try {
-        const res = await fetch(
-          `https://api.stripe.com/v1/checkout/sessions/${stripeSessionId}`,
-          { headers: { Authorization: `Bearer ${stripeKey}` } }
-        );
-        const session = await res.json();
-        console.log("Direct Stripe session check:", session.id, session.status, session.payment_status);
-
-        if (res.ok && (session.payment_status === "paid" || session.status === "complete")) {
-          await PaymentService.confirmPaid(reference, {
-            amount: session.amount_total ? session.amount_total / 100 : payment.amount,
-            currency: (session.currency || payment.currency).toUpperCase(),
-            paymentMethod: "stripe",
-          });
-        } else if (res.ok && session.status === "expired") {
-          await PaymentService.markFailed(reference);
-        }
-      } catch (err) {
-        console.error("Direct Stripe verification error:", err);
-        // Non-fatal: fall through and return current status
-      }
-    }
-  }
-
   // Same for Paynow: when the buyer lands back on the confirmation page while
   // the payment is still pending (webhook delayed or missed), verify directly
   // with Paynow's servers and complete fulfillment right here.
@@ -107,7 +76,7 @@ export async function GET(req: NextRequest) {
   const instruction =
     updated.status === "paid"
       ? "accept"
-      : updated.status === "failed"
+      : updated.status === "failed" || updated.status === "refunded"
       ? "retry"
       : "pending";
 
@@ -116,9 +85,48 @@ export async function GET(req: NextRequest) {
       ? "Payment confirmed. Accept the payment and generate the ticket."
       : updated.status === "failed"
       ? "Payment failed. Decline this checkout and ask the user to try again."
+      : updated.status === "refunded"
+      ? "This payment was refunded. Any ticket issued for it is no longer valid."
       : updated.status === "on_hold"
       ? "Bank transfer order is on hold pending manual verification."
       : "Payment is still pending. Wait for confirmation before generating a ticket.";
+
+  // Never return the raw payment metadata — it carries buyer PII (name, email,
+  // phone, ID numbers, attendee details, custom-field answers). This endpoint
+  // is public (anyone holding the reference can call it), so expose only the
+  // two non-PII fields the confirmation page actually reads: the event id
+  // (retry link) and the bank-transfer reference on file.
+  const md = (updated.metadata ?? null) as Record<string, unknown> | null;
+  const safeMetadata = md
+    ? {
+        eventId: (md.eventId as string) ?? null,
+        transaction_reference: (md.transaction_reference as string) ?? null,
+      }
+    : null;
+
+  // Split-payment orders: surface a safe order summary so the confirmation
+  // page can tell the buyer their deposit landed and link them to pay the
+  // balance. Only non-PII fields are exposed — the order reference alone
+  // can't be used to pay without also knowing the buyer email.
+  let order: { reference: string; status: string; total: number; amountPaid: number; balance: number } | null = null;
+  const orderId = (md?.orderId as string) ?? null;
+  if (orderId) {
+    const { createAdminClient } = await import("@/lib/supabase/admin");
+    const { data: ord } = await createAdminClient()
+      .from("ticket_orders")
+      .select("reference, status, total, amount_paid, balance")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (ord) {
+      order = {
+        reference: ord.reference as string,
+        status: ord.status as string,
+        total: Number(ord.total),
+        amountPaid: Number(ord.amount_paid),
+        balance: Number(ord.balance),
+      };
+    }
+  }
 
   return NextResponse.json({
     success: true,
@@ -128,7 +136,8 @@ export async function GET(req: NextRequest) {
     reviewStatus: updated.reviewStatus ?? null,
     reviewReason: updated.reviewReason ?? null,
     error: updated.error || null,
-    metadata: updated.metadata || null,
+    metadata: safeMetadata,
+    order,
     instruction,
     message,
   });

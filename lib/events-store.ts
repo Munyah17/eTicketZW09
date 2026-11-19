@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
-import { Event, EventCategory, OrganizerCategory, TicketType, EventCustomField } from "./types";
+import { Event, EventCategory, OrganizerCategory, TicketType, EventCustomField, EventAddOn } from "./types";
 
 // Notify same-tab listeners (Realtime handles cross-tab)
 function notifyChange(): void {
@@ -37,7 +37,22 @@ function dbToEvent(row: Record<string, unknown>): Event {
       quantity: Number(tt.quantity),
       sold: Number(tt.sold),
       markup: Number(tt.markup) || 0,
+      customChargeFixed: Number(tt.custom_charge_fixed) || 0,
+      customChargePercent: Number(tt.custom_charge_percent) || 0,
+      customMarkupFixed: Number(tt.custom_markup_fixed) || 0,
+      customMarkupPercent: Number(tt.custom_markup_percent) || 0,
     })),
+    addOns: ((row.event_add_ons as Record<string, unknown>[] | null) || [])
+      .map((a) => ({
+        id: a.id as string,
+        name: a.name as string,
+        description: (a.description as string) || "",
+        price: Number(a.price),
+        quantity: a.quantity == null ? null : Number(a.quantity),
+        sold: Number(a.sold) || 0,
+        position: Number(a.position) || 0,
+      }))
+      .sort((a, b) => a.position - b.position),
     customFields: fields
       .map((f) => ({
         id: f.id as string,
@@ -52,6 +67,10 @@ function dbToEvent(row: Record<string, unknown>): Event {
     soldTickets: Number(row.sold_tickets) || 0,
     status: row.status as Event["status"],
     platformMarkup: Number(row.platform_markup) || 0,
+    showTicketCounts: !!row.show_ticket_counts,
+    allowSplitPayment: !!row.allow_split_payment,
+    splitDepositPercent: Number(row.split_deposit_percent) || 30,
+    splitInstallmentCount: Number(row.split_installment_count) || 2,
     promoVideo: row.promo_video as Event["promoVideo"],
     platformNegotiated: row.platform_negotiated as Event["platformNegotiated"],
     createdAt: row.created_at as string,
@@ -79,6 +98,10 @@ function eventToDbRow(event: Event) {
     total_tickets: event.totalTickets,
     status: event.status,
     platform_markup: event.platformMarkup || 0,
+    show_ticket_counts: !!event.showTicketCounts,
+    allow_split_payment: !!event.allowSplitPayment,
+    split_deposit_percent: event.splitDepositPercent ?? 30,
+    split_installment_count: event.splitInstallmentCount ?? 2,
     promo_video: event.promoVideo || null,
     platform_negotiated: event.platformNegotiated || null,
   };
@@ -94,8 +117,17 @@ function ticketTypeToDbRow(tt: TicketType, eventId: string) {
     price: tt.price,
     currency: tt.currency,
     quantity: tt.quantity,
-    sold: tt.sold,
+    // `sold` is deliberately NOT written here — it's owned by the
+    // update_sold_counts trigger and must never be set from the client, or an
+    // organizer could forge sell-through / sold-out state. New rows default
+    // to 0; updates leave the trigger-maintained value untouched.
     markup: tt.markup || 0,
+    // Per-class custom charge/markup — admin/super-admin only; organizers
+    // leave these at 0 and the server ignores client-supplied values.
+    custom_charge_fixed: tt.customChargeFixed || 0,
+    custom_charge_percent: tt.customChargePercent || 0,
+    custom_markup_fixed: tt.customMarkupFixed || 0,
+    custom_markup_percent: tt.customMarkupPercent || 0,
   };
 }
 
@@ -110,11 +142,25 @@ function customFieldToDbRow(f: EventCustomField, eventId: string) {
   };
 }
 
+function addOnToDbRow(a: EventAddOn, eventId: string, position: number) {
+  const isRealUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.id);
+  return {
+    ...(isRealUUID ? { id: a.id } : {}),
+    event_id: eventId,
+    name: a.name,
+    description: a.description || "",
+    price: a.price,
+    quantity: a.quantity ?? null,
+    position,
+    // `sold` is fulfillment-owned — never written from the client.
+  };
+}
+
 export async function getStoredEvents(limit = 50): Promise<Event[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("events")
-    .select("*, ticket_types(*), event_custom_fields(*)")
+    .select("*, ticket_types(*), event_custom_fields(*), event_add_ons(*)")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) { console.error("getStoredEvents:", error.message); return []; }
@@ -144,6 +190,12 @@ export async function saveEvent(event: Event): Promise<string> {
         event.customFields.map((f) => customFieldToDbRow(f, eventId))
       );
     }
+
+    if (event.addOns && event.addOns.length > 0) {
+      await supabase.from("event_add_ons").insert(
+        event.addOns.map((a, i) => addOnToDbRow(a, eventId, i))
+      );
+    }
   } else {
     eventId = event.id;
     await supabase.from("events").update(eventToDbRow(event)).eq("id", eventId);
@@ -154,6 +206,29 @@ export async function saveEvent(event: Event): Promise<string> {
         event.ticketTypes.map((tt) => ticketTypeToDbRow(tt, eventId)),
         { onConflict: "id" }
       );
+    }
+
+    // Sync add-ons: upsert the ones kept, delete any removed. Only real UUID
+    // ids are upserted — client-side keys for brand-new add-ons are ignored so
+    // the DB assigns the id.
+    const addOns = event.addOns || [];
+    const { data: existingAddOns } = await supabase
+      .from("event_add_ons")
+      .select("id")
+      .eq("event_id", eventId);
+    const existingIds = new Set(((existingAddOns ?? []) as { id: string }[]).map((a) => a.id));
+    const keepIds = new Set(addOns.filter((a) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(a.id)).map((a) => a.id));
+    const toDelete = [...existingIds].filter((aid) => !keepIds.has(aid));
+    if (toDelete.length > 0) {
+      await supabase.from("event_add_ons").delete().in("id", toDelete);
+    }
+    const upsertRows = addOns.map((a, i) => addOnToDbRow(a, eventId, i)).filter((r) => r.id);
+    if (upsertRows.length > 0) {
+      await supabase.from("event_add_ons").upsert(upsertRows, { onConflict: "id" });
+    }
+    const insertRows = addOns.map((a, i) => addOnToDbRow(a, eventId, i)).filter((r) => !r.id);
+    if (insertRows.length > 0) {
+      await supabase.from("event_add_ons").insert(insertRows);
     }
   }
 
@@ -171,7 +246,7 @@ export async function getEventById(id: string): Promise<Event | undefined> {
   const supabase = createClient();
   const { data } = await supabase
     .from("events")
-    .select("*, ticket_types(*)")
+    .select("*, ticket_types(*), event_add_ons(*)")
     .eq("id", id)
     .single();
   return data ? dbToEvent(data) : undefined;
@@ -181,7 +256,7 @@ export async function getOrganizerEvents(organizerId: string, limit = 50): Promi
   const supabase = createClient();
   const { data } = await supabase
     .from("events")
-    .select("*, ticket_types(*)")
+    .select("*, ticket_types(*), event_add_ons(*)")
     .eq("organizer_id", organizerId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -192,7 +267,7 @@ export async function getPublishedEvents(limit = 100): Promise<Event[]> {
   const supabase = createClient();
   const { data } = await supabase
     .from("events")
-    .select("*, ticket_types(*)")
+    .select("*, ticket_types(*), event_add_ons(*)")
     .eq("status", "published")
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -203,7 +278,7 @@ export async function getFeaturedEvents(count = 8): Promise<Event[]> {
   const supabase = createClient();
   const { data } = await supabase
     .from("events")
-    .select("*, ticket_types(*)")
+    .select("*, ticket_types(*), event_add_ons(*)")
     .eq("status", "published")
     .order("sold_tickets", { ascending: false })
     .limit(count);
@@ -214,7 +289,7 @@ export async function getNewestEvents(count = 8): Promise<Event[]> {
   const supabase = createClient();
   const { data } = await supabase
     .from("events")
-    .select("*, ticket_types(*)")
+    .select("*, ticket_types(*), event_add_ons(*)")
     .eq("status", "published")
     .order("created_at", { ascending: false })
     .limit(count);
@@ -225,7 +300,7 @@ export async function getEventsByCategory(category: string, limit = 12): Promise
   const supabase = createClient();
   const { data } = await supabase
     .from("events")
-    .select("*, ticket_types(*)")
+    .select("*, ticket_types(*), event_add_ons(*)")
     .eq("status", "published")
     .eq("category", category)
     .order("created_at", { ascending: false })
@@ -238,7 +313,7 @@ export async function getUpcomingEvents(limit = 20): Promise<Event[]> {
   const today = new Date().toISOString().split("T")[0];
   const { data } = await supabase
     .from("events")
-    .select("*, ticket_types(*)")
+    .select("*, ticket_types(*), event_add_ons(*)")
     .eq("status", "published")
     .gte("date", today)
     .order("date", { ascending: true })

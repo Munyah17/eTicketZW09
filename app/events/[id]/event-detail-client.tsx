@@ -109,7 +109,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                 <Badge className="absolute left-4 top-4 bg-background/90 text-foreground">
                   {categoryLabel}
                 </Badge>
-                {availableTickets < 50 && availableTickets > 0 && (
+                {event.showTicketCounts && availableTickets < 50 && availableTickets > 0 && (
                   <Badge className="absolute right-4 top-4 bg-warning text-warning-foreground">
                     Only {availableTickets} tickets left!
                   </Badge>
@@ -165,6 +165,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                     </div>
                   </div>
 
+                  {event.showTicketCounts && (
                   <div className="mt-4 rounded-lg bg-secondary/50 p-3">
                     <div className="flex items-center justify-between text-xs">
                       <span className="flex items-center gap-1 text-muted-foreground">
@@ -182,6 +183,7 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                       />
                     </div>
                   </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -234,9 +236,11 @@ export function EventDetailClient({ event }: EventDetailClientProps) {
                               {isSelected && <CheckCircle2 className="h-3 w-3 text-primary" />}
                             </div>
                             <p className="mt-0.5 text-xs text-muted-foreground">{ticketType.description}</p>
-                            <p className="mt-1 text-[10px] text-muted-foreground">
-                              {available > 0 ? `${available} available` : "Sold out"}
-                            </p>
+                            {(event.showTicketCounts || available === 0) && (
+                              <p className="mt-1 text-[10px] text-muted-foreground">
+                                {available > 0 ? `${available} available` : "Sold out"}
+                              </p>
+                            )}
                           </div>
                           <div className="ml-2 shrink-0 text-right">
                             <p className="text-base font-heading font-bold">${ticketType.price.toFixed(2)}</p>

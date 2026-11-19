@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -28,6 +28,20 @@ interface TicketTypeForm {
   price: string;
   quantity: string;
   sold: number;
+  // Per-class custom charge/markup (Super Admin only).
+  customChargeFixed: string;
+  customChargePercent: string;
+  customMarkupFixed: string;
+  customMarkupPercent: string;
+}
+
+interface AddOnForm {
+  id?: string;
+  key: string;
+  name: string;
+  description: string;
+  price: string;
+  quantity: string; // "" = unlimited
 }
 
 // Full event editing — Super Admin only. Lets a Super Admin fix or update a
@@ -51,6 +65,11 @@ export default function AdminEditEventPage() {
   const [venue, setVenue] = useState("");
   const [city, setCity] = useState("");
   const [ticketTypes, setTicketTypes] = useState<TicketTypeForm[]>([]);
+  const [addOns, setAddOns] = useState<AddOnForm[]>([]);
+  const [showTicketCounts, setShowTicketCounts] = useState(false);
+  const [allowSplitPayment, setAllowSplitPayment] = useState(false);
+  const [splitDepositPercent, setSplitDepositPercent] = useState("30");
+  const [splitInstallmentCount, setSplitInstallmentCount] = useState("2");
 
   // Featured image upload state
   const [featuredImage, setFeaturedImage] = useState<File | null>(null);
@@ -58,6 +77,7 @@ export default function AdminEditEventPage() {
   const [compressingImage, setCompressingImage] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -88,8 +108,26 @@ export default function AdminEditEventPage() {
           price: String(tt.price),
           quantity: String(tt.quantity),
           sold: tt.sold,
+          customChargeFixed: String(tt.customChargeFixed || 0),
+          customChargePercent: String(tt.customChargePercent || 0),
+          customMarkupFixed: String(tt.customMarkupFixed || 0),
+          customMarkupPercent: String(tt.customMarkupPercent || 0),
         }))
       );
+      setAddOns(
+        (event.addOns || []).map((a) => ({
+          id: a.id,
+          key: a.id,
+          name: a.name,
+          description: a.description || "",
+          price: String(a.price),
+          quantity: a.quantity == null ? "" : String(a.quantity),
+        }))
+      );
+      setShowTicketCounts(!!event.showTicketCounts);
+      setAllowSplitPayment(!!event.allowSplitPayment);
+      setSplitDepositPercent(String(event.splitDepositPercent || 30));
+      setSplitInstallmentCount(String(event.splitInstallmentCount || 2));
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "Failed to load event");
     } finally {
@@ -104,8 +142,34 @@ export default function AdminEditEventPage() {
   const addTicketType = () => {
     setTicketTypes([
       ...ticketTypes,
-      { key: `new-${Date.now()}`, name: "", description: "", price: "", quantity: "", sold: 0 },
+      {
+        key: `new-${Date.now()}`,
+        name: "",
+        description: "",
+        price: "",
+        quantity: "",
+        sold: 0,
+        customChargeFixed: "0",
+        customChargePercent: "0",
+        customMarkupFixed: "0",
+        customMarkupPercent: "0",
+      },
     ]);
+  };
+
+  const addAddOn = () => {
+    setAddOns([
+      ...addOns,
+      { key: `addon-${Date.now()}`, name: "", description: "", price: "", quantity: "" },
+    ]);
+  };
+
+  const removeAddOn = (key: string) => {
+    setAddOns(addOns.filter((a) => a.key !== key || a.id));
+  };
+
+  const updateAddOn = (key: string, field: keyof AddOnForm, value: string) => {
+    setAddOns(addOns.map((a) => (a.key === key ? { ...a, [field]: value } : a)));
   };
 
   const removeTicketType = (key: string) => {
@@ -161,7 +225,22 @@ export default function AdminEditEventPage() {
             description: t.description,
             price: parseFloat(t.price) || 0,
             quantity: parseInt(t.quantity) || 0,
+            customChargeFixed: parseFloat(t.customChargeFixed) || 0,
+            customChargePercent: parseFloat(t.customChargePercent) || 0,
+            customMarkupFixed: parseFloat(t.customMarkupFixed) || 0,
+            customMarkupPercent: parseFloat(t.customMarkupPercent) || 0,
           })),
+          addOns: addOns.map((a) => ({
+            id: a.id,
+            name: a.name,
+            description: a.description,
+            price: parseFloat(a.price) || 0,
+            quantity: a.quantity.trim() === "" ? null : parseInt(a.quantity) || 0,
+          })),
+          showTicketCounts,
+          allowSplitPayment,
+          splitDepositPercent: parseFloat(splitDepositPercent) || 30,
+          splitInstallmentCount: parseInt(splitInstallmentCount) || 2,
         }),
       });
       const data = await res.json();
@@ -310,22 +389,47 @@ export default function AdminEditEventPage() {
               <p className="text-sm">Optimizing your image…</p>
             </div>
           ) : featuredImagePreview || currentImageUrl ? (
-            <div className="relative">
-              <img
-                src={featuredImagePreview || currentImageUrl || ""}
-                alt="Featured preview"
-                className="w-full h-auto max-h-48 object-cover rounded-lg"
+            <div className="space-y-3">
+              <div className="relative">
+                <img
+                  src={featuredImagePreview || currentImageUrl || ""}
+                  alt="Featured preview"
+                  className="w-full h-auto max-h-48 object-cover rounded-lg"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFeaturedImage(null);
+                    setFeaturedImagePreview(null);
+                  }}
+                  className="absolute top-2 right-2 bg-destructive text-destructive-foreground p-2 rounded-lg hover:bg-destructive/90"
+                  title="Remove selected image"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  {featuredImagePreview ? "Choose a different image" : "Replace image"}
+                </Button>
+                {featuredImagePreview && (
+                  <p className="text-xs text-muted-foreground self-center">New image selected — save to apply.</p>
+                )}
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFeaturedImageUpload}
+                className="hidden"
               />
-              <button
-                type="button"
-                onClick={() => {
-                  setFeaturedImage(null);
-                  setFeaturedImagePreview(null);
-                }}
-                className="absolute top-2 right-2 bg-destructive text-destructive-foreground p-2 rounded-lg hover:bg-destructive/90"
-              >
-                <X className="h-4 w-4" />
-              </button>
             </div>
           ) : (
             <label className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-primary/20 p-8 cursor-pointer hover:bg-primary/5 transition-colors">
@@ -383,11 +487,137 @@ export default function AdminEditEventPage() {
                   <Input type="number" min={tt.sold} value={tt.quantity} onChange={(e) => updateTicketType(tt.key, "quantity", e.target.value)} className="mt-1.5" />
                 </div>
               </div>
+
+              {/* Per-class custom charge + markup — added on top of the price
+                  for THIS ticket class only. Leave at 0 for none. */}
+              <details className="rounded-md border bg-muted/30 px-3 py-2">
+                <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+                  Custom charges &amp; markup (optional)
+                </summary>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <Label className="text-xs">Fixed charge ($ per ticket)</Label>
+                    <Input type="number" min="0" step="0.01" value={tt.customChargeFixed} onChange={(e) => updateTicketType(tt.key, "customChargeFixed", e.target.value)} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Charge (%) of price</Label>
+                    <Input type="number" min="0" step="0.01" value={tt.customChargePercent} onChange={(e) => updateTicketType(tt.key, "customChargePercent", e.target.value)} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Fixed markup ($ per ticket)</Label>
+                    <Input type="number" min="0" step="0.01" value={tt.customMarkupFixed} onChange={(e) => updateTicketType(tt.key, "customMarkupFixed", e.target.value)} className="mt-1" />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Markup (%) of price</Label>
+                    <Input type="number" min="0" step="0.01" value={tt.customMarkupPercent} onChange={(e) => updateTicketType(tt.key, "customMarkupPercent", e.target.value)} className="mt-1" />
+                  </div>
+                </div>
+              </details>
             </div>
           ))}
           <Button variant="outline" className="w-full gap-2" onClick={addTicketType}>
             <Plus className="h-4 w-4" />
             Add Another Ticket Type
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Sales & payment settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Sales &amp; Payments</CardTitle>
+          <CardDescription>Visibility and payment-plan options for buyers</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+            <input
+              type="checkbox"
+              checked={showTicketCounts}
+              onChange={(e) => setShowTicketCounts(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-primary"
+            />
+            <span>
+              <span className="block text-sm font-medium">Show sold / available ticket counts</span>
+              <span className="block text-xs text-muted-foreground">
+                Display &quot;X sold&quot; and availability on the event card and detail page. Off by default.
+              </span>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+            <input
+              type="checkbox"
+              checked={allowSplitPayment}
+              onChange={(e) => setAllowSplitPayment(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-primary"
+            />
+            <span>
+              <span className="block text-sm font-medium">Allow pay-in-parts (deposit + installments)</span>
+              <span className="block text-xs text-muted-foreground">
+                Buyers can pay a deposit now and settle the balance later with any payment method.
+              </span>
+            </span>
+          </label>
+
+          {allowSplitPayment && (
+            <div className="grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2">
+              <div>
+                <Label>Deposit percentage</Label>
+                <Input type="number" min="10" max="90" value={splitDepositPercent} onChange={(e) => setSplitDepositPercent(e.target.value)} className="mt-1.5" />
+                <p className="mt-1 text-xs text-muted-foreground">% of the total charged up front (10–90).</p>
+              </div>
+              <div>
+                <Label>Suggested installments</Label>
+                <Input type="number" min="1" value={splitInstallmentCount} onChange={(e) => setSplitInstallmentCount(e.target.value)} className="mt-1.5" />
+                <p className="mt-1 text-xs text-muted-foreground">How many parts the balance is split into (informational).</p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Paid add-ons */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Add-ons</CardTitle>
+          <CardDescription>
+            Optional extras buyers can add at checkout (merch, books, caps…). Leave quantity blank for unlimited.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {addOns.map((a) => (
+            <div key={a.key} className="rounded-lg border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">{a.id ? "Add-on" : "New Add-on"}</span>
+                {!a.id && (
+                  <Button variant="ghost" size="icon" onClick={() => removeAddOn(a.key)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div>
+                  <Label>Name</Label>
+                  <Input value={a.name} onChange={(e) => updateAddOn(a.key, "name", e.target.value)} className="mt-1.5" placeholder="e.g. Event T-Shirt" />
+                </div>
+                <div>
+                  <Label>Price (USD)</Label>
+                  <Input type="number" min="0" step="0.01" value={a.price} onChange={(e) => updateAddOn(a.key, "price", e.target.value)} className="mt-1.5" />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label>Description</Label>
+                  <Input value={a.description} onChange={(e) => updateAddOn(a.key, "description", e.target.value)} className="mt-1.5" placeholder="Optional short description" />
+                </div>
+                <div>
+                  <Label>Stock (blank = unlimited)</Label>
+                  <Input type="number" min="0" value={a.quantity} onChange={(e) => updateAddOn(a.key, "quantity", e.target.value)} className="mt-1.5" placeholder="Unlimited" />
+                </div>
+              </div>
+            </div>
+          ))}
+          <Button variant="outline" className="w-full gap-2" onClick={addAddOn}>
+            <Plus className="h-4 w-4" />
+            Add an Add-on
           </Button>
         </CardContent>
       </Card>

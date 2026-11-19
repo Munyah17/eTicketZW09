@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,13 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function AdminEventsPage() {
   const { isSuperAdmin } = useAuth();
+  // This page is shared between /admin/events and /private/events (the
+  // private route re-exports it). Point the edit link at whichever portal
+  // the admin is actually in — a hardcoded /admin/* href would bounce a
+  // Super Admin through the admin layout's /admin→/private redirect, which
+  // reads as the button "not responding".
+  const pathname = usePathname();
+  const editBase = pathname?.startsWith("/private") ? "/private" : "/admin";
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -185,7 +193,7 @@ export default function AdminEventsPage() {
               <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
             </div>
           ) : (
-            <Table>
+            <Table className="min-w-[820px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Event</TableHead>
@@ -255,7 +263,7 @@ export default function AdminEventsPage() {
                             </>
                           )}
                           {isSuperAdmin && (
-                            <Link href={`/admin/events/${event.id}/edit`}>
+                            <Link href={`${editBase}/events/${event.id}/edit`}>
                               <Button size="sm" variant="outline" className="gap-1.5" title="Edit event listing">
                                 <Pencil className="h-3.5 w-3.5" />
                                 Edit

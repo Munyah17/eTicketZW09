@@ -4,7 +4,7 @@ const features = [
   {
     icon: Shield,
     title: "Secure Payments",
-    description: "All transactions are encrypted and processed by Stripe or Paynow — we never handle your card or wallet details.",
+    description: "All transactions are encrypted and processed by Paynow — we never handle your card or wallet details.",
   },
   {
     icon: Zap,

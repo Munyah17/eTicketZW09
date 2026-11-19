@@ -30,7 +30,7 @@ export default function PrivacyPage() {
               </ul>
               <p>
                 We do <strong>not</strong> collect or store your card number, CVV, or mobile money PIN.
-                Payment is entered directly on Stripe&apos;s or Paynow&apos;s own secure checkout pages.
+                Payment is entered directly on Paynow&apos;s own secure checkout page.
               </p>
             </section>
 
@@ -38,7 +38,7 @@ export default function PrivacyPage() {
               <h2 className="text-lg font-semibold">2. How we use it</h2>
               <ul className="list-disc pl-5">
                 <li>To create and manage your account, and to issue and email your tickets.</li>
-                <li>To process payments through Stripe and Paynow, and to detect and prevent fraud.</li>
+                <li>To process payments through Paynow, and to detect and prevent fraud.</li>
                 <li>To communicate with you about your orders, and, if you consent, about new events.</li>
                 <li>To meet legal and accounting obligations.</li>
               </ul>
@@ -48,7 +48,7 @@ export default function PrivacyPage() {
               <h2 className="text-lg font-semibold">3. Who we share it with</h2>
               <p>We share only what each service needs to do its job:</p>
               <ul className="list-disc pl-5">
-                <li><strong>Stripe</strong> and <strong>Paynow</strong> — to process your payment.</li>
+                <li><strong>Paynow</strong> — to process your payment.</li>
                 <li><strong>Supabase</strong> — our database and authentication provider, which stores your account and order data.</li>
                 <li><strong>Resend</strong> — to deliver your ticket confirmation emails.</li>
                 <li><strong>Vercel</strong> — our hosting provider.</li>

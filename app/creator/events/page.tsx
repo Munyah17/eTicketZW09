@@ -223,7 +223,7 @@ export default function OrganizerEventsPage() {
           </div>
 
           <div className="rounded-md border overflow-x-auto">
-            <Table className="min-w-full">
+            <Table className="min-w-[720px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Event</TableHead>

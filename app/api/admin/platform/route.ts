@@ -11,7 +11,6 @@ const ALLOWED_FIELDS = new Set([
   "new_organizer_signups",
   "maintenance_mode",
   "online_payments",
-  "stripe_enabled",
   "paynow_enabled",
   "ecocash_enabled",
   "announcement_active",
@@ -23,6 +22,8 @@ const ALLOWED_FIELDS = new Set([
   "support_phone",
   "auto_approve_events",
   "min_payout_amount",
+  "event_auto_removal_enabled",
+  "event_auto_removal_days",
 ]);
 
 export async function PATCH(req: NextRequest) {
@@ -52,6 +53,13 @@ export async function PATCH(req: NextRequest) {
   if ("min_payout_amount" in updates) {
     const min = Number(updates.min_payout_amount);
     updates.min_payout_amount = isNaN(min) ? 10 : Math.max(min, 0);
+  }
+  if ("event_auto_removal_days" in updates) {
+    const days = Number(updates.event_auto_removal_days);
+    updates.event_auto_removal_days = isNaN(days) ? 30 : Math.min(Math.max(Math.floor(days), 1), 365);
+  }
+  if ("event_auto_removal_enabled" in updates) {
+    updates.event_auto_removal_enabled = !!updates.event_auto_removal_enabled;
   }
 
   const supabase = createAdminClient();

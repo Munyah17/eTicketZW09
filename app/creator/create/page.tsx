@@ -38,6 +38,14 @@ interface CustomFieldForm {
   required: boolean;
 }
 
+interface AddOnForm {
+  id: string;
+  name: string;
+  description: string;
+  price: string;
+  quantity: string; // "" = unlimited
+}
+
 export default function CreateEventPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -130,6 +138,22 @@ export default function CreateEventPage() {
 
   const updateCustomField = <K extends keyof CustomFieldForm>(id: string, field: K, value: CustomFieldForm[K]) => {
     setCustomFields(customFields.map((f) => (f.id === id ? { ...f, [field]: value } : f)));
+  };
+
+  // Sales extras — optional paid add-ons, pay-in-parts, and whether to show
+  // sold/available counts publicly. Per-class custom charges stay admin-only.
+  const [addOns, setAddOns] = useState<AddOnForm[]>([]);
+  const [allowSplitPayment, setAllowSplitPayment] = useState(false);
+  const [splitDepositPercent, setSplitDepositPercent] = useState("30");
+  const [splitInstallmentCount, setSplitInstallmentCount] = useState("2");
+  const [showTicketCounts, setShowTicketCounts] = useState(false);
+
+  const addAddOn = () => {
+    setAddOns([...addOns, { id: Date.now().toString(), name: "", description: "", price: "", quantity: "" }]);
+  };
+  const removeAddOn = (id: string) => setAddOns(addOns.filter((a) => a.id !== id));
+  const updateAddOn = <K extends keyof AddOnForm>(id: string, field: K, value: AddOnForm[K]) => {
+    setAddOns(addOns.map((a) => (a.id === id ? { ...a, [field]: value } : a)));
   };
 
   const handleFeaturedImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -299,6 +323,21 @@ export default function CreateEventPage() {
             required: f.required,
             position: i,
           })),
+        addOns: addOns
+          .filter((a) => a.name.trim())
+          .map((a, i) => ({
+            id: "", // assigned by DB
+            name: a.name.trim(),
+            description: a.description.trim(),
+            price: parseFloat(a.price) || 0,
+            quantity: a.quantity.trim() === "" ? null : parseInt(a.quantity) || 0,
+            sold: 0,
+            position: i,
+          })),
+        allowSplitPayment,
+        splitDepositPercent: allowSplitPayment ? parseFloat(splitDepositPercent) || 30 : 30,
+        splitInstallmentCount: allowSplitPayment ? parseInt(splitInstallmentCount) || 2 : 2,
+        showTicketCounts,
         totalTickets: ticketTypes.reduce((sum, t) => sum + parseInt(t.quantity || "0"), 0),
         soldTickets: 0,
         status: autoApprove ? "published" : "pending_review",
@@ -940,6 +979,100 @@ export default function CreateEventPage() {
                 <Plus className="h-4 w-4" />
                 Add Custom Field
               </Button>
+            </div>
+
+            {/* Sales extras — optional paid add-ons, pay-in-parts, count display */}
+            <div className="space-y-4 border-t pt-6">
+              <div>
+                <h4 className="font-medium">Sales Extras (Optional)</h4>
+                <p className="text-sm text-muted-foreground">
+                  Sell add-ons, let buyers pay in parts, and choose whether ticket counts show publicly.
+                </p>
+              </div>
+
+              {/* Paid add-ons */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Add-ons buyers can buy (optional)</Label>
+                <p className="text-xs text-muted-foreground">
+                  Extras like merch, books or caps — priced on top of the ticket. Leave stock blank for unlimited.
+                </p>
+                {addOns.map((a) => (
+                  <div key={a.id} className="rounded-lg border p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium">Add-on</span>
+                      <Button variant="ghost" size="sm" onClick={() => removeAddOn(a.id)} className="text-destructive hover:text-destructive">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <Label>Name *</Label>
+                        <Input value={a.name} onChange={(e) => updateAddOn(a.id, "name", e.target.value)} placeholder="e.g. Event T-Shirt" className="mt-1.5" />
+                      </div>
+                      <div>
+                        <Label>Price (USD)</Label>
+                        <Input type="number" min="0" step="0.01" value={a.price} onChange={(e) => updateAddOn(a.id, "price", e.target.value)} className="mt-1.5" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label>Description</Label>
+                        <Input value={a.description} onChange={(e) => updateAddOn(a.id, "description", e.target.value)} placeholder="Optional" className="mt-1.5" />
+                      </div>
+                      <div>
+                        <Label>Stock (blank = unlimited)</Label>
+                        <Input type="number" min="0" value={a.quantity} onChange={(e) => updateAddOn(a.id, "quantity", e.target.value)} placeholder="Unlimited" className="mt-1.5" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                <Button variant="outline" onClick={addAddOn} className="w-full gap-2">
+                  <Plus className="h-4 w-4" />
+                  Add an Add-on
+                </Button>
+              </div>
+
+              {/* Pay in parts */}
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+                <input
+                  type="checkbox"
+                  checked={allowSplitPayment}
+                  onChange={(e) => setAllowSplitPayment(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-primary"
+                />
+                <span>
+                  <span className="block text-sm font-medium">Allow pay-in-parts</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Buyers pay a deposit now and settle the balance later with any payment method.
+                  </span>
+                </span>
+              </label>
+              {allowSplitPayment && (
+                <div className="grid gap-3 rounded-lg border bg-muted/30 p-3 sm:grid-cols-2">
+                  <div>
+                    <Label>Deposit percentage</Label>
+                    <Input type="number" min="10" max="90" value={splitDepositPercent} onChange={(e) => setSplitDepositPercent(e.target.value)} className="mt-1.5" />
+                  </div>
+                  <div>
+                    <Label>Suggested installments</Label>
+                    <Input type="number" min="1" value={splitInstallmentCount} onChange={(e) => setSplitInstallmentCount(e.target.value)} className="mt-1.5" />
+                  </div>
+                </div>
+              )}
+
+              {/* Ticket count visibility */}
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+                <input
+                  type="checkbox"
+                  checked={showTicketCounts}
+                  onChange={(e) => setShowTicketCounts(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-primary"
+                />
+                <span>
+                  <span className="block text-sm font-medium">Show sold / available ticket counts</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Display &quot;X sold&quot; and availability on the event card and detail page.
+                  </span>
+                </span>
+              </label>
             </div>
 
             <div className="flex gap-3">

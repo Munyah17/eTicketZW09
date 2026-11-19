@@ -17,10 +17,19 @@ export interface Event {
   organizerSubtype?: string;
   ticketTypes: TicketType[];
   customFields?: EventCustomField[];
+  addOns?: EventAddOn[];
   totalTickets: number;
   soldTickets: number;
   status: "draft" | "pending_review" | "published" | "cancelled" | "completed";
   soldOutAt?: string;
+  // Optional per-event display of sold vs available ticket counts on the
+  // listing card and detail page. Off by default.
+  showTicketCounts?: boolean;
+  // Split payments — buyer pays a deposit up front, then the balance in
+  // further parts (any method). Off by default.
+  allowSplitPayment?: boolean;
+  splitDepositPercent?: number; // share of the total due up front (e.g. 30)
+  splitInstallmentCount?: number; // number of balance payments after the deposit
   createdAt: string;
   updatedAt: string;
   platformMarkup?: number; // Admin can add markup percentage
@@ -65,6 +74,26 @@ export interface EventCustomField {
   position: number;
 }
 
+// A sellable extra a buyer can optionally add to their ticket at checkout
+// (t-shirt, book, cap, pre-listen track…). quantity null/undefined = unlimited.
+export interface EventAddOn {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  quantity?: number | null; // stock; null = unlimited
+  sold: number;
+  position: number;
+}
+
+// One line of add-ons purchased, recorded on the order/ticket.
+export interface PurchasedAddOn {
+  addOnId: string;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
 export interface TicketType {
   id: string;
   name: string;
@@ -74,6 +103,12 @@ export interface TicketType {
   quantity: number;
   sold: number;
   markup?: number;
+  // Admin/Super-Admin per-class custom charge & markup. Each is a fixed USD
+  // amount or a percentage of the class price; 0 = not applied.
+  customChargeFixed?: number;
+  customChargePercent?: number;
+  customMarkupFixed?: number;
+  customMarkupPercent?: number;
 }
 
 export interface Ticket {
@@ -108,7 +143,7 @@ export interface Ticket {
 
 export type PaymentMethod = "ecocash" | "innbucks" | "visa" | "mastercard" | "cash" | "stripe" | "paynow" | "epay" | "bank_transfer";
 
-export type PaymentProvider = "stripe" | "paynow" | "ecocash" | "epay" | "bank_transfer" | "mobile_money" | "card" | "cash";
+export type PaymentProvider = "paynow" | "ecocash" | "epay" | "bank_transfer" | "mobile_money" | "card" | "cash";
 
 export interface Banner {
   id: string;
@@ -257,6 +292,35 @@ export interface GateSale {
   tickets: string[];
 }
 
+// A ticket purchase settled across one or more payments (split payments).
+// amount_paid accumulates as each payment clears; tickets are issued once
+// amount_paid covers total.
+export interface TicketOrder {
+  id: string;
+  reference: string;
+  eventId: string;
+  ticketTypeId: string;
+  quantity: number;
+  buyerName: string;
+  buyerEmail: string;
+  buyerPhone?: string;
+  customFieldResponses?: Record<string, string>;
+  addOns?: PurchasedAddOn[];
+  subtotal: number;
+  fees: number;
+  total: number;
+  amountPaid: number;
+  balance: number;
+  status: "pending" | "partially_paid" | "paid" | "cancelled";
+  paymentPlan?: {
+    depositPercent: number;
+    installmentCount: number;
+    installments: { amount: number; paid: boolean; paidAt?: string; reference?: string }[];
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PurchaseFormData {
   ticketTypeId: string;
   quantity: number;
@@ -267,7 +331,6 @@ export interface PurchaseFormData {
 }
 
 export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string; provider: PaymentProvider }[] = [
-  { value: "stripe", label: "Card Payment", icon: "credit-card", provider: "stripe" },
   { value: "paynow", label: "Paynow", icon: "phone", provider: "paynow" },
   { value: "epay", label: "ePay", icon: "credit-card", provider: "epay" },
   { value: "ecocash", label: "EcoCash", icon: "phone", provider: "ecocash" },
@@ -284,17 +347,9 @@ export const GATE_PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
 
 export const ONLINE_PAYMENT_PROVIDERS = [
   {
-    id: "stripe" as PaymentProvider,
-    name: "Stripe",
-    description: "International card payments — powered by Stripe",
-    banner: "/payments/stripe-banner.png",
-    active: true,
-    methods: [],
-  },
-  {
     id: "paynow" as PaymentProvider,
     name: "Paynow",
-    description: "Zimbabwe's local payment gateway — powered by Paynow",
+    description: "Cards (Visa & Mastercard), EcoCash & more — powered by Paynow",
     banner: "/payments/paynow-banner.png",
     active: true,
     methods: [],

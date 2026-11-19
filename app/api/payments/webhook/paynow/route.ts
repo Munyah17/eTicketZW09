@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { PaymentService, PaynowService } from "@/lib/services/payment-service";
+import { PaymentService, PaynowService, PAYNOW_REF_PREFIX } from "@/lib/services/payment-service";
 import { logError } from "@/lib/error-logger";
 
 // Paynow result-URL webhook.
@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
 
     console.log("Paynow webhook received:", body);
 
-    reference = body.reference || "";
+    // Paynow echoes back the branded reference we sent ("eTicket-<uuid>").
+    // Strip the prefix to recover the internal payments.reference. Older
+    // payments sent before branding have a bare UUID — the replace is a no-op.
+    reference = (body.reference || "").replace(PAYNOW_REF_PREFIX, "");
     if (!reference) {
       return NextResponse.json({ error: "Missing payment reference" }, { status: 400 });
     }

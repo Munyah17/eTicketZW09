@@ -4,8 +4,8 @@ import { requireAdmin } from "@/lib/server-auth";
 import { PaymentService } from "@/lib/services/payment-service";
 import { logError } from "@/lib/error-logger";
 
-// Manual override for when a real Stripe/Paynow webhook hasn't confirmed a
-// payment (e.g. STRIPE_WEBHOOK_SECRET isn't configured yet). An admin who has
+// Manual override for when a real Paynow webhook hasn't confirmed a
+// payment (e.g. the webhook endpoint isn't reachable). An admin who has
 // checked the provider's own dashboard tells the app the outcome directly.
 //
 // CRITICAL: This endpoint must execute the ENTIRE fulfillment workflow:

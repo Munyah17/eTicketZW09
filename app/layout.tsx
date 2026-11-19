@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     default: 'E-TicketsZW | Zimbabwe\'s Premier Event Ticketing Platform',
     template: '%s | E-TicketsZW'
   },
-  description: 'Buy and sell tickets for concerts, comedy shows, marathons, festivals, and more across Zimbabwe. Secure payments via Stripe and Paynow.',
+  description: 'Buy and sell tickets for concerts, comedy shows, marathons, festivals, and more across Zimbabwe. Secure payments via Paynow.',
   keywords: ['tickets', 'events', 'Zimbabwe', 'concerts', 'comedy', 'marathon', 'festivals', 'Harare', 'Bulawayo'],
   authors: [{ name: 'E-TicketsZW' }],
   creator: 'E-TicketsZW',

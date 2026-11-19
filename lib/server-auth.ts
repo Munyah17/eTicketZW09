@@ -10,9 +10,12 @@ export async function requireAdmin(): Promise<AuthResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  const { data: p } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const { data: p } = await supabase.from("profiles").select("role, is_suspended").eq("id", user.id).single();
   if (!p || !ADMIN_ROLES.includes(p.role as string)) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  if (p.is_suspended) {
+    return { error: NextResponse.json({ error: "Account suspended" }, { status: 403 }) };
   }
   return { authed: true, user: { id: user.id, email: user.email ?? "", role: p.role as string } };
 }
@@ -24,9 +27,12 @@ export async function requireSuperAdmin(): Promise<AuthResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  const { data: p } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const { data: p } = await supabase.from("profiles").select("role, is_suspended").eq("id", user.id).single();
   if (!p || p.role !== "super_admin") {
     return { error: NextResponse.json({ error: "Forbidden — Super Admin only" }, { status: 403 }) };
+  }
+  if (p.is_suspended) {
+    return { error: NextResponse.json({ error: "Account suspended" }, { status: 403 }) };
   }
   return { authed: true, user: { id: user.id, email: user.email ?? "", role: p.role } };
 }
@@ -38,12 +44,15 @@ export async function requireOrganizerOrSuperAdmin(): Promise<AuthResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  const { data: p } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const { data: p } = await supabase.from("profiles").select("role, is_suspended").eq("id", user.id).single();
   if (!p) return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   const role = p.role as string;
   // Allow both organizers and super admins
   if (role !== "organizer" && role !== "super_admin") {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  if (p.is_suspended) {
+    return { error: NextResponse.json({ error: "Account suspended" }, { status: 403 }) };
   }
   return { authed: true, user: { id: user.id, email: user.email ?? "", role } };
 }
@@ -71,7 +80,8 @@ export async function canAccessTicket(
   if (ticket.buyer_user_id && ticket.buyer_user_id === user.id) return true;
   if (ticket.buyer_email && user.email && ticket.buyer_email.toLowerCase() === user.email.toLowerCase()) return true;
 
-  const { data: p } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  const { data: p } = await supabase.from("profiles").select("role, is_suspended").eq("id", user.id).single();
+  if (p?.is_suspended) return false;
   const role = p?.role as string | undefined;
   if (role === "admin" || role === "super_admin" || role === "staff") return true;
 

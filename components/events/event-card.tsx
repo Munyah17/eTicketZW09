@@ -20,9 +20,9 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
   const availableTickets = event.totalTickets - event.soldTickets;
   const categoryLabel = EVENT_CATEGORIES.find((c) => c.value === event.category)?.label || event.category;
 
-  // Only show "Selling Fast" if: fastSelling is true AND event actually meets selling criteria
-  // Criteria: sold >= 70% of tickets AND sold at least 10 tickets
-  const shouldShowSellFast = fastSelling && event.soldTickets >= 10 && event.totalTickets > 0 && (event.soldTickets / event.totalTickets) >= 0.7;
+  // Only show "Selling Fast" if the event opted into public ticket counts AND
+  // it actually meets selling criteria (sold >= 70% AND >= 10 tickets).
+  const shouldShowSellFast = !!event.showTicketCounts && fastSelling && event.soldTickets >= 10 && event.totalTickets > 0 && (event.soldTickets / event.totalTickets) >= 0.7;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -102,7 +102,7 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
             </Badge>
           ) : (
             <>
-              {availableTickets < 50 && availableTickets > 0 && (
+              {event.showTicketCounts && availableTickets < 50 && availableTickets > 0 && (
                 <Badge className="absolute right-3 top-3 bg-warning text-warning-foreground backdrop-blur-sm">
                   Only {availableTickets} left!
                 </Badge>
@@ -138,8 +138,9 @@ export function EventCard({ event, variant = "default", fastSelling = false, sta
             </div>
           </div>
 
-          {/* Tickets Sold Progress Bar */}
-          {event.totalTickets > 0 && (
+          {/* Tickets Sold Progress Bar — only when the event opted into
+              public ticket counts */}
+          {event.showTicketCounts && event.totalTickets > 0 && (
             <div className="mt-3 space-y-1">
               <div className="flex items-center justify-between text-[10px]">
                 <span className="text-muted-foreground">Tickets Sold</span>

@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/organizer-weekly-report",
       "schedule": "0 6 * * 1"
+    },
+    {
+      "path": "/api/cron/event-cleanup",
+      "schedule": "30 4 * * *"
     }
   ]
 }

@@ -17,7 +17,7 @@ import { ExportMenu } from "@/components/ui/export-menu";
 import type { ExportColumn } from "@/lib/export-utils";
 
 // Grace period before we offer a manual override — gives a real webhook
-// (or the customer's own confirmation-page visit, which re-checks Stripe
+// (or the customer's own confirmation-page visit, which re-checks Paynow
 // directly) a chance to resolve the payment first.
 const VERIFY_GRACE_MS = 40_000;
 
@@ -153,7 +153,7 @@ export default function AdminPaymentsPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Payment Verification</h1>
           <p className="text-muted-foreground mt-1">
-            Live payment ledger. Stripe and Paynow webhooks are configured and verified — most payments
+            Live payment ledger. Paynow webhooks are configured and verified — most payments
             confirm automatically. Manual verification is a fallback for a payment stuck pending; check the
             provider dashboard for the real outcome before approving.
           </p>
@@ -319,7 +319,7 @@ export default function AdminPaymentsPage() {
             </DialogTitle>
             <DialogDescription>
               {confirmAction?.status === "paid"
-                ? "Only approve if you've verified this exact amount was actually received in your Stripe or Paynow dashboard. This will immediately issue a ticket and email it to the buyer."
+                ? "Only approve if you've verified this exact amount was actually received in your Paynow dashboard. This will immediately issue a ticket and email it to the buyer."
                 : "This marks the payment as failed. The buyer will need to retry checkout."}
             </DialogDescription>
           </DialogHeader>

@@ -26,7 +26,6 @@ interface PlatformConfig {
   new_organizer_signups: boolean;
   maintenance_mode: boolean;
   online_payments: boolean;
-  stripe_enabled: boolean;
   paynow_enabled: boolean;
   ecocash_enabled: boolean;
   announcement_active: boolean;
@@ -39,6 +38,8 @@ interface PlatformConfig {
   support_phone: string;
   auto_approve_events: boolean;
   min_payout_amount: number;
+  event_auto_removal_enabled: boolean;
+  event_auto_removal_days: number;
 }
 
 export default function PlatformPage() {
@@ -100,7 +101,6 @@ export default function PlatformPage() {
           new_organizer_signups: config.new_organizer_signups,
           maintenance_mode: config.maintenance_mode,
           online_payments: config.online_payments,
-          stripe_enabled: config.stripe_enabled,
           paynow_enabled: config.paynow_enabled,
           ecocash_enabled: config.ecocash_enabled,
           announcement_active: config.announcement_active,
@@ -112,6 +112,8 @@ export default function PlatformPage() {
           support_phone: config.support_phone,
           auto_approve_events: config.auto_approve_events,
           min_payout_amount: config.min_payout_amount,
+          event_auto_removal_enabled: config.event_auto_removal_enabled,
+          event_auto_removal_days: config.event_auto_removal_days,
         }),
       });
       const json = await res.json();
@@ -301,8 +303,7 @@ export default function PlatformPage() {
               { key: "new_registrations" as const, label: "New Registrations", desc: "Allow new users to create accounts" },
               { key: "new_organizer_signups" as const, label: "New Organizer Signups", desc: "Allow organizers to request accounts" },
               { key: "online_payments" as const, label: "Online Payments", desc: "Master switch for all payment processing" },
-              { key: "stripe_enabled" as const, label: "Stripe Gateway", desc: "Card payments via Stripe" },
-              { key: "paynow_enabled" as const, label: "Paynow Gateway", desc: "Zimbabwe payments via Paynow" },
+              { key: "paynow_enabled" as const, label: "Paynow Gateway", desc: "Cards (Visa & Mastercard), EcoCash & more via Paynow" },
               { key: "ecocash_enabled" as const, label: "EcoCash Instant", desc: "Direct EcoCash wallet charges — PIN prompt sent to buyer's phone" },
               { key: "auto_approve_events" as const, label: "Auto-Approve Events", desc: "New events go live immediately; disable to hold them for admin review first" },
             ] as const).map(f => (
@@ -338,14 +339,8 @@ export default function PlatformPage() {
           <CardContent className="pt-4 space-y-3">
             {[
               {
-                name: "Stripe",
-                desc: "International cards · USD settlement",
-                enabled: config.stripe_enabled,
-                docsUrl: "https://dashboard.stripe.com",
-              },
-              {
                 name: "Paynow",
-                desc: "Zimbabwe local gateway · USD & ZWL",
+                desc: "Cards (Visa & Mastercard), EcoCash & more · USD & ZWL",
                 enabled: config.paynow_enabled,
                 docsUrl: "https://www.paynow.co.zw",
               },
@@ -558,6 +553,49 @@ export default function PlatformPage() {
           </CardContent>
         </Card>
 
+        <Card className="border-0 shadow-sm">
+          <CardHeader className="pb-3 border-b">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-50">
+                <AlertTriangle className="h-4 w-4 text-rose-600" />
+              </div>
+              <CardTitle className="text-base">Event Cleanup</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              By default every event stays listed. Turn on automatic removal to have past events
+              taken down once they&apos;re older than the number of days below — or remove events
+              manually from the Events list at any time.
+            </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="auto-remove">Auto-remove past events</Label>
+                <p className="text-xs text-muted-foreground mt-0.5">Off = keep all events listed.</p>
+              </div>
+              <Switch
+                id="auto-remove"
+                checked={!!config.event_auto_removal_enabled}
+                onCheckedChange={v => setFeature("event_auto_removal_enabled", v)}
+              />
+            </div>
+            {!!config.event_auto_removal_enabled && (
+              <div className="space-y-1.5">
+                <Label htmlFor="auto-remove-days">Remove events older than (days)</Label>
+                <Input
+                  id="auto-remove-days"
+                  type="number"
+                  min="1"
+                  max="365"
+                  value={config.event_auto_removal_days}
+                  onChange={e => setFeature("event_auto_removal_days", parseInt(e.target.value) || 30)}
+                />
+                <p className="text-xs text-muted-foreground">Events whose date passed more than this many days ago are removed.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         <Card className="border-0 shadow-sm lg:col-span-2">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center gap-2">
@@ -571,8 +609,8 @@ export default function PlatformPage() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {[
                 { label: "API Keys", value: "Env-managed", ok: true, note: "Stored in Vercel env vars" },
-                { label: "Webhook Signing", value: "Stripe only", ok: true, note: "STRIPE_WEBHOOK_SECRET must be set" },
-                { label: "PCI Compliance", value: "Stripe handles", ok: true, note: "No card data touches our servers" },
+                { label: "Webhook Verification", value: "Server-side poll", ok: true, note: "Status confirmed with Paynow/EcoCash APIs, not trusted from the webhook body" },
+                { label: "PCI Compliance", value: "Paynow handles", ok: true, note: "No card data touches our servers" },
                 { label: "Maintenance Mode", value: config.maintenance_mode ? "Active" : "Off", ok: !config.maintenance_mode, note: "Enforced in middleware" },
               ].map(s => (
                 <div key={s.label} className="rounded-lg border bg-background p-3">

@@ -224,7 +224,7 @@ export default function TransactionsPage() {
               <AlertTriangle className="h-5 w-5" /> Confirm Refund
             </DialogTitle>
             <DialogDescription>
-              This will mark the transaction as refunded. Actual funds reversal must be processed via your Stripe or Paynow dashboard.
+              This will mark the transaction as refunded. Actual funds reversal must be processed via your Paynow dashboard.
             </DialogDescription>
           </DialogHeader>
           {confirmRefund && (

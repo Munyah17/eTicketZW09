@@ -49,11 +49,12 @@ interface PaymentStatusResponse {
   success: boolean;
   reference: string;
   provider: string;
-  status: "pending" | "paid" | "failed" | "paid_refund_required" | "on_hold";
+  status: "pending" | "paid" | "failed" | "paid_refund_required" | "on_hold" | "refunded";
   reviewStatus: string | null;
   reviewReason: string | null;
   error: string | null;
   metadata: Record<string, any> | null;
+  order: { reference: string; status: string; total: number; amountPaid: number; balance: number } | null;
   instruction: "accept" | "retry" | "pending";
   message: string;
 }
@@ -126,7 +127,7 @@ function TicketConfirmationContent() {
     let timer: ReturnType<typeof setTimeout>;
     let attempts = 0;
     // EcoCash buyers land here while the PIN prompt is still on their phone,
-    // and Stripe/Paynow buyers often arrive before the webhook does — one
+    // and Paynow buyers often arrive before the webhook does — one
     // status check would strand them on "pending" forever. Poll until a
     // terminal state (or ~5 minutes), then show the pending UI with a
     // manual refresh.
@@ -166,6 +167,14 @@ function TicketConfirmationContent() {
         setPaymentStatus(data as PaymentStatusResponse);
 
         if (data.status === "paid") {
+          // Split-payment deposit: the payment is confirmed but the order
+          // still has a balance — no ticket is issued until it's settled.
+          // Stop polling for a ticket and let the balance-due UI render.
+          const ord = data.order;
+          if (ord && ord.status !== "paid" && ord.balance > 0) {
+            setLoadingStatus(false);
+            return;
+          }
           if (await fetchTicket()) {
             setLoadingStatus(false);
             return;
@@ -180,10 +189,10 @@ function TicketConfirmationContent() {
           return;
         }
 
-        // on_hold is terminal for polling purposes — only a human review
-        // changes it, so show the review state and stop. (A stalled order
-        // that gets resubmitted is reflected on the next page load/refresh.)
-        if (data.status === "failed" || data.status === "paid_refund_required" || data.status === "on_hold") {
+        // on_hold / refunded are terminal for polling purposes — only a human
+        // review changes them, so show the review state and stop. (A stalled
+        // order that gets resubmitted is reflected on the next page load.)
+        if (data.status === "failed" || data.status === "paid_refund_required" || data.status === "on_hold" || data.status === "refunded") {
           setLoadingStatus(false);
           return;
         }
@@ -439,6 +448,40 @@ function TicketConfirmationContent() {
                   Gate staff will have your wristband ready at the venue — printing your own is optional.
                 </p>
               </>
+            ) : paymentStatus.order && paymentStatus.order.status !== "paid" && paymentStatus.order.balance > 0 ? (
+              <div className="rounded-3xl border border-primary/20 bg-primary/5 p-8 text-center">
+                <Ticket className="mx-auto h-16 w-16 text-primary" />
+                <h1 className="mt-4 text-2xl font-bold">Deposit Received</h1>
+                <p className="mt-2 text-muted-foreground">
+                  Thanks — your deposit is confirmed. Your ticket will be issued once the
+                  remaining balance is paid.
+                </p>
+                <div className="mx-auto mt-6 max-w-sm rounded-xl border bg-background p-4 text-left">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Order reference</span>
+                    <span className="font-mono font-semibold">{paymentStatus.order.reference}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Paid so far</span>
+                    <span>${paymentStatus.order.amountPaid.toFixed(2)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Balance due</span>
+                    <span className="font-bold text-primary">${paymentStatus.order.balance.toFixed(2)}</span>
+                  </div>
+                </div>
+                <p className="mt-4 text-xs text-muted-foreground">
+                  Keep your order reference — you&apos;ll need it (plus your email) to pay the balance.
+                </p>
+                <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                  <Link href={`/orders/pay-balance?ref=${encodeURIComponent(paymentStatus.order.reference)}`}>
+                    <Button className="gap-2">Pay Balance Now</Button>
+                  </Link>
+                  <Link href="/allevents">
+                    <Button variant="outline">Browse Events</Button>
+                  </Link>
+                </div>
+              </div>
             ) : (
               <div className="rounded-3xl border border-success/20 bg-success/10 p-8 text-center">
                 <Ticket className="mx-auto h-16 w-16 text-success" />

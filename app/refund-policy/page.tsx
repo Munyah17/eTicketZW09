@@ -54,8 +54,8 @@ export default function RefundPolicyPage() {
             <section>
               <h2 className="text-lg font-semibold">4. How refunds are paid</h2>
               <p>
-                Approved refunds are returned to the original payment method — your card via Stripe, or your
-                mobile money/bank account via Paynow. Processing times depend on your bank or mobile money
+                Approved refunds are returned to the original payment method — your card or mobile money
+                account via Paynow. Processing times depend on your bank or mobile money
                 provider and are outside our control; card refunds typically take 5–10 business days,
                 Paynow refunds are typically faster.
               </p>

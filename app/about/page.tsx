@@ -33,7 +33,7 @@ const values = [
     icon: Heart,
     title: "By Zimbabweans, For Zimbabweans",
     description:
-      "Built locally to understand local needs. Pay via Stripe or Paynow — your checkout happens on their secure platform.",
+      "Built locally to understand local needs. Pay via Paynow — your checkout happens on their secure platform.",
   },
 ];
 

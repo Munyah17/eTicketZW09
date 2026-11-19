@@ -37,7 +37,7 @@ describe("renderTicketPng", () => {
       buyerEmail: "jane@example.com",
       totalPaid: 5,
       currency: "USD",
-      paymentMethod: "stripe",
+      paymentMethod: "paynow",
       purchasedAt: new Date().toISOString(),
     });
     expect(png.length).toBeGreaterThan(10000);

@@ -61,6 +61,10 @@ export function TicketPurchaseForm({
   const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
   const [platformFee, setPlatformFee] = useState(0);
   const [totalPrice, setTotalPrice] = useState(0);
+  // Optional paid add-ons (merch, books, etc.) the buyer can tack onto the
+  // order, keyed by add-on id -> quantity. And the split-payment opt-in.
+  const [addOnSelections, setAddOnSelections] = useState<Record<string, number>>({});
+  const [payInParts, setPayInParts] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
   // Each step ("details" -> "provider" -> "processing" -> "redirect") renders
@@ -89,11 +93,43 @@ export function TicketPurchaseForm({
 
   const basePrice = selectedTicketType ? selectedTicketType.price * quantity : 0;
 
+  // Per-class custom charge/markup (admin-set) is added on top of the ticket's
+  // face price — mirrors the server repricing in /api/payments/initiate so the
+  // quote and the displayed total match what will actually be charged.
+  const perTicketExtra = selectedTicketType
+    ? (selectedTicketType.customChargeFixed || 0) +
+      (selectedTicketType.customMarkupFixed || 0) +
+      (((selectedTicketType.customChargePercent || 0) + (selectedTicketType.customMarkupPercent || 0)) *
+        selectedTicketType.price) /
+        100
+    : 0;
+  const effectiveTicketPrice = selectedTicketType ? selectedTicketType.price + perTicketExtra : 0;
+  const ticketSubtotal = effectiveTicketPrice * quantity;
+  const addOnSubtotal = (event.addOns || []).reduce((sum, a) => {
+    const q = addOnSelections[a.id] || 0;
+    return sum + (q > 0 ? a.price * q : 0);
+  }, 0);
+  // What the buyer is actually buying before fees: tickets (with per-class
+  // extras) + chosen add-ons. This is the subtotal the quote + initiate use.
+  const itemsSubtotal = ticketSubtotal + addOnSubtotal;
+
+  // Raw selection sent to the server — it re-prices add-ons from the DB, so we
+  // only need to identify each one (addOnId) and the quantity wanted.
+  const addOnLines = (event.addOns || [])
+    .map((a) => ({ addOnId: a.id, quantity: addOnSelections[a.id] || 0 }))
+    .filter((l) => l.quantity > 0);
+
+  // When the buyer opted into split payment, only the deposit is charged now —
+  // the balance is settled later via /orders/pay-balance. Mirrors the server.
+  const splitActive = payInParts && !!event.allowSplitPayment;
+  const depositPct = Math.min(90, Math.max(10, event.splitDepositPercent || 30));
+  const chargeNow = splitActive ? (totalPrice * depositPct) / 100 : totalPrice;
+
   // The processing fee's rate is never sent to the browser (trade secret —
   // see memory: eticketzw-fee-secrecy). The server computes it and returns
   // only the resulting dollar amounts.
   useEffect(() => {
-    if (basePrice <= 0) {
+    if (itemsSubtotal <= 0) {
       setPlatformFee(0);
       setTotalPrice(0);
       return;
@@ -104,22 +140,22 @@ export function TicketPurchaseForm({
       headers: { "Content-Type": "application/json" },
       // Pass the chosen provider so bank transfer quotes include its
       // transaction cost on top of the platform fee.
-      body: JSON.stringify({ subtotal: basePrice, provider: selectedProvider ?? undefined }),
+      body: JSON.stringify({ subtotal: itemsSubtotal, provider: selectedProvider ?? undefined }),
     })
       .then((res) => res.json())
       .then((data) => {
         if (cancelled) return;
         setPlatformFee(Number(data.fee) || 0);
-        setTotalPrice(Number(data.total) || basePrice);
+        setTotalPrice(Number(data.total) || itemsSubtotal);
       })
       .catch(() => {
         if (!cancelled) {
           setPlatformFee(0);
-          setTotalPrice(basePrice);
+          setTotalPrice(itemsSubtotal);
         }
       });
     return () => { cancelled = true; };
-  }, [basePrice, selectedProvider]);
+  }, [itemsSubtotal, selectedProvider]);
 
   // Dev-only config reminder — a missing env var must never render as a
   // scary warning in a buyer's checkout on production.
@@ -224,6 +260,8 @@ export function TicketPurchaseForm({
             attendees: hasKids ? attendees : [],
             customFieldResponses: customFieldValues,
             platformFeeAmount: platformFee,
+            addOns: addOnLines,
+            splitPayment: payInParts && event.allowSplitPayment ? true : undefined,
           },
         }),
       });
@@ -320,6 +358,8 @@ export function TicketPurchaseForm({
             // sale really charged, not whatever the fee % happens to be by
             // the time fulfillment runs.
             platformFeeAmount: platformFee,
+            addOns: addOnLines,
+            splitPayment: payInParts && event.allowSplitPayment ? true : undefined,
           },
         }),
       });
@@ -430,7 +470,7 @@ export function TicketPurchaseForm({
               ? "Sending a payment request to your EcoCash wallet…"
               : selectedProvider === "bank_transfer"
               ? "Creating your bank transfer order…"
-              : "Creating your Stripe checkout session…"}
+              : "Creating your payment session…"}
           </p>
         </CardContent>
       </Card>
@@ -440,7 +480,7 @@ export function TicketPurchaseForm({
   // Checkout session is ready — user clicks this button to open the provider's hosted page in a new tab.
   // window.open is called directly from a click handler so it is never blocked by popup blockers.
   if (step === "redirect" && redirectUrl) {
-    const providerName = selectedProvider === "paynow" ? "Paynow" : "Stripe";
+    const providerName = selectedProvider === "paynow" ? "Paynow" : selectedProvider === "ecocash" ? "EcoCash" : "Paynow";
     return (
       <Card ref={cardRef}>
         <CardContent className="flex flex-col items-center justify-center py-10 gap-4">
@@ -525,6 +565,85 @@ export function TicketPurchaseForm({
                 </span>
               </div>
             </div>
+
+            {/* Optional paid add-ons — merch, books, etc. the buyer can add. */}
+            {(event.addOns || []).length > 0 && (
+              <div className="space-y-2">
+                <Label>Add-ons (optional)</Label>
+                <div className="space-y-2">
+                  {(event.addOns || []).map((addon) => {
+                    const qty = addOnSelections[addon.id] || 0;
+                    // quantity null = unlimited stock; otherwise stock minus sold.
+                    const availableStock =
+                      addon.quantity == null ? Infinity : Math.max(0, addon.quantity - (addon.sold || 0));
+                    const maxQty = Math.min(availableStock, 5);
+                    const soldOut = availableStock <= 0;
+                    return (
+                      <div
+                        key={addon.id}
+                        className={`flex items-center justify-between rounded-lg border p-3 ${soldOut ? "opacity-50" : ""}`}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{addon.name}</p>
+                          {addon.description && (
+                            <p className="truncate text-xs text-muted-foreground">{addon.description}</p>
+                          )}
+                          <p className="text-sm font-mono text-primary">${addon.price.toFixed(2)}</p>
+                          {soldOut && <p className="text-xs text-destructive">Sold out</p>}
+                        </div>
+                        {!soldOut && (
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={qty <= 0}
+                              onClick={() =>
+                                setAddOnSelections((s) => ({ ...s, [addon.id]: Math.max(0, (s[addon.id] || 0) - 1) }))
+                              }
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="w-5 text-center text-sm">{qty}</span>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={qty >= maxQty}
+                              onClick={() =>
+                                setAddOnSelections((s) => ({ ...s, [addon.id]: Math.min(maxQty, (s[addon.id] || 0) + 1) }))
+                              }
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Split payment — pay a deposit now, settle the balance later. */}
+            {event.allowSplitPayment && (
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+                <input
+                  type="checkbox"
+                  checked={payInParts}
+                  onChange={(e) => setPayInParts(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-primary"
+                />
+                <span>
+                  <span className="block text-sm font-medium">Pay in parts</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Pay a {event.splitDepositPercent || 30}% deposit now and the balance later, using any payment method.
+                  </span>
+                </span>
+              </label>
+            )}
 
             <div className="space-y-4">
               <div>
@@ -761,9 +880,15 @@ export function TicketPurchaseForm({
 
             <div className="space-y-2 border-t pt-4 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Subtotal</span>
-                <span className="font-mono">${basePrice.toFixed(2)}</span>
+                <span className="text-muted-foreground">Tickets</span>
+                <span className="font-mono">${ticketSubtotal.toFixed(2)}</span>
               </div>
+              {addOnSubtotal > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Add-ons</span>
+                  <span className="font-mono">${addOnSubtotal.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">
                   Processing Fee
@@ -774,6 +899,14 @@ export function TicketPurchaseForm({
                 <span>Total</span>
                 <span className="font-heading text-lg text-primary">${totalPrice.toFixed(2)}</span>
               </div>
+              {payInParts && event.allowSplitPayment && (
+                <div className="flex justify-between rounded-md bg-primary/10 p-2 font-medium text-primary">
+                  <span>Deposit due now ({event.splitDepositPercent || 30}%)</span>
+                  <span className="font-mono">
+                    ${((totalPrice * (event.splitDepositPercent || 30)) / 100).toFixed(2)}
+                  </span>
+                </div>
+              )}
             </div>
 
             <Button
@@ -798,14 +931,19 @@ export function TicketPurchaseForm({
                   </p>
                   <p className="text-sm text-muted-foreground">{event.title}</p>
                 </div>
-                <span className="font-heading font-bold text-primary">${totalPrice.toFixed(2)}</span>
+                <span className="font-heading font-bold text-primary">${chargeNow.toFixed(2)}</span>
               </div>
+              {splitActive && (
+                <p className="text-xs text-muted-foreground">
+                  Pay-in-parts: this is your {depositPct}% deposit. Balance of ${(totalPrice - chargeNow).toFixed(2)} due later.
+                </p>
+              )}
             </div>
 
             <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 space-y-2">
               <div className="flex items-center gap-2">
                 <Landmark className="h-4 w-4 text-primary" />
-                <p className="text-sm font-semibold">Transfer {selectedTicketType.currency} ${totalPrice.toFixed(2)} to:</p>
+                <p className="text-sm font-semibold">Transfer {selectedTicketType.currency} ${chargeNow.toFixed(2)} to:</p>
               </div>
               <div className="grid gap-1 text-sm">
                 <div className="flex justify-between gap-4">
@@ -842,7 +980,7 @@ export function TicketPurchaseForm({
                 {bankCopied && <p className="text-xs text-success">Account number copied</p>}
               </div>
               <p className="text-xs text-muted-foreground pt-1">
-                Use your order email or name as the payment narration. Your ticket is held until we
+                Use “eTicket” + your order email or name as the payment narration. Your ticket is held until we
                 verify the deposit — approval is done manually and you&apos;ll be notified by email and WhatsApp.
               </p>
               <p className="text-xs text-muted-foreground">
@@ -920,8 +1058,13 @@ export function TicketPurchaseForm({
                   </p>
                   <p className="text-sm text-muted-foreground">{event.title}</p>
                 </div>
-                <span className="font-heading font-bold text-primary">${totalPrice.toFixed(2)}</span>
+                <span className="font-heading font-bold text-primary">${chargeNow.toFixed(2)}</span>
               </div>
+              {splitActive && (
+                <p className="text-xs text-muted-foreground">
+                  Pay-in-parts: {depositPct}% deposit now, balance of ${(totalPrice - chargeNow).toFixed(2)} later.
+                </p>
+              )}
             </div>
 
             {paymentError && (
@@ -941,7 +1084,7 @@ export function TicketPurchaseForm({
             )}
 
             <PaymentProviders
-              amount={totalPrice}
+              amount={chargeNow}
               selectedProvider={selectedProvider}
               onSelect={handleProviderSelect}
             />

@@ -29,7 +29,6 @@ const footerLinks = {
 };
 
 const paymentMethods = [
-  { name: "Stripe", color: "bg-indigo-100 text-indigo-700" },
   { name: "Paynow", color: "bg-green-100 text-green-700" },
   { name: "ePay", color: "bg-sky-100 text-sky-700" },
 ];

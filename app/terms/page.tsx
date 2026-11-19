@@ -39,8 +39,8 @@ export default function TermsPage() {
               <h2 className="text-lg font-semibold">3. Buying tickets</h2>
               <p>
                 Tickets are sold by the event organizer; E-TicketsZW acts as the ticketing platform and
-                payment facilitator. All card and mobile money payments are processed directly by Stripe or
-                Paynow on their own secure, hosted checkout pages — E-TicketsZW never collects, sees, or
+                payment facilitator. All card and mobile money payments are processed directly by Paynow on
+                its own secure, hosted checkout page — E-TicketsZW never collects, sees, or
                 stores your card number, mobile money PIN, or other payment credentials.
               </p>
               <p>
@@ -85,8 +85,8 @@ export default function TermsPage() {
               <p>
                 E-TicketsZW provides the platform on an &quot;as is&quot; basis. To the maximum extent
                 permitted by law, E-TicketsZW is not liable for losses arising from an event being cancelled,
-                postponed, or changed by its organizer, or for payment issues arising on Stripe&apos;s or
-                Paynow&apos;s own systems.
+                postponed, or changed by its organizer, or for payment issues arising on Paynow&apos;s own
+                systems.
               </p>
             </section>
 

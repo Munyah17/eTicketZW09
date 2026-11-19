@@ -50,7 +50,8 @@ export async function POST(
   }
 
   const supabase = createAdminClient();
-  const metadata = { ...(payment.metadata ?? {}) } as Record<string, unknown>;
+  const prevMeta = (payment.metadata ?? {}) as Record<string, unknown>;
+  const metadata = { ...prevMeta } as Record<string, unknown>;
 
   if (file && file.size > 0) {
     // ~20MB cap, matching the bucket limit — proof files are usually
@@ -89,6 +90,31 @@ export async function POST(
   // "awaiting review" — the admin queue is what matters, not which round.
   metadata.review_status = "awaiting_review";
 
+  // Notification dedup + throttle. The reference is a bearer secret, but a
+  // buyer (or anyone who intercepted the link) can still POST this endpoint
+  // repeatedly — each call would otherwise fire an admin email + SMS. Only
+  // notify when the submission is actually new (first submit, a resubmit
+  // after review, a changed txn ref, or a new proof file) AND at most once
+  // per 5 minutes per order. The markers are written into metadata in the
+  // same update as the submission so the throttle survives a crash.
+  const prevReviewStatus = prevMeta.review_status as string | undefined;
+  const prevTxnRef = prevMeta.transaction_reference as string | undefined;
+  const hasNewProof = !!file && file.size > 0;
+  const isNewSubmission =
+    prevReviewStatus !== "awaiting_review" ||
+    (!!txnRef && txnRef !== prevTxnRef) ||
+    hasNewProof;
+
+  const lastNotifiedAt = prevMeta.last_notified_at as string | undefined;
+  const throttled =
+    !!lastNotifiedAt && Date.now() - new Date(lastNotifiedAt).getTime() < 5 * 60 * 1000;
+
+  const shouldNotify = isNewSubmission && !throttled;
+  if (shouldNotify) {
+    metadata.last_notified_at = new Date().toISOString();
+    metadata.last_notified_signature = `${txnRef}|${metadata.proof_path ?? ""}|awaiting_review`;
+  }
+
   const { error: updateError } = await supabase
     .from("payments")
     .update({ metadata, review_status: "awaiting_review" })
@@ -103,17 +129,19 @@ export async function POST(
   // System notification channels: super admin email + ops SMS. Fire-and-
   // forget — the submission is already recorded, a notification hiccup
   // must not fail the buyer's request.
-  notifyBankTransferSubmitted({
-    reference,
-    eventTitle: m.eventTitle as string | undefined,
-    buyerName: m.buyerName as string | undefined,
-    buyerEmail: m.buyerEmail as string | undefined,
-    buyerPhone: m.buyerPhone as string | undefined,
-    amount: payment.amount,
-    currency: payment.currency,
-    transactionReference: (m.transaction_reference as string) || txnRef || undefined,
-    hasProof: !!m.proof_path,
-  }).catch(() => {});
+  if (shouldNotify) {
+    notifyBankTransferSubmitted({
+      reference,
+      eventTitle: m.eventTitle as string | undefined,
+      buyerName: m.buyerName as string | undefined,
+      buyerEmail: m.buyerEmail as string | undefined,
+      buyerPhone: m.buyerPhone as string | undefined,
+      amount: payment.amount,
+      currency: payment.currency,
+      transactionReference: (m.transaction_reference as string) || txnRef || undefined,
+      hasProof: !!m.proof_path,
+    }).catch(() => {});
+  }
 
   return NextResponse.json({ success: true });
 }
